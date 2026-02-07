@@ -122,7 +122,7 @@ func runMove(cmd *cobra.Command, args []string) error {
 
 	for _, file := range filesToCopy {
 		destDir := filepath.Dir(filepath.Join(targetPath, file))
-		os.MkdirAll(destDir, 0755)
+		_ = os.MkdirAll(destDir, 0755)
 
 		if err := copyFile(filepath.Join(sourceRoot, file), filepath.Join(targetPath, file)); err != nil {
 			fmt.Printf("  %s Failed to copy: %s\n", ui.Red(ui.Fail), file)
@@ -203,7 +203,7 @@ func resolveOrCreateTarget(ctx *cmdContext, name, sourceRoot string) (string, bo
 		return "", false, fmt.Errorf("branch already exists: %s\n   Use 'wt new --from %s' first, then 'wt move' to it", branch, branch)
 	}
 
-	git.Fetch(ctx.Config.Remote, ctx.Config.BaseBranch)
+	_ = git.Fetch(ctx.Config.Remote, ctx.Config.BaseBranch)
 
 	if err := git.AddWorktree(wtPath, branch, ctx.baseRef()); err != nil {
 		return "", false, fmt.Errorf("failed to create worktree: %w", err)

@@ -130,7 +130,7 @@ func runPrune(cmd *cobra.Command, args []string) error {
 		}
 
 		if git.BranchExists(s.Branch) {
-			git.DeleteBranch(s.Branch)
+			_ = git.DeleteBranch(s.Branch)
 		}
 		fmt.Printf("  %s %s\n", ui.Green(ui.Pass), short)
 		removedCount++

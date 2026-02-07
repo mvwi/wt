@@ -63,7 +63,7 @@ func runNew(cmd *cobra.Command, args []string) error {
 
 func newFromExisting(ctx *cmdContext, name, fromBranch string) error {
 	// Fetch to get latest refs
-	git.FetchAll(ctx.Config.Remote)
+	_ = git.FetchAll(ctx.Config.Remote)
 
 	ref, isRemote, err := git.ResolveBranch(fromBranch, ctx.Config.Remote)
 	if err != nil {
@@ -143,7 +143,7 @@ func newFromBase(ctx *cmdContext, name string) error {
 	fmt.Println()
 
 	// Fetch latest base branch
-	git.Fetch(ctx.Config.Remote, ctx.Config.BaseBranch)
+	_ = git.Fetch(ctx.Config.Remote, ctx.Config.BaseBranch)
 
 	if err := git.AddWorktree(wtPath, branch, ctx.baseRef()); err != nil {
 		return fmt.Errorf("failed to create worktree: %w", err)

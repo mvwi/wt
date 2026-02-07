@@ -98,5 +98,5 @@ func MoveWorktree(oldPath, newPath string) error {
 
 // PruneWorktrees cleans up stale worktree bookkeeping.
 func PruneWorktrees() {
-	RunSilent("worktree", "prune")
+	_ = RunSilent("worktree", "prune")
 }

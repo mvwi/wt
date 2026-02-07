@@ -24,7 +24,7 @@ func RebaseAbort() error {
 
 // RebaseAbortIn aborts a rebase in a specific directory.
 func RebaseAbortIn(dir string) {
-	RunSilentIn(dir, "rebase", "--abort")
+	_ = RunSilentIn(dir, "rebase", "--abort")
 }
 
 // IsRebaseInProgress checks if a rebase is currently active.
@@ -53,7 +53,7 @@ func PushSetUpstream(remote string) error {
 
 // FetchPrune fetches and prunes dead remote refs.
 func FetchPrune() {
-	RunSilent("fetch", "--prune")
+	_ = RunSilent("fetch", "--prune")
 }
 
 // SaveStateFile writes the rebase state to a file in the git dir.

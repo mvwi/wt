@@ -85,7 +85,7 @@ func rebaseFeatureBranch(ctx *cmdContext, branch string) error {
 	}
 
 	// Save state for --continue
-	git.SaveStateFile(stateFileName, didStash)
+	_ = git.SaveStateFile(stateFileName, didStash)
 
 	// Fetch base branch
 	fmt.Printf("Fetching %s...\n", ctx.baseRef())
@@ -203,7 +203,7 @@ func rebaseContinue() error {
 func rebaseAbort() error {
 	inProgress, _ := git.IsRebaseInProgress()
 	if inProgress {
-		git.RebaseAbort()
+		_ = git.RebaseAbort()
 	}
 
 	if git.StateFileExists(stateFileName) {
@@ -226,7 +226,7 @@ func rebaseAll(ctx *cmdContext) error {
 	fmt.Println()
 
 	fmt.Printf("Fetching %s...\n\n", ctx.baseRef())
-	git.Fetch(ctx.Config.Remote, ctx.Config.BaseBranch)
+	_ = git.Fetch(ctx.Config.Remote, ctx.Config.BaseBranch)
 
 	var rebased, skipped, uptodate, failed int
 
@@ -282,6 +282,6 @@ func rebaseAll(ctx *cmdContext) error {
 func restoreStash(state string) {
 	if state == "stashed" {
 		fmt.Println("Restoring stashed changes...")
-		git.StashPop()
+		_ = git.StashPop()
 	}
 }

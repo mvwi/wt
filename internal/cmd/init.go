@@ -58,7 +58,7 @@ func runInitIn(dir string, ctx *cmdContext) error {
 			fmt.Printf("Copying %s from main repo...\n", envFile)
 			data, err := os.ReadFile(src)
 			if err == nil {
-				os.WriteFile(dst, data, 0644)
+				_ = os.WriteFile(dst, data, 0644)
 				didSomething = true
 			}
 		}
@@ -103,7 +103,7 @@ func runInitIn(dir string, ctx *cmdContext) error {
 				fmt.Printf("Running custom init script (%s)...\n", script)
 				if err := runShellString(cwd, "fish "+scriptPath); err != nil {
 					// Try sh if fish fails
-					runShellString(cwd, "sh "+scriptPath)
+					_ = runShellString(cwd, "sh "+scriptPath)
 				}
 				didSomething = true
 				break

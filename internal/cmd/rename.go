@@ -142,7 +142,7 @@ func runRename(cmd *cobra.Command, args []string) error {
 			// Rollback branch rename
 			if currentBranch != newBranch {
 				fmt.Println("   Rolling back branch rename...")
-				git.RenameBranch(newBranch, currentBranch)
+				_ = git.RenameBranch(newBranch, currentBranch)
 			}
 			return fmt.Errorf("failed to move worktree: %w", err)
 		}
@@ -162,7 +162,7 @@ func runRename(cmd *cobra.Command, args []string) error {
 				fmt.Printf("   %s\n", ui.Cyan(fmt.Sprintf("git push -u %s HEAD && git push %s --delete %s", ctx.Config.Remote, ctx.Config.Remote, currentBranch)))
 			} else {
 				git.FetchPrune()
-				git.SetUpstream(ctx.Config.Remote, newBranch)
+				_ = git.SetUpstream(ctx.Config.Remote, newBranch)
 			}
 		}
 	}

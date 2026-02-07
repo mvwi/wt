@@ -1,0 +1,97 @@
+# wt — Git Worktree Manager
+
+## What This Is
+
+A Go CLI that manages git worktrees with an opinionated workflow: create feature branches, sync with a base branch, track GitHub PR status, and clean up when done. Ported from a fish shell script — the Go version is distributable via Homebrew and works with any shell.
+
+## Architecture
+
+```
+cmd/wt/main.go              Entry point — just calls cmd.Execute()
+internal/
+  cmd/                       Cobra commands (one file per command)
+    context.go               Shared cmdContext: config + repo info, built once per command
+    root.go                  Root command, version flag
+    new.go                   Create worktree + branch
+    init.go                  Initialize worktree (deps, .env, prisma)
+    list.go                  Show worktrees + PR/review/CI status
+    switch.go                Switch worktree (fzf picker or fuzzy match)
+    rebase.go                Rebase onto base branch (--all, --continue, --abort)
+    submit.go                Rebase + push
+    move.go                  Move uncommitted changes between worktrees
+    close.go                 Close + clean up worktree
+    prune.go                 Remove stale worktrees (merged/closed PRs)
+    rename.go                Rename branch + directory + remote
+    shell.go                 Shell wrapper output (init-shell fish|bash|zsh)
+    completion.go            Shell completion generation
+  git/                       Wraps `git` CLI via exec.Command
+    git.go                   Run/RunIn/RunPassthrough/RunSilent helpers
+    worktree.go              List, Add, Remove, Move worktrees
+    branch.go                Branch operations + ahead/behind calculation
+    repo.go                  RepoName, MainWorktree, Username, TopLevel
+    status.go                HasChanges, StatusPorcelain, UnpushedCount
+    stash.go                 StashPush, StashPop
+    rebase.go                Rebase, MergeFF, Push, state file management
+  github/                    Wraps `gh` CLI — degrades gracefully if not installed
+    github.go                PR listing, review/CI summaries, branch rename via API
+  ui/                        Terminal output helpers
+    ui.go                    Colors, prompts, glyphs, cd hints, Truncate
+  config/                    Configuration from .wt.toml
+    config.go                Load config with defaults, Effective* methods
+```
+
+## Key Patterns
+
+### cmdContext — shared per-command context
+Every command starts with `ctx, err := newContext()`. This reads `.wt.toml` once and resolves repo info. Use `ctx.branchName("feat")`, `ctx.worktreePath("feat")`, `ctx.baseRef()` instead of hardcoding values. All configurability flows through here.
+
+### Shell cd via `__WT_CD__:` hints
+The Go binary can't change the parent shell's directory. Commands that need to cd (new, switch, close, rename) call `ui.PrintCdHint(path)` which prints `__WT_CD__:/path/to/worktree`. The shell wrapper from `wt init-shell` intercepts these and runs `cd`. Everything else passes through to stdout normally.
+
+### Git operations: shell out, don't use go-git
+We call the `git` CLI via `exec.Command`. go-git has poor worktree support and divergent behavior. The `git.Run()` / `git.RunIn()` helpers capture output; `git.RunPassthrough()` streams to terminal for interactive commands (rebase, push). `git.RunSilent()` discards output.
+
+### GitHub integration: graceful degradation
+`github.IsAvailable()` checks if `gh` is on PATH. All GitHub features (PR status in list, safety checks in close, remote rename) are skipped silently when `gh` isn't installed. JSON is parsed with `encoding/json` — no `jq` dependency.
+
+### Configuration: zero-config with full override
+`.wt.toml` is optional. Defaults: `base_branch = "main"`, `remote = "origin"`, `branch_prefix` = git username. Config is loaded from the main worktree root (not cwd). See `config.go` for all fields.
+
+## External Dependencies
+
+- **git** — required, called via `exec.Command`
+- **gh** (GitHub CLI) — optional, enables PR status/safety checks
+- **fzf** — optional, enables interactive picker in `wt switch`
+
+## Go Dependencies
+
+- `github.com/spf13/cobra` — CLI framework + shell completions
+- `github.com/fatih/color` — terminal colors (respects NO_COLOR)
+- `github.com/BurntSushi/toml` — config parsing
+
+## Build & Test
+
+```sh
+make build        # Build ./wt binary
+make install      # go install to $GOPATH/bin
+make test         # go test ./...
+make lint         # golangci-lint
+go vet ./...      # Static analysis
+```
+
+## Conventions
+
+- One Cobra command per file in `internal/cmd/`
+- Commands should call `newContext()` first, then use `ctx.*` helpers
+- User-facing errors: return `fmt.Errorf(...)` — Cobra prints them
+- User-facing output: use `ui.Success()`, `ui.Error()`, `ui.Warn()`, `fmt.Println()`
+- Don't hardcode "staging", "main", or "origin" — use `ctx.Config.BaseBranch`, `ctx.Config.Remote`
+- Git operations go through `internal/git/`, not raw `exec.Command`
+- GitHub operations go through `internal/github/`, always check `IsAvailable()` first
+- Interactive prompts use `ui.Confirm(message, defaultYes)` — defaultYes=true for safe operations (Y/n), false for destructive (y/N)
+
+## Distribution
+
+- GoReleaser builds darwin/linux × amd64/arm64
+- Homebrew formula auto-published to `mvwi/homebrew-tap` on tag push
+- CI runs on push to main and PRs: test (ubuntu + macos), lint, build

@@ -1,0 +1,58 @@
+version: 2
+
+builds:
+  - main: ./cmd/wt
+    binary: wt
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X github.com/mvwi/wt/internal/cmd.Version={{.Version}}
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+
+brews:
+  - repository:
+      owner: mvwi
+      name: homebrew-tap
+    homepage: "https://github.com/mvwi/wt"
+    description: "Git worktree manager - streamlined workflow for feature branches"
+    license: "MIT"
+    install: |
+      bin.install "wt"
+    caveats: |
+      To enable shell integration (required for 'wt switch' and 'wt new' to change directories):
+
+        Fish:  Add to ~/.config/fish/config.fish:
+               eval (wt init-shell fish)
+
+        Bash:  Add to ~/.bashrc:
+               eval "$(wt init-shell bash)"
+
+        Zsh:   Add to ~/.zshrc:
+               eval "$(wt init-shell zsh)"
+
+      To generate shell completions:
+        wt completion fish | source
+        eval "$(wt completion bash)"
+        eval "$(wt completion zsh)"
+    test: |
+      system "#{bin}/wt", "--version"

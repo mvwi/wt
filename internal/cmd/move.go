@@ -1,0 +1,246 @@
+package cmd
+
+import (
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+
+	"github.com/mvwi/wt/internal/git"
+	"github.com/mvwi/wt/internal/ui"
+	"github.com/spf13/cobra"
+)
+
+var moveCmd = &cobra.Command{
+	Use:     "move <name>",
+	Aliases: []string{"mv", "teleport", "tp"},
+	Short:   "Move uncommitted changes to another worktree",
+	Long: `Move all uncommitted changes (modified, new, deleted files) to another worktree.
+
+If the target worktree doesn't exist, offers to create a new one from the base branch.
+Checks for conflicting changes in the destination before overwriting.`,
+	Args: cobra.ExactArgs(1),
+	RunE: runMove,
+}
+
+func init() {
+	rootCmd.AddCommand(moveCmd)
+}
+
+func runMove(cmd *cobra.Command, args []string) error {
+	ctx, err := newContext()
+	if err != nil {
+		return err
+	}
+
+	targetName := args[0]
+
+	sourceRoot, err := git.TopLevel()
+	if err != nil {
+		return err
+	}
+
+	// Get changes
+	changes, err := git.StatusPorcelain()
+	if err != nil {
+		return err
+	}
+	if len(changes) == 0 {
+		return fmt.Errorf("no changes to move\n   Nothing modified, staged, or untracked in current worktree")
+	}
+
+	// Categorize: copy vs delete
+	var filesToCopy, filesToDelete []string
+	for _, c := range changes {
+		if c.IsRename() {
+			filesToDelete = append(filesToDelete, c.OldPath)
+			src := filepath.Join(sourceRoot, c.Path)
+			if git.FileExists(src) {
+				filesToCopy = append(filesToCopy, c.Path)
+			}
+		} else if git.FileExists(filepath.Join(sourceRoot, c.Path)) {
+			filesToCopy = append(filesToCopy, c.Path)
+		} else {
+			filesToDelete = append(filesToDelete, c.Path)
+		}
+	}
+
+	totalCount := len(filesToCopy) + len(filesToDelete)
+	if totalCount == 0 {
+		return fmt.Errorf("no files to move")
+	}
+
+	// Resolve target worktree
+	targetPath, createdNew, err := resolveOrCreateTarget(ctx, targetName, sourceRoot)
+	if err != nil {
+		return err
+	}
+
+	// Prevent moving to self
+	if sourceRoot == targetPath {
+		return fmt.Errorf("can't move changes to the same worktree")
+	}
+
+	targetShort := shortName(targetPath, ctx)
+
+	// Safety: check for conflicting changes in destination
+	destChanges, _ := git.StatusPorcelainIn(targetPath)
+	if len(destChanges) > 0 {
+		var destFiles []string
+		for _, dc := range destChanges {
+			destFiles = append(destFiles, dc.Path)
+		}
+
+		var conflicts []string
+		allFiles := append(filesToCopy, filesToDelete...)
+		for _, f := range allFiles {
+			for _, df := range destFiles {
+				if f == df {
+					conflicts = append(conflicts, f)
+				}
+			}
+		}
+
+		if len(conflicts) > 0 {
+			ui.Warn("Destination has its own changes to %d file(s):", len(conflicts))
+			for _, f := range conflicts {
+				fmt.Printf("   • %s\n", f)
+			}
+			fmt.Println()
+			if !ui.Confirm("Overwrite?", false) {
+				fmt.Println("Aborted")
+				return nil
+			}
+			fmt.Println()
+		}
+	}
+
+	// Move files
+	fmt.Printf("Moving %d file(s) → %s\n", totalCount, targetShort)
+
+	var copied, deleted, errors int
+
+	for _, file := range filesToCopy {
+		destDir := filepath.Dir(filepath.Join(targetPath, file))
+		os.MkdirAll(destDir, 0755)
+
+		if err := copyFile(filepath.Join(sourceRoot, file), filepath.Join(targetPath, file)); err != nil {
+			fmt.Printf("  %s Failed to copy: %s\n", ui.Red(ui.Fail), file)
+			errors++
+		} else {
+			copied++
+		}
+	}
+
+	for _, file := range filesToDelete {
+		dest := filepath.Join(targetPath, file)
+		if git.FileExists(dest) {
+			if err := os.Remove(dest); err != nil {
+				fmt.Printf("  %s Failed to delete: %s\n", ui.Red(ui.Fail), file)
+				errors++
+			} else {
+				deleted++
+			}
+		}
+	}
+
+	// Summary
+	fmt.Println()
+	if errors == 0 {
+		ui.Success("Done")
+	} else {
+		ui.Warn("Done with %d error(s)", errors)
+	}
+
+	var parts []string
+	if copied > 0 {
+		parts = append(parts, fmt.Sprintf("%d copied", copied))
+	}
+	if deleted > 0 {
+		parts = append(parts, fmt.Sprintf("%d deleted", deleted))
+	}
+	if len(parts) > 0 {
+		fmt.Printf("  %s\n", joinParts(parts))
+	}
+
+	fmt.Println()
+	fmt.Println("To continue working there:")
+	fmt.Printf("  %s\n", ui.Cyan("wt switch "+targetName))
+	if createdNew {
+		fmt.Println("  wt init    # install deps, copy .env, etc.")
+	}
+	return nil
+}
+
+func resolveOrCreateTarget(ctx *cmdContext, name, sourceRoot string) (string, bool, error) {
+	worktrees, err := git.ListWorktrees()
+	if err != nil {
+		return "", false, err
+	}
+
+	// Try to resolve existing worktree
+	target := resolveWorktree(ctx, worktrees, name)
+	if target != "" {
+		return target, false, nil
+	}
+
+	// Not found — offer to create
+	branch := ctx.branchName(name)
+	wtPath := ctx.worktreePath(name)
+
+	fmt.Printf("No worktree '%s' found.\n", name)
+	fmt.Printf("  Branch: %s\n", branch)
+	fmt.Printf("  Path:   %s\n", wtPath)
+	if !ui.Confirm("Create new worktree?", false) {
+		return "", false, fmt.Errorf("aborted")
+	}
+	fmt.Println()
+
+	if git.IsDir(wtPath) {
+		return "", false, fmt.Errorf("directory already exists: %s", wtPath)
+	}
+	if git.BranchExists(branch) {
+		return "", false, fmt.Errorf("branch already exists: %s\n   Use 'wt new --from %s' first, then 'wt move' to it", branch, branch)
+	}
+
+	git.Fetch(ctx.Config.Remote, ctx.Config.BaseBranch)
+
+	if err := git.AddWorktree(wtPath, branch, ctx.baseRef()); err != nil {
+		return "", false, fmt.Errorf("failed to create worktree: %w", err)
+	}
+
+	ui.Success("Created worktree")
+	fmt.Printf("  Path: %s\n", wtPath)
+	fmt.Printf("  Branch: %s (from %s)\n", branch, ctx.Config.BaseBranch)
+	fmt.Println()
+
+	return wtPath, true, nil
+}
+
+func copyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	_, err = io.Copy(out, in)
+	return err
+}
+
+func joinParts(parts []string) string {
+	result := ""
+	for i, p := range parts {
+		if i > 0 {
+			result += ", "
+		}
+		result += p
+	}
+	return result
+}

@@ -1,8 +1,12 @@
 package cmd
 
 import (
+	"path/filepath"
+	"strings"
+
 	"github.com/mvwi/wt/internal/config"
 	"github.com/mvwi/wt/internal/git"
+	"github.com/spf13/cobra"
 )
 
 // cmdContext holds resolved repo info + config that most commands need.
@@ -65,4 +69,30 @@ func (c *cmdContext) worktreePath(name string) string {
 // baseRef returns the full remote ref for the base branch (e.g., "origin/staging").
 func (c *cmdContext) baseRef() string {
 	return c.Config.Remote + "/" + c.Config.BaseBranch
+}
+
+// completeWorktreeNames returns a Cobra ValidArgsFunction that suggests worktree short names.
+func completeWorktreeNames(_ *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	ctx, err := newContext()
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+
+	worktrees, err := git.ListWorktrees()
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+
+	prefix := ctx.Config.EffectiveWorktreeDir(ctx.RepoName, "")
+	var names []string
+	for _, wt := range worktrees {
+		if wt.Path == ctx.MainWorktree {
+			continue
+		}
+		short := strings.TrimPrefix(filepath.Base(wt.Path), prefix)
+		if toComplete == "" || strings.HasPrefix(short, toComplete) {
+			names = append(names, short)
+		}
+	}
+	return names, cobra.ShellCompDirectiveNoFileComp
 }

@@ -15,6 +15,7 @@ import (
 var listCmd = &cobra.Command{
 	Use:     "list",
 	Aliases: []string{"ls"},
+	GroupID: groupWorkflow,
 	Short:   "Show all worktrees with PR status",
 	Long: `Show all worktrees with branch info, PR status, reviews, and CI checks.
 

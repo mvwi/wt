@@ -9,8 +9,9 @@ import (
 )
 
 var submitCmd = &cobra.Command{
-	Use:   "submit",
-	Short: "Rebase on base branch + push to remote",
+	Use:     "submit",
+	GroupID: groupSync,
+	Short:   "Rebase on base branch + push to remote",
 	Long: `Rebase the current branch onto the base branch, then push to remote.
 
 Uses --force-with-lease for safety (fails if remote has unexpected commits).

@@ -14,13 +14,15 @@ import (
 var moveCmd = &cobra.Command{
 	Use:     "move <name>",
 	Aliases: []string{"mv", "teleport", "tp"},
+	GroupID: groupManage,
 	Short:   "Move uncommitted changes to another worktree",
 	Long: `Move all uncommitted changes (modified, new, deleted files) to another worktree.
 
 If the target worktree doesn't exist, offers to create a new one from the base branch.
 Checks for conflicting changes in the destination before overwriting.`,
-	Args: cobra.ExactArgs(1),
-	RunE: runMove,
+	Args:              cobra.ExactArgs(1),
+	ValidArgsFunction: completeWorktreeNames,
+	RunE:              runMove,
 }
 
 func init() {

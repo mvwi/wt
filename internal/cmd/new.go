@@ -12,6 +12,7 @@ import (
 var newCmd = &cobra.Command{
 	Use:     "new <name>",
 	Aliases: []string{"create"},
+	GroupID: groupWorkflow,
 	Short:   "Create a new worktree with a feature branch",
 	Long: `Create a new worktree with a feature branch based on your configured base branch.
 

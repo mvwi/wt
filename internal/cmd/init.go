@@ -12,8 +12,9 @@ import (
 )
 
 var initCmd = &cobra.Command{
-	Use:   "init",
-	Short: "Initialize worktree (install deps, copy .env, etc.)",
+	Use:     "init",
+	GroupID: groupWorkflow,
+	Short:   "Initialize worktree (install deps, copy .env, etc.)",
 	Long: `Initialize a worktree for development.
 
 Steps:

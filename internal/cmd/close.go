@@ -13,6 +13,7 @@ import (
 var closeCmd = &cobra.Command{
 	Use:     "close [name]",
 	Aliases: []string{"rm"},
+	GroupID: groupManage,
 	Short:   "Close and clean up a worktree",
 	Long: `Close a worktree by removing the directory and deleting the local branch.
 
@@ -23,8 +24,9 @@ Safety checks:
   - Warns if worktree has uncommitted changes
   - Warns if PR is still open
   - Cannot close the main repository worktree`,
-	Args: cobra.MaximumNArgs(1),
-	RunE: runClose,
+	Args:              cobra.MaximumNArgs(1),
+	ValidArgsFunction: completeWorktreeNames,
+	RunE:              runClose,
 }
 
 func init() {

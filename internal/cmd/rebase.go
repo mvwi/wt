@@ -10,8 +10,9 @@ import (
 )
 
 var rebaseCmd = &cobra.Command{
-	Use:   "rebase",
-	Short: "Rebase current branch onto base branch (local only)",
+	Use:     "rebase",
+	GroupID: groupSync,
+	Short:   "Rebase current branch onto base branch (local only)",
 	Long: `Rebase the current branch onto the configured base branch.
 
 For feature branches: stash → fetch → rebase → restore stash.

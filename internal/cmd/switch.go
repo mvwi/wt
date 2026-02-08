@@ -15,6 +15,7 @@ import (
 var switchCmd = &cobra.Command{
 	Use:     "switch [name]",
 	Aliases: []string{"sw", "cd", "checkout", "co"},
+	GroupID: groupWorkflow,
 	Short:   "Switch to a worktree",
 	Long: `Switch to a different worktree.
 
@@ -26,8 +27,9 @@ Resolution order:
   2. Main repo: 'main', base branch name, or repo name
   3. Suffix match: any worktree ending with -<name>
   4. Fuzzy match: worktree containing the search term`,
-	Args: cobra.MaximumNArgs(1),
-	RunE: runSwitch,
+	Args:              cobra.MaximumNArgs(1),
+	ValidArgsFunction: completeWorktreeNames,
+	RunE:              runSwitch,
 }
 
 func init() {

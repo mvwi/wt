@@ -12,8 +12,9 @@ import (
 )
 
 var pruneCmd = &cobra.Command{
-	Use:   "prune",
-	Short: "Clean up stale worktrees (merged/closed PRs)",
+	Use:     "prune",
+	GroupID: groupManage,
+	Short:   "Clean up stale worktrees (merged/closed PRs)",
 	Long: `Interactively remove worktrees whose PRs have been merged or closed.
 
 Skips:

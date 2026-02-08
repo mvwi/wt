@@ -14,6 +14,7 @@ import (
 var renameCmd = &cobra.Command{
 	Use:     "rename <name>",
 	Aliases: []string{"rn"},
+	GroupID: groupManage,
 	Short:   "Rename worktree, branch, and remote",
 	Long: `Rename the current worktree's directory, branch, and remote branch to match conventions.
 
@@ -21,8 +22,9 @@ Renames:
   - Local branch: <old> → <prefix>/<name>
   - Worktree directory: wt-<repo>-<old> → wt-<repo>-<name>
   - Remote branch: origin/<old> → origin/<prefix>/<name> (preserves PRs)`,
-	Args: cobra.ExactArgs(1),
-	RunE: runRename,
+	Args:              cobra.ExactArgs(1),
+	ValidArgsFunction: completeWorktreeNames,
+	RunE:              runRename,
 }
 
 var renameLocalOnly bool

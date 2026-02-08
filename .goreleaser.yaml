@@ -33,6 +33,7 @@ brews:
   - repository:
       owner: mvwi
       name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     homepage: "https://github.com/mvwi/wt"
     description: "Git worktree manager - streamlined workflow for feature branches"
     license: "MIT"

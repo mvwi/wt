@@ -68,7 +68,12 @@ Run `wt <command> --help` for detailed usage of any command.
 
 ## Configuration
 
-Drop a `.wt.toml` in your repo root to customize behavior. All fields are optional — sensible defaults work out of the box.
+Config is layered: **defaults → global → repo**. Each layer only overrides what it sets.
+
+- **Global** (`~/.config/wt/config.toml`): applies to all repos
+- **Repo** (`.wt.toml` in repo root): overrides global for that repo
+
+All fields are optional — sensible defaults work out of the box.
 
 ```toml
 # Base branch to create worktrees from and rebase onto.
@@ -104,6 +109,27 @@ post_commands = [
 ]
 ```
 
+### Example: Global Config with Per-Repo Overrides
+
+Set everything in `~/.config/wt/config.toml` — no need to commit config to repos:
+
+```toml
+# Defaults for all repos
+base_branch = "main"
+
+# Per-repo overrides (keyed by repo directory name)
+[repos.platform]
+base_branch = "staging"
+
+[repos.legacy-app]
+base_branch = "develop"
+branch_prefix = "fix"
+```
+
+Precedence: **defaults → global → global per-repo → .wt.toml**
+
+A `.wt.toml` in a repo root always wins, but most users won't need one.
+
 ### What Gets Configured
 
 | Setting | Default | Effect |
@@ -129,8 +155,9 @@ If you were using the fish function version of `wt`:
 1. Remove `~/.config/fish/functions/wt.fish`
 2. Install the Go binary (see Install above)
 3. Add shell integration (see Shell Setup above)
-4. If your repo uses `staging` as base branch, add `.wt.toml`:
+4. Configure your repos in `~/.config/wt/config.toml`:
    ```toml
+   [repos.platform]
    base_branch = "staging"
    ```
 5. All commands and aliases work identically

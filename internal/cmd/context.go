@@ -21,12 +21,12 @@ func newContext() (*cmdContext, error) {
 		return nil, err
 	}
 
-	cfg, err := config.Load(mainWT)
+	repo, err := git.RepoName()
 	if err != nil {
 		return nil, err
 	}
 
-	repo, err := git.RepoName()
+	cfg, err := config.Load(mainWT, repo)
 	if err != nil {
 		return nil, err
 	}

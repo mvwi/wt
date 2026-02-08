@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -8,7 +9,7 @@ import (
 )
 
 // Config holds all wt configuration. Every field has a sensible default.
-// Users override via .wt.toml in the repo root (main worktree).
+// Resolved via: defaults → global (~/.config/wt/config.toml) → global per-repo → .wt.toml
 type Config struct {
 	// BaseBranch is the branch worktrees are created from and rebased onto.
 	// Common values: "main", "staging", "develop"
@@ -29,6 +30,13 @@ type Config struct {
 	Init InitConfig `toml:"init"`
 }
 
+// globalFile is the on-disk shape of ~/.config/wt/config.toml.
+// Top-level fields are defaults; [repos.<name>] sections override per repo.
+type globalFile struct {
+	Config
+	Repos map[string]Config `toml:"repos"`
+}
+
 // InitConfig controls what `wt init` does.
 type InitConfig struct {
 	// EnvFiles to copy from the main worktree. Empty = use defaults.
@@ -44,26 +52,80 @@ type InitConfig struct {
 // DefaultEnvFiles are copied when no env_files config is set.
 var DefaultEnvFiles = []string{".env", ".env.local", ".env.development.local"}
 
-// Load reads config from .wt.toml in the given directory (typically main worktree root).
-// Returns defaults if the file doesn't exist. Returns an error only for malformed TOML.
-func Load(dir string) (*Config, error) {
+// Load reads config with layered precedence:
+//  1. Hardcoded defaults (base_branch="main", remote="origin")
+//  2. Global defaults (~/.config/wt/config.toml top-level fields)
+//  3. Global per-repo ([repos.<repoName>] section)
+//  4. Repo-local (.wt.toml in the main worktree root)
+//
+// Each layer only overrides fields it explicitly sets.
+func Load(dir, repoName string) (*Config, error) {
 	cfg := &Config{
 		BaseBranch: "main",
 		Remote:     "origin",
 	}
 
-	path := filepath.Join(dir, ".wt.toml")
-	data, err := os.ReadFile(path)
-	if err != nil {
-		// File doesn't exist — return defaults
-		return cfg, nil
+	// Layer 1+2: global defaults + per-repo overrides
+	if globalPath, err := globalConfigPath(); err == nil {
+		if data, err := os.ReadFile(globalPath); err == nil {
+			var gf globalFile
+			if err := toml.Unmarshal(data, &gf); err != nil {
+				return nil, fmt.Errorf("global config (%s): %w", globalPath, err)
+			}
+			// Apply global defaults
+			mergeConfig(cfg, &gf.Config)
+			// Apply per-repo overrides
+			if repoName != "" {
+				if repoCfg, ok := gf.Repos[repoName]; ok {
+					mergeConfig(cfg, &repoCfg)
+				}
+			}
+		}
 	}
 
-	if err := toml.Unmarshal(data, cfg); err != nil {
-		return nil, err
+	// Layer 3: repo-local .wt.toml (overrides everything)
+	repoPath := filepath.Join(dir, ".wt.toml")
+	if data, err := os.ReadFile(repoPath); err == nil {
+		if err := toml.Unmarshal(data, cfg); err != nil {
+			return nil, fmt.Errorf("repo config (%s): %w", repoPath, err)
+		}
 	}
 
 	return cfg, nil
+}
+
+// mergeConfig copies non-zero fields from src into dst.
+func mergeConfig(dst, src *Config) {
+	if src.BaseBranch != "" {
+		dst.BaseBranch = src.BaseBranch
+	}
+	if src.Remote != "" {
+		dst.Remote = src.Remote
+	}
+	if src.BranchPrefix != "" {
+		dst.BranchPrefix = src.BranchPrefix
+	}
+	if src.WorktreePrefix != "" {
+		dst.WorktreePrefix = src.WorktreePrefix
+	}
+	if len(src.Init.EnvFiles) > 0 {
+		dst.Init.EnvFiles = src.Init.EnvFiles
+	}
+	if src.Init.PackageManager != "" {
+		dst.Init.PackageManager = src.Init.PackageManager
+	}
+	if len(src.Init.PostCommands) > 0 {
+		dst.Init.PostCommands = src.Init.PostCommands
+	}
+}
+
+// globalConfigPath returns ~/.config/wt/config.toml.
+func globalConfigPath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, ".config", "wt", "config.toml"), nil
 }
 
 // EffectiveEnvFiles returns the env files list, falling back to defaults.

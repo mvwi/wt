@@ -22,7 +22,7 @@ go install github.com/mvwi/wt@latest
 
 **Fish** (`~/.config/fish/config.fish`):
 ```fish
-eval (wt init-shell fish)
+wt init-shell fish | source
 wt completion fish | source
 ```
 

@@ -108,21 +108,12 @@ func newFromExisting(ctx *cmdContext, name, fromBranch string) error {
 	ui.Success("Created worktree")
 	fmt.Println()
 
-	if ui.Confirm("Switch to new worktree?", true) {
-		ui.PrintCdHint(wtPath)
-		if newDoInit {
-			return runInitIn(wtPath, ctx)
-		}
-		fmt.Println()
-		fmt.Println("Next step: wt init")
-	} else {
-		fmt.Println()
-		fmt.Println("To start working:")
-		fmt.Printf("  %s\n", ui.Cyan("wt switch "+name))
-		if !newDoInit {
-			fmt.Println("  # then: wt init")
-		}
+	ui.PrintCdHint(wtPath)
+	if newDoInit {
+		return runInitIn(wtPath, ctx)
 	}
+	fmt.Println()
+	fmt.Println("Next step: wt init")
 	return nil
 }
 
@@ -154,20 +145,11 @@ func newFromBase(ctx *cmdContext, name string) error {
 	ui.Success("Created worktree")
 	fmt.Println()
 
-	if ui.Confirm("Switch to new worktree?", true) {
-		ui.PrintCdHint(wtPath)
-		if newDoInit {
-			return runInitIn(wtPath, ctx)
-		}
-		fmt.Println()
-		fmt.Println("Next step: wt init")
-	} else {
-		fmt.Println()
-		fmt.Println("To start working:")
-		fmt.Printf("  %s\n", ui.Cyan("wt switch "+name))
-		if !newDoInit {
-			fmt.Println("  # then: wt init")
-		}
+	ui.PrintCdHint(wtPath)
+	if newDoInit {
+		return runInitIn(wtPath, ctx)
 	}
+	fmt.Println()
+	fmt.Println("Next step: wt init")
 	return nil
 }

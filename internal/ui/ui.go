@@ -73,12 +73,15 @@ func Confirm(message string, defaultYes bool) bool {
 	return input == "y" || input == "yes"
 }
 
-// CdHintPrefix is the special marker that shell wrappers look for.
-const CdHintPrefix = "__WT_CD__:"
-
-// PrintCdHint outputs a cd hint that the shell wrapper will intercept.
+// PrintCdHint tells the shell wrapper to cd into the given path.
+// When WT_CD_FILE is set (by the shell wrapper), writes the path to that file.
+// Otherwise prints a hint so the user knows to cd manually.
 func PrintCdHint(path string) {
-	fmt.Println(CdHintPrefix + path)
+	if cdFile := os.Getenv("WT_CD_FILE"); cdFile != "" {
+		_ = os.WriteFile(cdFile, []byte(path), 0600)
+		return
+	}
+	fmt.Printf("  → cd %s\n", path)
 }
 
 // Error prints an error message with ✗ prefix.

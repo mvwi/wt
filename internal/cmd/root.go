@@ -5,7 +5,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/fatih/color"
 	"github.com/mvwi/wt/internal/git"
 	"github.com/mvwi/wt/internal/github"
 	"github.com/mvwi/wt/internal/ui"
@@ -60,14 +59,6 @@ func Execute() {
 }
 
 func init() {
-	// The shell wrapper redirects stdout to a temp file to intercept cd hints,
-	// which causes fatih/color to detect a non-TTY and disable colors.
-	// The wrapper sets WT_FORCE_COLOR=1 to preserve colored output.
-	// NO_COLOR takes precedence (explicit user preference to disable colors).
-	if os.Getenv("WT_FORCE_COLOR") != "" && os.Getenv("NO_COLOR") == "" {
-		color.NoColor = false
-	}
-
 	rootCmd.SetVersionTemplate("wt version {{.Version}}\n")
 	rootCmd.CompletionOptions.HiddenDefaultCmd = true
 

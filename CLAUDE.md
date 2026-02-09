@@ -45,8 +45,8 @@ internal/
 ### cmdContext — shared per-command context
 Every command starts with `ctx, err := newContext()`. This reads `.wt.toml` once and resolves repo info. Use `ctx.branchName("feat")`, `ctx.worktreePath("feat")`, `ctx.baseRef()` instead of hardcoding values. All configurability flows through here.
 
-### Shell cd via `__WT_CD__:` hints
-The Go binary can't change the parent shell's directory. Commands that need to cd (new, switch, close, rename) call `ui.PrintCdHint(path)` which prints `__WT_CD__:/path/to/worktree`. The shell wrapper from `wt init-shell` intercepts these and runs `cd`. Everything else passes through to stdout normally.
+### Shell cd via `WT_CD_FILE` side-channel
+The Go binary can't change the parent shell's directory. The shell wrapper from `wt init-shell` creates a temp file and passes its path via `WT_CD_FILE`. Commands that need to cd (new, switch, close, rename) call `ui.PrintCdHint(path)` which writes the target path to that file. After the binary exits, the wrapper reads it and runs `cd`. Stdout is never redirected, so colors, prompts, piping, and real-time output all work naturally.
 
 ### Git operations: shell out, don't use go-git
 We call the `git` CLI via `exec.Command`. go-git has poor worktree support and divergent behavior. The `git.Run()` / `git.RunIn()` helpers capture output; `git.RunPassthrough()` streams to terminal for interactive commands (rebase, push). `git.RunSilent()` discards output.

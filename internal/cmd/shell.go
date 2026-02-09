@@ -16,8 +16,9 @@ Add to your shell config:
   Bash:  eval "$(wt init-shell bash)"
   Zsh:   eval "$(wt init-shell zsh)"
 
-The wrapper intercepts __WT_CD__:/path markers from wt output
-and translates them into actual directory changes.`,
+The wrapper passes a temp file path via WT_CD_FILE. Commands that
+need to change directory write the target path to that file, and
+the wrapper reads it after the command exits.`,
 	Args:      cobra.ExactArgs(1),
 	ValidArgs: []string{"fish", "bash", "zsh"},
 	RunE:      runShell,
@@ -46,17 +47,13 @@ const fishWrapper = `# wt shell integration (fish)
 #   wt init-shell fish | source
 
 function wt --wraps wt --description "Git worktree manager"
-    set -l tmpfile (mktemp)
-    WT_FORCE_COLOR=1 command wt $argv > $tmpfile
+    set -l cdfile (mktemp)
+    WT_CD_FILE=$cdfile command wt $argv
     set -l exit_code $status
-    while read -l line
-        if string match -q "__WT_CD__:*" $line
-            cd (string replace "__WT_CD__:" "" $line)
-        else
-            echo $line
-        end
-    end < $tmpfile
-    rm -f $tmpfile
+    if test -s $cdfile
+        cd (cat $cdfile)
+    end
+    rm -f $cdfile
     return $exit_code
 end
 
@@ -69,20 +66,14 @@ const bashWrapper = `# wt shell integration (bash)
 #   eval "$(wt init-shell bash)"
 
 wt() {
-    local tmpfile
-    tmpfile=$(mktemp)
-    WT_FORCE_COLOR=1 command wt "$@" > "$tmpfile"
+    local cdfile
+    cdfile=$(mktemp)
+    WT_CD_FILE="$cdfile" command wt "$@"
     local exit_code=$?
-
-    while IFS= read -r line; do
-        if [[ "$line" == __WT_CD__:* ]]; then
-            cd "${line#__WT_CD__:}" || true
-        else
-            echo "$line"
-        fi
-    done < "$tmpfile"
-
-    rm -f "$tmpfile"
+    if [ -s "$cdfile" ]; then
+        cd "$(cat "$cdfile")" || true
+    fi
+    rm -f "$cdfile"
     return $exit_code
 }
 
@@ -94,20 +85,14 @@ const zshWrapper = `# wt shell integration (zsh)
 #   eval "$(wt init-shell zsh)"
 
 wt() {
-    local tmpfile
-    tmpfile=$(mktemp)
-    WT_FORCE_COLOR=1 command wt "$@" > "$tmpfile"
+    local cdfile
+    cdfile=$(mktemp)
+    WT_CD_FILE="$cdfile" command wt "$@"
     local exit_code=$?
-
-    while IFS= read -r line; do
-        if [[ "$line" == __WT_CD__:* ]]; then
-            cd "${line#__WT_CD__:}" || true
-        else
-            echo "$line"
-        fi
-    done < "$tmpfile"
-
-    rm -f "$tmpfile"
+    if [ -s "$cdfile" ]; then
+        cd "$(cat "$cdfile")" || true
+    fi
+    rm -f "$cdfile"
     return $exit_code
 }
 

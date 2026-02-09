@@ -47,7 +47,7 @@ const fishWrapper = `# wt shell integration (fish)
 
 function wt --wraps wt --description "Git worktree manager"
     set -l tmpfile (mktemp)
-    command wt $argv > $tmpfile
+    WT_FORCE_COLOR=1 command wt $argv > $tmpfile
     set -l exit_code $status
     while read -l line
         if string match -q "__WT_CD__:*" $line
@@ -71,7 +71,7 @@ const bashWrapper = `# wt shell integration (bash)
 wt() {
     local tmpfile
     tmpfile=$(mktemp)
-    command wt "$@" > "$tmpfile"
+    WT_FORCE_COLOR=1 command wt "$@" > "$tmpfile"
     local exit_code=$?
 
     while IFS= read -r line; do
@@ -96,7 +96,7 @@ const zshWrapper = `# wt shell integration (zsh)
 wt() {
     local tmpfile
     tmpfile=$(mktemp)
-    command wt "$@" > "$tmpfile"
+    WT_FORCE_COLOR=1 command wt "$@" > "$tmpfile"
     local exit_code=$?
 
     while IFS= read -r line; do

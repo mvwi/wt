@@ -65,7 +65,10 @@ func runPrune(cmd *cobra.Command, args []string) error {
 			continue
 		}
 
-		branch, _ := git.CurrentBranchIn(wt.Path)
+		branch := wt.Branch
+		if branch == "" {
+			branch, _ = git.CurrentBranchIn(wt.Path)
+		}
 		if branch == ctx.Config.BaseBranch || branch == "main" || branch == "master" {
 			continue
 		}

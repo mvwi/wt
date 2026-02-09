@@ -12,7 +12,7 @@ var shellCmd = &cobra.Command{
 	Long: `Print a shell wrapper function that enables 'cd' integration.
 
 Add to your shell config:
-  Fish:  eval (wt init-shell fish)
+  Fish:  wt init-shell fish | source
   Bash:  eval "$(wt init-shell bash)"
   Zsh:   eval "$(wt init-shell zsh)"
 
@@ -43,14 +43,12 @@ func runShell(cmd *cobra.Command, args []string) error {
 
 const fishWrapper = `# wt shell integration (fish)
 # Add to ~/.config/fish/config.fish:
-#   eval (wt init-shell fish)
+#   wt init-shell fish | source
 
 function wt --wraps wt --description "Git worktree manager"
     set -l tmpfile (mktemp)
     command wt $argv > $tmpfile
     set -l exit_code $status
-
-    # Process output: intercept cd hints, print everything else
     while read -l line
         if string match -q "__WT_CD__:*" $line
             cd (string replace "__WT_CD__:" "" $line)
@@ -58,7 +56,6 @@ function wt --wraps wt --description "Git worktree manager"
             echo $line
         end
     end < $tmpfile
-
     rm -f $tmpfile
     return $exit_code
 end

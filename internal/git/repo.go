@@ -6,13 +6,15 @@ import (
 	"strings"
 )
 
-// RepoName returns the basename of the repository root.
+// RepoName returns the basename of the main worktree (the true repo name).
+// Uses MainWorktree() rather than --show-toplevel, which would return the
+// linked worktree's directory name when called from inside one.
 func RepoName() (string, error) {
-	toplevel, err := Run("rev-parse", "--show-toplevel")
+	main, err := MainWorktree()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Base(toplevel), nil
+	return filepath.Base(main), nil
 }
 
 // TopLevel returns the absolute path to the repository root.

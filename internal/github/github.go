@@ -118,7 +118,7 @@ func ListPRs(state string) ([]PR, error) {
 		fields = "number,headRefName,reviewRequests,latestReviews,statusCheckRollup"
 	}
 
-	out, err := runGH("pr", "list", "--state", state, "--json", fields, "--limit", "100")
+	out, err := runGH("pr", "list", "--state", state, "--json", fields, "--limit", "50")
 	if err != nil {
 		return nil, err
 	}

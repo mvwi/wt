@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/mvwi/wt/internal/git"
 	"github.com/mvwi/wt/internal/github"
@@ -45,8 +46,12 @@ func runPrune(cmd *cobra.Command, args []string) error {
 
 	fmt.Println("Scanning for stale worktrees...")
 
-	mergedPRs, _ := github.ListPRs("merged")
-	closedPRs, _ := github.ListPRs("closed")
+	var mergedPRs, closedPRs []github.PR
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() { defer wg.Done(); mergedPRs, _ = github.ListPRs("merged") }()
+	go func() { defer wg.Done(); closedPRs, _ = github.ListPRs("closed") }()
+	wg.Wait()
 
 	worktrees, err := git.ListWorktrees()
 	if err != nil {

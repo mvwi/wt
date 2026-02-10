@@ -91,6 +91,21 @@ func runList(cmd *cobra.Command, args []string) error {
 
 	// Phase 1: Show worktree names immediately
 	ui.Header("WORKTREES")
+
+	// Calculate column width from longest short name
+	nameWidth := 0
+	for _, info := range infos {
+		if len(info.ShortName) > nameWidth {
+			nameWidth = len(info.ShortName)
+		}
+	}
+	if nameWidth < 8 {
+		nameWidth = 8
+	}
+
+	ui.DimF("  %-*s %s\n", nameWidth+2, "Name", "Branch")
+	ui.DimF("  %s\n", strings.Repeat("─", nameWidth+2+28))
+
 	for _, info := range infos {
 		if info.IsCurrent {
 			fmt.Printf("%s ", ui.Yellow(ui.Current))
@@ -98,10 +113,12 @@ func runList(cmd *cobra.Command, args []string) error {
 			fmt.Print("  ")
 		}
 
-		fmt.Print(info.ShortName)
+		fmt.Printf("%-*s ", nameWidth, info.ShortName)
+
 		if info.Branch != info.ShortName {
-			fmt.Printf("  %s", ui.Dim(info.Branch))
+			fmt.Print(ui.Dim(info.Branch))
 		}
+
 		fmt.Println()
 	}
 

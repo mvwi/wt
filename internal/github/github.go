@@ -211,6 +211,80 @@ func GetPRDetails(branch string) (*PRDetails, error) {
 	return &prs[0], nil
 }
 
+// WatchStatus holds detailed PR state from `gh pr view`, including fields
+// not available from `gh pr list` (mergeStateStatus, mergeable).
+type WatchStatus struct {
+	Number           int              `json:"number"`
+	HeadRefName      string           `json:"headRefName"`
+	MergeStateStatus string           `json:"mergeStateStatus"` // CLEAN, BLOCKED, BEHIND, DRAFT, DIRTY, UNKNOWN
+	Mergeable        string           `json:"mergeable"`        // MERGEABLE, CONFLICTING, UNKNOWN
+	ReviewDecision   string           `json:"reviewDecision"`   // APPROVED, CHANGES_REQUESTED, REVIEW_REQUIRED, ""
+	ReviewRequests   []ReviewRequest  `json:"reviewRequests"`
+	LatestReviews    []Review         `json:"latestReviews"`
+	StatusChecks     []StatusCheckRun `json:"statusCheckRollup"`
+}
+
+// GetReviewSummary computes review state counts for a WatchStatus.
+func (ws *WatchStatus) GetReviewSummary() ReviewSummary {
+	s := ReviewSummary{Pending: len(ws.ReviewRequests)}
+	for _, r := range ws.LatestReviews {
+		switch r.State {
+		case "APPROVED":
+			s.Approved++
+		case "CHANGES_REQUESTED":
+			s.Changes++
+		}
+	}
+	return s
+}
+
+// GetCISummary computes CI check state counts for a WatchStatus.
+func (ws *WatchStatus) GetCISummary() CISummary {
+	s := CISummary{Total: len(ws.StatusChecks)}
+	for _, c := range ws.StatusChecks {
+		switch {
+		case c.Conclusion == "SUCCESS" || c.Conclusion == "SKIPPED" || c.State == "SUCCESS":
+			s.Pass++
+		case c.Conclusion == "FAILURE" || c.Conclusion == "TIMED_OUT" || c.Conclusion == "CANCELLED" || c.State == "FAILURE" || c.State == "ERROR":
+			s.Fail++
+		default:
+			s.Pending++
+		}
+	}
+	return s
+}
+
+// FailedCheckNames returns the names of checks that failed.
+func (ws *WatchStatus) FailedCheckNames() []string {
+	var names []string
+	for _, c := range ws.StatusChecks {
+		switch {
+		case c.Conclusion == "FAILURE" || c.Conclusion == "TIMED_OUT" || c.Conclusion == "CANCELLED" || c.State == "FAILURE" || c.State == "ERROR":
+			names = append(names, c.Name)
+		}
+	}
+	return names
+}
+
+// GetWatchStatus fetches detailed PR status for a branch using `gh pr view`.
+func GetWatchStatus(branch string) (*WatchStatus, error) {
+	if !IsAvailable() {
+		return nil, fmt.Errorf("gh not installed")
+	}
+
+	fields := "number,headRefName,mergeStateStatus,mergeable,reviewDecision,reviewRequests,latestReviews,statusCheckRollup"
+	out, err := runGH("pr", "view", branch, "--json", fields)
+	if err != nil {
+		return nil, err
+	}
+
+	var ws WatchStatus
+	if err := json.Unmarshal([]byte(out), &ws); err != nil {
+		return nil, err
+	}
+	return &ws, nil
+}
+
 // CreatePR creates a new pull request and returns the PR URL.
 func CreatePR(head, base, title, body string, draft bool, labels []string) (string, error) {
 	if !IsAvailable() {

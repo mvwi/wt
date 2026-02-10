@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"net/url"
+	"os"
 	"os/exec"
 	"runtime"
 
@@ -50,8 +51,11 @@ func feedbackViaGH(title string) error {
 	if title != "" {
 		args = append(args, "--title", title)
 	}
-	cmd := exec.Command("gh", args...)
-	return cmd.Run()
+	ghCmd := exec.Command("gh", args...)
+	ghCmd.Stdin = os.Stdin
+	ghCmd.Stdout = os.Stdout
+	ghCmd.Stderr = os.Stderr
+	return ghCmd.Run()
 }
 
 func feedbackViaBrowser(title string) error {

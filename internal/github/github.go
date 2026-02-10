@@ -175,3 +175,53 @@ func RenameBranch(repoSlug, oldBranch, newBranch string) error {
 		"-f", "new_name="+newBranch)
 	return err
 }
+
+// PRLabel represents a label on a PR.
+type PRLabel struct {
+	Name string `json:"name"`
+}
+
+// PRDetails holds full PR metadata for recreation after branch rename.
+type PRDetails struct {
+	Number      int       `json:"number"`
+	Title       string    `json:"title"`
+	Body        string    `json:"body"`
+	BaseRefName string    `json:"baseRefName"`
+	IsDraft     bool      `json:"isDraft"`
+	Labels      []PRLabel `json:"labels"`
+}
+
+// GetPRDetails fetches full details for the open PR on a branch.
+func GetPRDetails(branch string) (*PRDetails, error) {
+	if !IsAvailable() {
+		return nil, nil
+	}
+	out, err := runGH("pr", "list", "--head", branch, "--state", "open",
+		"--json", "number,title,body,baseRefName,isDraft,labels", "--limit", "1")
+	if err != nil {
+		return nil, err
+	}
+	var prs []PRDetails
+	if err := json.Unmarshal([]byte(out), &prs); err != nil {
+		return nil, err
+	}
+	if len(prs) == 0 {
+		return nil, nil
+	}
+	return &prs[0], nil
+}
+
+// CreatePR creates a new pull request and returns the PR URL.
+func CreatePR(head, base, title, body string, draft bool, labels []string) (string, error) {
+	if !IsAvailable() {
+		return "", fmt.Errorf("gh not installed")
+	}
+	args := []string{"pr", "create", "--head", head, "--base", base, "--title", title, "--body", body}
+	if draft {
+		args = append(args, "--draft")
+	}
+	for _, l := range labels {
+		args = append(args, "--label", l)
+	}
+	return runGH(args...)
+}

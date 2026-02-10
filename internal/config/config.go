@@ -26,6 +26,10 @@ type Config struct {
 	// Default: "wt-<repo>-". Set to customize (e.g., "wt-" for shorter names).
 	WorktreePrefix string `toml:"worktree_prefix"`
 
+	// StaleThreshold is the number of days after which a worktree with no open PR
+	// is considered stale in `wt list`. Default: 7.
+	StaleThreshold int `toml:"stale_threshold"`
+
 	// Init configures the `wt init` command behavior.
 	Init InitConfig `toml:"init"`
 }
@@ -110,6 +114,9 @@ func mergeConfig(dst, src *Config) {
 	if src.WorktreePrefix != "" {
 		dst.WorktreePrefix = src.WorktreePrefix
 	}
+	if src.StaleThreshold > 0 {
+		dst.StaleThreshold = src.StaleThreshold
+	}
 	if len(src.Init.EnvFiles) > 0 {
 		dst.Init.EnvFiles = src.Init.EnvFiles
 	}
@@ -149,6 +156,14 @@ func (c *Config) EffectiveBranchName(name, gitUsername string) string {
 		return name
 	}
 	return prefix + "/" + name
+}
+
+// EffectiveStaleThreshold returns the stale threshold in days, defaulting to 7.
+func (c *Config) EffectiveStaleThreshold() int {
+	if c.StaleThreshold > 0 {
+		return c.StaleThreshold
+	}
+	return 7
 }
 
 // EffectiveWorktreeDir builds the worktree directory name.

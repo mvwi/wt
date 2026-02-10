@@ -1,6 +1,9 @@
 package git
 
-import "os"
+import (
+	"os"
+	"strings"
+)
 
 // Rebase runs `git rebase <onto>` with passthrough output.
 func Rebase(onto string) error {
@@ -84,6 +87,43 @@ func RemoveStateFile(name string) {
 	if gitDir != "" {
 		os.Remove(gitDir + "/" + name)
 	}
+}
+
+// PotentialConflicts returns files modified on both HEAD and baseRef since they diverged.
+// These files could potentially conflict during a rebase.
+func PotentialConflicts(baseRef string) ([]string, error) {
+	// Files changed on the base branch since divergence
+	baseOut, err := Run("diff", "--name-only", "HEAD..."+baseRef)
+	if err != nil {
+		return nil, err
+	}
+	// Files changed on our branch since divergence
+	oursOut, err := Run("diff", "--name-only", baseRef+"...HEAD")
+	if err != nil {
+		return nil, err
+	}
+
+	baseFiles := toSet(baseOut)
+	var conflicts []string
+	for _, line := range strings.Split(oursOut, "\n") {
+		f := strings.TrimSpace(line)
+		if f != "" && baseFiles[f] {
+			conflicts = append(conflicts, f)
+		}
+	}
+	return conflicts, nil
+}
+
+// toSet splits newline-delimited output into a set of non-empty strings.
+func toSet(s string) map[string]bool {
+	m := make(map[string]bool)
+	for _, line := range strings.Split(s, "\n") {
+		f := strings.TrimSpace(line)
+		if f != "" {
+			m[f] = true
+		}
+	}
+	return m
 }
 
 // StateFileExists checks if a state file exists.

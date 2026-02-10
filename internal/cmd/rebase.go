@@ -108,6 +108,24 @@ func rebaseFeatureBranch(ctx *cmdContext, branch string) error {
 		return nil
 	}
 
+	// Conflict preview
+	conflicts, conflictErr := git.PotentialConflicts(ctx.baseRef())
+	if conflictErr == nil && len(conflicts) > 0 {
+		fmt.Println()
+		ui.Warn("These files were modified on both branches:")
+		for _, f := range conflicts {
+			fmt.Printf("    %s\n", f)
+		}
+		fmt.Println()
+		if !ui.Confirm("Conflicts are possible. Continue?", true) {
+			restoreStash(didStash)
+			git.RemoveStateFile(stateFileName)
+			fmt.Println("Cancelled")
+			return nil
+		}
+		fmt.Println()
+	}
+
 	// Rebase
 	fmt.Printf("Rebasing onto %s (%d commit(s) behind)...\n\n", ctx.baseRef(), ab.Behind)
 

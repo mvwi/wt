@@ -12,6 +12,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const prevWorktreeStateFile = "wt-prev-worktree"
+
 var switchCmd = &cobra.Command{
 	Use:     "switch [name]",
 	Aliases: []string{"sw", "cd", "checkout", "co"},
@@ -21,6 +23,7 @@ var switchCmd = &cobra.Command{
 
 Without arguments, opens an interactive picker (requires fzf).
 With a name, resolves the worktree using fuzzy matching.
+Use "-" to switch back to the previous worktree.
 
 Resolution order:
   1. Exact match: wt-<repo>-<name>
@@ -49,12 +52,37 @@ func runSwitch(cmd *cobra.Command, args []string) error {
 
 	cwd, _ := os.Getwd()
 
+	// Handle "wt switch -" — toggle to previous worktree
+	if len(args) == 1 && args[0] == "-" {
+		return switchPrevious(cwd)
+	}
+
 	// No args: interactive fzf picker
 	if len(args) == 0 {
 		return switchInteractive(ctx, worktrees, cwd)
 	}
 
 	return switchByName(ctx, worktrees, cwd, args[0])
+}
+
+func switchPrevious(cwd string) error {
+	prev, err := git.ReadStateFile(prevWorktreeStateFile)
+	if err != nil {
+		return fmt.Errorf("no previous worktree")
+	}
+
+	prev = strings.TrimSpace(prev)
+	if !isDir(prev) {
+		return fmt.Errorf("previous worktree no longer exists: %s", prev)
+	}
+
+	savePreviousWorktree(cwd)
+	ui.PrintCdHint(prev)
+	return nil
+}
+
+func savePreviousWorktree(cwd string) {
+	_ = git.SaveStateFile(prevWorktreeStateFile, cwd)
 }
 
 func switchInteractive(ctx *cmdContext, worktrees []git.Worktree, cwd string) error {
@@ -106,6 +134,7 @@ func switchInteractive(ctx *cmdContext, worktrees []git.Worktree, cwd string) er
 	}
 
 	target := parts[2]
+	savePreviousWorktree(cwd)
 	ui.PrintCdHint(target)
 	showSwitchSummary(target, ctx)
 	return nil
@@ -118,6 +147,7 @@ func switchByName(ctx *cmdContext, worktrees []git.Worktree, cwd, name string) e
 		return fmt.Errorf("worktree not found: %s", name)
 	}
 
+	savePreviousWorktree(cwd)
 	ui.PrintCdHint(target)
 	showSwitchSummary(target, ctx)
 	return nil

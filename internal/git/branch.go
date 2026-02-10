@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // CurrentBranch returns the current branch name, or "" for detached HEAD.
@@ -57,6 +58,12 @@ func DeleteBranch(name string) error {
 	return err
 }
 
+// DeleteRemoteBranch deletes a branch on the remote.
+func DeleteRemoteBranch(remote, branch string) error {
+	_, err := Run("push", remote, "--delete", branch)
+	return err
+}
+
 // AheadBehind returns how many commits a branch is ahead/behind a ref.
 type AheadBehind struct {
 	Ahead  int
@@ -99,6 +106,20 @@ func Upstream() string {
 // SetUpstream sets the upstream tracking branch.
 func SetUpstream(remote, branch string) error {
 	return RunSilent("branch", "--set-upstream-to="+remote+"/"+branch)
+}
+
+// LastCommitDaysAgo returns the number of days since the last commit in a directory.
+// Returns -1 if the age cannot be determined.
+func LastCommitDaysAgo(dir string) int {
+	out, err := RunIn(dir, "log", "-1", "--format=%ct")
+	if err != nil {
+		return -1
+	}
+	ts, err := strconv.ParseInt(strings.TrimSpace(out), 10, 64)
+	if err != nil {
+		return -1
+	}
+	return int(time.Since(time.Unix(ts, 0)).Hours() / 24)
 }
 
 // LastCommitAge returns the relative age of the last commit (e.g., "2 hours ago").

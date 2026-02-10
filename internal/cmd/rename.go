@@ -21,7 +21,7 @@ var renameCmd = &cobra.Command{
 Renames:
   - Local branch: <old> → <prefix>/<name>
   - Worktree directory: wt-<repo>-<old> → wt-<repo>-<name>
-  - Remote branch: origin/<old> → origin/<prefix>/<name> (preserves PRs)`,
+  - Remote branch: origin/<old> → origin/<prefix>/<name> (recreates open PRs)`,
 	Args:              cobra.ExactArgs(1),
 	ValidArgsFunction: completeWorktreeNames,
 	RunE:              runRename,
@@ -82,17 +82,12 @@ func runRename(cmd *cobra.Command, args []string) error {
 
 	// Check remote and PR
 	hasRemote := false
-	var prNum int
-	var prState string
+	var prDetails *github.PRDetails
 
 	if !renameLocalOnly {
 		if git.RemoteBranchExists(ctx.Config.Remote + "/" + currentBranch) {
 			hasRemote = true
-			pr := github.GetPRForBranch(currentBranch)
-			if pr != nil {
-				prNum = pr.Number
-				prState = pr.State
-			}
+			prDetails, _ = github.GetPRDetails(currentBranch)
 		}
 	}
 
@@ -115,8 +110,8 @@ func runRename(cmd *cobra.Command, args []string) error {
 		fmt.Printf("  Remote:    %s\n", ui.Dim("(skipped, --local)"))
 	} else if hasRemote {
 		fmt.Printf("  Remote:    %s/%s → %s/%s\n", ctx.Config.Remote, currentBranch, ctx.Config.Remote, newBranch)
-		if prNum > 0 && prState == "OPEN" {
-			fmt.Printf("             └─ PR #%d will be updated automatically\n", prNum)
+		if prDetails != nil {
+			fmt.Printf("             └─ PR #%d will be recreated\n", prDetails.Number)
 		}
 	} else {
 		fmt.Printf("  Remote:    %s\n", ui.Dim("(no remote branch)"))
@@ -151,20 +146,36 @@ func runRename(cmd *cobra.Command, args []string) error {
 		ui.PrintCdHint(newPath)
 	}
 
-	// Step 3: Rename remote branch
+	// Step 3: Update remote branch
 	if hasRemote && !renameLocalOnly {
-		fmt.Println("Renaming remote branch...")
-		slug, err := github.RepoSlug()
-		if err == nil {
-			if err := github.RenameBranch(slug, currentBranch, newBranch); err != nil {
-				fmt.Println()
-				ui.Warn("Remote rename failed")
-				fmt.Printf("   Local rename succeeded, but remote is still: %s/%s\n", ctx.Config.Remote, currentBranch)
-				fmt.Println("   To fix manually:")
-				fmt.Printf("   %s\n", ui.Cyan(fmt.Sprintf("git push -u %s HEAD && git push %s --delete %s", ctx.Config.Remote, ctx.Config.Remote, currentBranch)))
-			} else {
-				git.FetchPrune()
-				_ = git.SetUpstream(ctx.Config.Remote, newBranch)
+		fmt.Println("Pushing new branch...")
+		if err := git.PushSetUpstream(ctx.Config.Remote); err != nil {
+			fmt.Println()
+			ui.Warn("Failed to push new branch")
+			fmt.Printf("   Local rename succeeded, but remote is still: %s/%s\n", ctx.Config.Remote, currentBranch)
+			fmt.Println("   To fix manually:")
+			fmt.Printf("   %s\n", ui.Cyan(fmt.Sprintf("git push -u %s HEAD && git push %s --delete %s", ctx.Config.Remote, ctx.Config.Remote, currentBranch)))
+		} else {
+			fmt.Println("Removing old remote branch...")
+			if err := git.DeleteRemoteBranch(ctx.Config.Remote, currentBranch); err != nil {
+				ui.Warn("Failed to delete old remote branch: " + currentBranch)
+				fmt.Printf("   Delete manually: %s\n", ui.Cyan(fmt.Sprintf("git push %s --delete %s", ctx.Config.Remote, currentBranch)))
+			}
+
+			// Recreate PR if one existed
+			if prDetails != nil {
+				fmt.Println("Recreating PR...")
+				labels := make([]string, len(prDetails.Labels))
+				for i, l := range prDetails.Labels {
+					labels[i] = l.Name
+				}
+				url, err := github.CreatePR(newBranch, prDetails.BaseRefName, prDetails.Title, prDetails.Body, prDetails.IsDraft, labels)
+				if err != nil {
+					ui.Warn("Failed to recreate PR")
+					fmt.Printf("   Create manually: %s\n", ui.Cyan("gh pr create"))
+				} else {
+					fmt.Printf("   %s\n", url)
+				}
 			}
 		}
 	}

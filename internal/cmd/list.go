@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/mvwi/wt/internal/git"
 	"github.com/mvwi/wt/internal/github"
@@ -29,13 +30,14 @@ func init() {
 }
 
 type worktreeInfo struct {
-	Path      string
-	ShortName string
-	Branch    string
-	IsCurrent bool
-	Age       string
-	Behind    int
-	Ahead     int
+	Path       string
+	ShortName  string
+	Branch     string
+	IsCurrent  bool
+	Age        string
+	Behind     int
+	Ahead      int
+	DirtyCount int
 }
 
 func runList(cmd *cobra.Command, args []string) error {
@@ -74,6 +76,11 @@ func runList(cmd *cobra.Command, args []string) error {
 			ShortName: short,
 			Branch:    branch,
 			IsCurrent: isCurrent,
+		}
+
+		// Dirty count for all worktrees
+		if changes, err := git.StatusPorcelainIn(wt.Path); err == nil {
+			info.DirtyCount = len(changes)
 		}
 
 		if !ctx.isBaseBranch(branch) {
@@ -127,14 +134,22 @@ func runList(cmd *cobra.Command, args []string) error {
 		fmt.Println()
 		fmt.Printf("  %s", ui.Dim("loading..."))
 
-		openPRs, _ := github.ListPRs("open")
-		mergedPRs, _ := github.ListPRs("merged")
+		// Fetch open, merged, and closed PRs in parallel
+		var openPRs, mergedPRs, closedPRs []github.PR
+		var wg sync.WaitGroup
+		wg.Add(3)
+		go func() { defer wg.Done(); openPRs, _ = github.ListPRs("open") }()
+		go func() { defer wg.Done(); mergedPRs, _ = github.ListPRs("merged") }()
+		go func() { defer wg.Done(); closedPRs, _ = github.ListPRs("closed") }()
+		wg.Wait()
 
 		// Clear loading indicator
 		fmt.Print("\r\033[K")
 
-		ui.DimF("  %-28s %-4s %-8s %-6s %-8s %s\n", "Branch", "Age", "Sync", "PR", "Review", "CI")
-		ui.DimF("  %s\n", strings.Repeat("─", 68))
+		staleThreshold := ctx.Config.EffectiveStaleThreshold()
+
+		ui.DimF("  %-28s %-4s %-6s %-8s %-6s %-8s %s\n", "Branch", "Age", "Dirty", "Sync", "PR", "Review", "CI")
+		ui.DimF("  %s\n", strings.Repeat("─", 76))
 
 		hasStale := false
 
@@ -143,24 +158,50 @@ func runList(cmd *cobra.Command, args []string) error {
 				continue
 			}
 
+			openPR := github.FindPRForBranch(openPRs, info.Branch)
+			mergedPR := github.FindPRForBranch(mergedPRs, info.Branch)
+			closedPR := github.FindPRForBranch(closedPRs, info.Branch)
+
+			// Check staleness: old commit + no open PR
+			daysAgo := git.LastCommitDaysAgo(info.Path)
+			isStale := daysAgo >= staleThreshold && openPR == nil
+
+			// Dim the entire row if stale
+			colorize := fmt.Sprintf
+			if isStale {
+				colorize = func(f string, a ...any) string {
+					return ui.Dim(fmt.Sprintf(f, a...))
+				}
+			}
+
 			branchDisplay := ui.Truncate(info.Branch, 28)
-			fmt.Printf("  %-28s ", branchDisplay)
+			fmt.Printf("  %s ", colorize("%-28s", branchDisplay))
 
 			// Age
-			ui.CyanF("%-4s ", info.Age)
+			fmt.Printf("%s ", colorize("%-4s", info.Age))
+
+			// Dirty
+			if info.DirtyCount > 0 {
+				if isStale {
+					fmt.Printf("%s ", colorize("%-6d", info.DirtyCount))
+				} else {
+					ui.YellowF("%-6d ", info.DirtyCount)
+				}
+			} else {
+				fmt.Printf("%s ", ui.Dim(fmt.Sprintf("%-6s", ui.Dash)))
+			}
 
 			// Sync
 			syncStr := buildSyncStr(info.Behind, info.Ahead)
-			if info.Behind > 0 {
+			if isStale {
+				fmt.Printf("%s ", colorize("%-8s", syncStr))
+			} else if info.Behind > 0 {
 				ui.YellowF("%-8s ", syncStr)
 			} else {
 				ui.GreenF("%-8s ", syncStr)
 			}
 
 			// PR status
-			openPR := github.FindPRForBranch(openPRs, info.Branch)
-			mergedPR := github.FindPRForBranch(mergedPRs, info.Branch)
-
 			if openPR != nil {
 				printOpenPRStatus(openPR, info.Path)
 			} else if mergedPR != nil {
@@ -168,8 +209,19 @@ func runList(cmd *cobra.Command, args []string) error {
 				fmt.Printf("%s   %s", ui.Green("merged"), ui.Yellow("stale"))
 				hasStale = true
 				fmt.Println()
+			} else if closedPR != nil {
+				ui.BlueF("%-6s ", fmt.Sprintf("#%d", closedPR.Number))
+				fmt.Printf("%s  %s", ui.Red("closed"), ui.Yellow("stale"))
+				hasStale = true
+				fmt.Println()
 			} else {
-				fmt.Println(ui.Dim(ui.Dash))
+				if isStale {
+					fmt.Print(ui.Dim(ui.Dash))
+					fmt.Print(" \U0001f4a4") // 💤
+				} else {
+					fmt.Print(ui.Dim(ui.Dash))
+				}
+				fmt.Println()
 			}
 		}
 

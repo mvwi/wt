@@ -42,7 +42,7 @@ func runWatch(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("gh CLI is required for this command (brew install gh)")
 	}
 
-	_, err := newContext()
+	ctx, err := newContext()
 	if err != nil {
 		return err
 	}
@@ -52,10 +52,14 @@ func runWatch(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("not in a git repository or detached HEAD")
 	}
 
+	if ctx.isBaseBranch(branch) {
+		return fmt.Errorf("no PR to watch %s the base branch (%s) has no associated PR", ui.Dash, branch)
+	}
+
 	// Initial fetch to verify PR exists
 	ws, err := github.GetWatchStatus(branch)
 	if err != nil {
-		return fmt.Errorf("no open PR found for branch: %s", branch)
+		return fmt.Errorf("no open PR found for branch %s %s run wt submit to push and create one", branch, ui.Dash)
 	}
 
 	fmt.Printf("Watching PR #%d %s %s\n", ws.Number, ui.Dash, ui.Dim(ws.HeadRefName))
@@ -79,7 +83,7 @@ func runWatch(cmd *cobra.Command, args []string) error {
 	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
 
-	spin := ui.NewSpinner(buildSpinnerMessage(ws))
+	spin := ui.NewSpinnerRich(buildSpinnerMessage(ws))
 
 	for {
 		select {
@@ -107,7 +111,7 @@ func runWatch(cmd *cobra.Command, args []string) error {
 
 			// Update spinner with new status
 			spin.Stop()
-			spin = ui.NewSpinner(buildSpinnerMessage(ws))
+			spin = ui.NewSpinnerRich(buildSpinnerMessage(ws))
 		}
 	}
 }
@@ -151,32 +155,48 @@ func checkResolved(ws *github.WatchStatus) *watchResult {
 	return nil
 }
 
-// buildSpinnerMessage creates a status string for the spinner.
+// buildSpinnerMessage creates a glyph-based status string matching wt list's style.
 func buildSpinnerMessage(ws *github.WatchStatus) string {
 	cs := ws.GetCISummary()
 	rs := ws.GetReviewSummary()
 
 	var parts []string
 
-	if cs.Total > 0 {
-		parts = append(parts, fmt.Sprintf("%d/%d checks passed, %d pending", cs.Pass, cs.Total, cs.Pending))
-	}
-
-	if rs.Approved > 0 || rs.Changes > 0 || rs.Pending > 0 {
-		var rParts []string
+	// Review glyphs (same colors as printOpenPRStatus in list.go)
+	reviewTotal := rs.Approved + rs.Changes + rs.Pending
+	if reviewTotal > 0 {
+		glyphs := ""
 		if rs.Approved > 0 {
-			rParts = append(rParts, fmt.Sprintf("%d approved", rs.Approved))
+			glyphs += ui.Green(strings.Repeat(ui.Pass, rs.Approved))
+		}
+		if rs.Changes > 0 {
+			glyphs += ui.Red(strings.Repeat(ui.Fail, rs.Changes))
 		}
 		if rs.Pending > 0 {
-			rParts = append(rParts, fmt.Sprintf("%d review pending", rs.Pending))
+			glyphs += ui.Blue(strings.Repeat(ui.Pending, rs.Pending))
 		}
-		parts = append(parts, strings.Join(rParts, ", "))
+		parts = append(parts, ui.Dim("Review ")+glyphs)
+	}
+
+	// CI glyphs
+	if cs.Total > 0 {
+		glyphs := ""
+		if cs.Pass > 0 {
+			glyphs += ui.Green(strings.Repeat(ui.Pass, cs.Pass))
+		}
+		if cs.Fail > 0 {
+			glyphs += ui.Red(strings.Repeat(ui.Fail, cs.Fail))
+		}
+		if cs.Pending > 0 {
+			glyphs += ui.Yellow(strings.Repeat(ui.Pending, cs.Pending))
+		}
+		parts = append(parts, ui.Dim("CI ")+glyphs)
 	}
 
 	if len(parts) == 0 {
-		return "Waiting for status..."
+		return ui.Dim("Waiting for status...")
 	}
-	return strings.Join(parts, " · ")
+	return strings.Join(parts, ui.Dim("  "))
 }
 
 // printFinalStatus outputs the detailed resolution display.

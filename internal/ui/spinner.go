@@ -25,9 +25,19 @@ var waveFrames = []string{
 	"▁ ▂ ▅",
 }
 
-// NewSpinner starts an animated spinner with the given message.
+// NewSpinner starts an animated spinner with the given message (auto-dimmed).
 // Call Stop() to clear the spinner line and release resources.
 func NewSpinner(message string) *Spinner {
+	return newSpinner(Dim(message))
+}
+
+// NewSpinnerRich starts a spinner that renders the message as-is, without
+// wrapping it in Dim. Use this when the message contains its own ANSI colors.
+func NewSpinnerRich(message string) *Spinner {
+	return newSpinner(message)
+}
+
+func newSpinner(formatted string) *Spinner {
 	s := &Spinner{
 		done: make(chan struct{}),
 	}
@@ -43,7 +53,7 @@ func NewSpinner(message string) *Spinner {
 				fmt.Print("\r\033[K")
 				return
 			case <-ticker.C:
-				fmt.Printf("\r\033[K  %s %s", Cyan(waveFrames[frame]), Dim(message))
+				fmt.Printf("\r\033[K  %s %s", Cyan(waveFrames[frame]), formatted)
 				frame = (frame + 1) % len(waveFrames)
 			}
 		}

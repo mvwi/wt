@@ -43,7 +43,7 @@ brews:
       To enable shell integration (required for 'wt switch' and 'wt new' to change directories):
 
         Fish:  Add to ~/.config/fish/config.fish:
-               eval (wt init-shell fish)
+               wt init-shell fish | source
 
         Bash:  Add to ~/.bashrc:
                eval "$(wt init-shell bash)"

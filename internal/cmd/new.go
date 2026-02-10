@@ -108,12 +108,10 @@ func newFromExisting(ctx *cmdContext, name, fromBranch string) error {
 	ui.Success("Created worktree")
 	fmt.Println()
 
-	ui.PrintCdHint(wtPath)
 	if newDoInit {
 		return runInitIn(wtPath, ctx)
 	}
-	fmt.Println()
-	fmt.Println("Next step: wt init")
+	fmt.Printf("  → wt switch %s && wt init\n", name)
 	return nil
 }
 
@@ -145,11 +143,9 @@ func newFromBase(ctx *cmdContext, name string) error {
 	ui.Success("Created worktree")
 	fmt.Println()
 
-	ui.PrintCdHint(wtPath)
 	if newDoInit {
 		return runInitIn(wtPath, ctx)
 	}
-	fmt.Println()
-	fmt.Println("Next step: wt init")
+	fmt.Printf("  → wt switch %s && wt init\n", name)
 	return nil
 }

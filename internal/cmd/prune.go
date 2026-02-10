@@ -44,7 +44,7 @@ func runPrune(cmd *cobra.Command, args []string) error {
 
 	cwd, _ := os.Getwd()
 
-	fmt.Println("Scanning for stale worktrees...")
+	spin := ui.NewSpinner("Scanning for stale worktrees")
 
 	var mergedPRs, closedPRs []github.PR
 	var wg sync.WaitGroup
@@ -55,6 +55,7 @@ func runPrune(cmd *cobra.Command, args []string) error {
 
 	worktrees, err := git.ListWorktrees()
 	if err != nil {
+		spin.Stop()
 		return err
 	}
 
@@ -95,6 +96,8 @@ func runPrune(cmd *cobra.Command, args []string) error {
 	}
 
 	git.PruneWorktrees()
+
+	spin.Stop()
 
 	if len(stale) == 0 {
 		ui.Success("No stale worktrees found")

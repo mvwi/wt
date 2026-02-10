@@ -132,7 +132,7 @@ func runList(cmd *cobra.Command, args []string) error {
 	// Phase 2: PR status for feature branches
 	if len(featureBranches) > 0 && github.IsAvailable() {
 		fmt.Println()
-		fmt.Printf("  %s", ui.Dim("loading..."))
+		spin := ui.NewSpinner("Loading PR status")
 
 		// Fetch open, merged, and closed PRs in parallel
 		var openPRs, mergedPRs, closedPRs []github.PR
@@ -143,8 +143,7 @@ func runList(cmd *cobra.Command, args []string) error {
 		go func() { defer wg.Done(); closedPRs, _ = github.ListPRs("closed") }()
 		wg.Wait()
 
-		// Clear loading indicator
-		fmt.Print("\r\033[K")
+		spin.Stop()
 
 		staleThreshold := ctx.Config.EffectiveStaleThreshold()
 

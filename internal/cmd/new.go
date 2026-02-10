@@ -64,7 +64,9 @@ func runNew(cmd *cobra.Command, args []string) error {
 
 func newFromExisting(ctx *cmdContext, name, fromBranch string) error {
 	// Fetch to get latest refs
+	spin := ui.NewSpinner("Fetching latest refs")
 	_ = git.FetchAll(ctx.Config.Remote)
+	spin.Stop()
 
 	ref, isRemote, err := git.ResolveBranch(fromBranch, ctx.Config.Remote)
 	if err != nil {
@@ -133,7 +135,9 @@ func newFromBase(ctx *cmdContext, name string) error {
 	fmt.Println()
 
 	// Fetch latest base branch
+	spin := ui.NewSpinner(fmt.Sprintf("Fetching %s", ctx.Config.BaseBranch))
 	_ = git.Fetch(ctx.Config.Remote, ctx.Config.BaseBranch)
+	spin.Stop()
 
 	if err := git.AddWorktree(wtPath, branch, ctx.baseRef()); err != nil {
 		return fmt.Errorf("failed to create worktree: %w", err)

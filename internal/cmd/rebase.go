@@ -92,12 +92,15 @@ func rebaseFeatureBranch(ctx *cmdContext, branch string) error {
 	_ = git.SaveStateFile(stateFileName, stashState)
 
 	// Fetch base branch
-	fmt.Printf("Fetching %s...\n", ctx.baseRef())
+	spin := ui.NewSpinner(fmt.Sprintf("Fetching %s", ctx.baseRef()))
 	if err := git.Fetch(ctx.Config.Remote, ctx.Config.BaseBranch); err != nil {
+		spin.Stop()
 		restoreStash(didStash)
 		git.RemoveStateFile(stateFileName)
 		return fmt.Errorf("failed to fetch: %w", err)
 	}
+
+	spin.Stop()
 
 	// Check if up to date
 	ab, err := git.GetAheadBehind(ctx.baseRef())
@@ -172,11 +175,14 @@ func rebaseBaseBranch(ctx *cmdContext, branch string) error {
 	}
 
 	// Fetch
-	fmt.Printf("Fetching %s/%s...\n", ctx.Config.Remote, branch)
+	spin := ui.NewSpinner(fmt.Sprintf("Fetching %s/%s", ctx.Config.Remote, branch))
 	if err := git.Fetch(ctx.Config.Remote, branch); err != nil {
+		spin.Stop()
 		restoreStash(didStash)
 		return fmt.Errorf("failed to fetch: %w", err)
 	}
+
+	spin.Stop()
 
 	remoteRef := ctx.Config.Remote + "/" + branch
 	ab, _ := git.GetAheadBehind(remoteRef)
@@ -247,10 +253,14 @@ func rebaseAll(ctx *cmdContext) error {
 	fmt.Println("Rebasing all worktrees onto", ctx.Config.BaseBranch+"...")
 	fmt.Println()
 
-	fmt.Printf("Fetching %s...\n\n", ctx.baseRef())
+	spin := ui.NewSpinner(fmt.Sprintf("Fetching %s", ctx.baseRef()))
 	if err := git.Fetch(ctx.Config.Remote, ctx.Config.BaseBranch); err != nil {
+		spin.Stop()
 		ui.Warn("Fetch failed: %v", err)
+	} else {
+		spin.Stop()
 	}
+	fmt.Println()
 
 	var rebased, skipped, uptodate, failed int
 

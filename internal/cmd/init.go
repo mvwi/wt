@@ -6,7 +6,6 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/mvwi/wt/internal/git"
 	"github.com/mvwi/wt/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -55,11 +54,13 @@ func runInitIn(dir string, ctx *cmdContext) error {
 	for _, envFile := range ctx.Config.EffectiveEnvFiles() {
 		src := filepath.Join(ctx.MainWorktree, envFile)
 		dst := filepath.Join(cwd, envFile)
-		if git.FileExists(src) && !git.FileExists(dst) {
+		if fileExists(src) && !fileExists(dst) {
 			fmt.Printf("Copying %s from main repo...\n", envFile)
 			data, err := os.ReadFile(src)
 			if err == nil {
-				_ = os.WriteFile(dst, data, 0644)
+				if err := os.WriteFile(dst, data, 0644); err != nil {
+					ui.Warn("Failed to write %s: %v", envFile, err)
+				}
 				didSomething = true
 			}
 		}
@@ -77,7 +78,7 @@ func runInitIn(dir string, ctx *cmdContext) error {
 	}
 
 	// Step 3: Prisma generate
-	if git.FileExists(filepath.Join(cwd, "prisma/schema.prisma")) {
+	if fileExists(filepath.Join(cwd, "prisma/schema.prisma")) {
 		fmt.Println("Generating Prisma client...")
 		if err := runShellCmd(cwd, "npx", "prisma", "generate"); err != nil {
 			ui.Warn("Prisma generate failed: %v", err)
@@ -100,7 +101,7 @@ func runInitIn(dir string, ctx *cmdContext) error {
 	if len(ctx.Config.Init.PostCommands) == 0 {
 		for _, script := range []string{".wt-init.fish", ".wt-init"} {
 			scriptPath := filepath.Join(cwd, script)
-			if git.FileExists(scriptPath) {
+			if fileExists(scriptPath) {
 				fmt.Printf("Running custom init script (%s)...\n", script)
 				if err := runShellString(cwd, "fish "+scriptPath); err != nil {
 					// Try sh if fish fails
@@ -125,17 +126,17 @@ func detectPackageManager(dir, override string) string {
 	if override != "" {
 		return override
 	}
-	if !git.FileExists(filepath.Join(dir, "package.json")) {
+	if !fileExists(filepath.Join(dir, "package.json")) {
 		return ""
 	}
 	switch {
-	case git.FileExists(filepath.Join(dir, "bun.lockb")):
+	case fileExists(filepath.Join(dir, "bun.lockb")):
 		return "bun"
-	case git.FileExists(filepath.Join(dir, "pnpm-lock.yaml")):
+	case fileExists(filepath.Join(dir, "pnpm-lock.yaml")):
 		return "pnpm"
-	case git.FileExists(filepath.Join(dir, "yarn.lock")):
+	case fileExists(filepath.Join(dir, "yarn.lock")):
 		return "yarn"
-	case git.FileExists(filepath.Join(dir, "package-lock.json")):
+	case fileExists(filepath.Join(dir, "package-lock.json")):
 		return "npm"
 	default:
 		return "pnpm"
@@ -156,12 +157,4 @@ func runShellString(dir, command string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
-}
-
-func isSubpath(child, parent string) bool {
-	rel, err := filepath.Rel(parent, child)
-	if err != nil {
-		return false
-	}
-	return rel != ".." && !filepath.IsAbs(rel) && rel[0] != '.'
 }

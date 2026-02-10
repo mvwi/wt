@@ -69,7 +69,7 @@ func runPrune(cmd *cobra.Command, args []string) error {
 		if branch == "" {
 			branch, _ = git.CurrentBranchIn(wt.Path)
 		}
-		if branch == ctx.Config.BaseBranch || branch == "main" || branch == "master" {
+		if ctx.isBaseBranch(branch) {
 			continue
 		}
 

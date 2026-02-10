@@ -41,7 +41,7 @@ func runSubmit(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("not in a git repository or detached HEAD")
 	}
 
-	if branch == ctx.Config.BaseBranch || branch == "main" || branch == "master" {
+	if ctx.isBaseBranch(branch) {
 		return fmt.Errorf("cannot submit %s (use git push directly)", branch)
 	}
 

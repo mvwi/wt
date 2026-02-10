@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/mvwi/wt/internal/git"
 	"github.com/mvwi/wt/internal/ui"
@@ -57,10 +58,10 @@ func runMove(cmd *cobra.Command, args []string) error {
 		if c.IsRename() {
 			filesToDelete = append(filesToDelete, c.OldPath)
 			src := filepath.Join(sourceRoot, c.Path)
-			if git.FileExists(src) {
+			if fileExists(src) {
 				filesToCopy = append(filesToCopy, c.Path)
 			}
-		} else if git.FileExists(filepath.Join(sourceRoot, c.Path)) {
+		} else if fileExists(filepath.Join(sourceRoot, c.Path)) {
 			filesToCopy = append(filesToCopy, c.Path)
 		} else {
 			filesToDelete = append(filesToDelete, c.Path)
@@ -83,7 +84,7 @@ func runMove(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("can't move changes to the same worktree")
 	}
 
-	targetShort := shortName(targetPath, ctx)
+	targetShort := ctx.shortName(targetPath)
 
 	// Safety: check for conflicting changes in destination
 	destChanges, _ := git.StatusPorcelainIn(targetPath)
@@ -124,7 +125,9 @@ func runMove(cmd *cobra.Command, args []string) error {
 
 	for _, file := range filesToCopy {
 		destDir := filepath.Dir(filepath.Join(targetPath, file))
-		_ = os.MkdirAll(destDir, 0755)
+		if err := os.MkdirAll(destDir, 0755); err != nil {
+			return fmt.Errorf("failed to create directory %s: %w", destDir, err)
+		}
 
 		if err := copyFile(filepath.Join(sourceRoot, file), filepath.Join(targetPath, file)); err != nil {
 			fmt.Printf("  %s Failed to copy: %s\n", ui.Red(ui.Fail), file)
@@ -136,7 +139,7 @@ func runMove(cmd *cobra.Command, args []string) error {
 
 	for _, file := range filesToDelete {
 		dest := filepath.Join(targetPath, file)
-		if git.FileExists(dest) {
+		if fileExists(dest) {
 			if err := os.Remove(dest); err != nil {
 				fmt.Printf("  %s Failed to delete: %s\n", ui.Red(ui.Fail), file)
 				errors++
@@ -162,7 +165,7 @@ func runMove(cmd *cobra.Command, args []string) error {
 		parts = append(parts, fmt.Sprintf("%d deleted", deleted))
 	}
 	if len(parts) > 0 {
-		fmt.Printf("  %s\n", joinParts(parts))
+		fmt.Printf("  %s\n", strings.Join(parts, ", "))
 	}
 
 	fmt.Println()
@@ -198,7 +201,7 @@ func resolveOrCreateTarget(ctx *cmdContext, name, sourceRoot string) (string, bo
 	}
 	fmt.Println()
 
-	if git.IsDir(wtPath) {
+	if isDir(wtPath) {
 		return "", false, fmt.Errorf("directory already exists: %s", wtPath)
 	}
 	if git.BranchExists(branch) {
@@ -234,15 +237,4 @@ func copyFile(src, dst string) error {
 
 	_, err = io.Copy(out, in)
 	return err
-}
-
-func joinParts(parts []string) string {
-	result := ""
-	for i, p := range parts {
-		if i > 0 {
-			result += ", "
-		}
-		result += p
-	}
-	return result
 }

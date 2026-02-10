@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -69,6 +70,39 @@ func (c *cmdContext) worktreePath(name string) string {
 // baseRef returns the full remote ref for the base branch (e.g., "origin/staging").
 func (c *cmdContext) baseRef() string {
 	return c.Config.Remote + "/" + c.Config.BaseBranch
+}
+
+// shortName strips the configured worktree prefix from a path to produce a display name.
+func (c *cmdContext) shortName(path string) string {
+	base := filepath.Base(path)
+	prefix := c.Config.EffectiveWorktreeDir(c.RepoName, "")
+	return strings.TrimPrefix(base, prefix)
+}
+
+// isBaseBranch returns true if the branch is the configured base branch or a common default.
+func (c *cmdContext) isBaseBranch(branch string) bool {
+	return branch == c.Config.BaseBranch || branch == "main" || branch == "master"
+}
+
+// isSubpath returns true if child is a subdirectory of parent.
+func isSubpath(child, parent string) bool {
+	rel, err := filepath.Rel(parent, child)
+	if err != nil {
+		return false
+	}
+	return rel != ".." && !filepath.IsAbs(rel) && rel[0] != '.'
+}
+
+// fileExists returns true if the path exists.
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
+
+// isDir returns true if the path exists and is a directory.
+func isDir(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
 }
 
 // completeWorktreeNames returns a Cobra ValidArgsFunction that suggests worktree short names.

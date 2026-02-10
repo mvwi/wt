@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"path/filepath"
 
 	"github.com/mvwi/wt/internal/git"
 	"github.com/mvwi/wt/internal/ui"
@@ -60,7 +59,7 @@ func runRebase(cmd *cobra.Command, args []string) error {
 	}
 
 	// Base branch: fast-forward
-	if branch == ctx.Config.BaseBranch || branch == "main" || branch == "master" {
+	if ctx.isBaseBranch(branch) {
 		return rebaseBaseBranch(ctx, branch)
 	}
 
@@ -76,17 +75,21 @@ func rebaseFeatureBranch(ctx *cmdContext, branch string) error {
 	fmt.Printf("Syncing branch: %s\n\n", branch)
 
 	// Stash uncommitted changes
-	didStash := "no"
+	didStash := false
 	if git.HasChanges() {
 		fmt.Println("Stashing uncommitted changes...")
 		if err := git.StashPush("wt rebase: auto-stash"); err != nil {
 			return fmt.Errorf("failed to stash changes: %w", err)
 		}
-		didStash = "stashed"
+		didStash = true
 	}
 
 	// Save state for --continue
-	_ = git.SaveStateFile(stateFileName, didStash)
+	stashState := "no"
+	if didStash {
+		stashState = "stashed"
+	}
+	_ = git.SaveStateFile(stateFileName, stashState)
 
 	// Fetch base branch
 	fmt.Printf("Fetching %s...\n", ctx.baseRef())
@@ -131,7 +134,7 @@ func rebaseFeatureBranch(ctx *cmdContext, branch string) error {
 func rebaseBaseBranch(ctx *cmdContext, branch string) error {
 	fmt.Printf("Syncing %s (fast-forward only)...\n\n", branch)
 
-	didStash := "no"
+	didStash := false
 	if git.HasChanges() {
 		short, _ := git.StatusShort()
 		ui.Warn("You have uncommitted changes:")
@@ -146,7 +149,7 @@ func rebaseBaseBranch(ctx *cmdContext, branch string) error {
 		if err := git.StashPush("wt rebase: auto-stash on " + branch); err != nil {
 			return fmt.Errorf("failed to stash: %w", err)
 		}
-		didStash = "stashed"
+		didStash = true
 		fmt.Println()
 	}
 
@@ -193,8 +196,8 @@ func rebaseContinue() error {
 		}
 	}
 
-	didStash, _ := git.ReadStateFile(stateFileName)
-	restoreStash(didStash)
+	stashState, _ := git.ReadStateFile(stateFileName)
+	restoreStash(stashState == "stashed")
 	git.RemoveStateFile(stateFileName)
 	fmt.Println()
 	ui.Success("Synced with base branch")
@@ -208,8 +211,8 @@ func rebaseAbort() error {
 	}
 
 	if git.StateFileExists(stateFileName) {
-		didStash, _ := git.ReadStateFile(stateFileName)
-		restoreStash(didStash)
+		stashState, _ := git.ReadStateFile(stateFileName)
+		restoreStash(stashState == "stashed")
 		git.RemoveStateFile(stateFileName)
 	}
 
@@ -227,17 +230,19 @@ func rebaseAll(ctx *cmdContext) error {
 	fmt.Println()
 
 	fmt.Printf("Fetching %s...\n\n", ctx.baseRef())
-	_ = git.Fetch(ctx.Config.Remote, ctx.Config.BaseBranch)
+	if err := git.Fetch(ctx.Config.Remote, ctx.Config.BaseBranch); err != nil {
+		ui.Warn("Fetch failed: %v", err)
+	}
 
 	var rebased, skipped, uptodate, failed int
 
 	for _, wt := range worktrees {
 		branch, _ := git.CurrentBranchIn(wt.Path)
-		if branch == ctx.Config.BaseBranch || branch == "main" || branch == "master" {
+		if ctx.isBaseBranch(branch) {
 			continue
 		}
 
-		short := filepath.Base(wt.Path)
+		short := ctx.shortName(wt.Path)
 		fmt.Printf("  %-25s ", short)
 
 		if git.HasChangesIn(wt.Path) {
@@ -280,8 +285,8 @@ func rebaseAll(ctx *cmdContext) error {
 	return nil
 }
 
-func restoreStash(state string) {
-	if state == "stashed" {
+func restoreStash(didStash bool) {
+	if didStash {
 		fmt.Println("Restoring stashed changes...")
 		_ = git.StashPop()
 	}

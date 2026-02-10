@@ -6,19 +6,20 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+	"sync"
 )
 
-// ghAvailable caches whether `gh` CLI is installed.
-var ghChecked bool
-var ghInstalled bool
+var (
+	ghOnce      sync.Once
+	ghInstalled bool
+)
 
 // IsAvailable returns true if `gh` CLI is on PATH.
 func IsAvailable() bool {
-	if !ghChecked {
+	ghOnce.Do(func() {
 		_, err := exec.LookPath("gh")
 		ghInstalled = err == nil
-		ghChecked = true
-	}
+	})
 	return ghInstalled
 }
 

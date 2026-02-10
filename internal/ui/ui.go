@@ -20,13 +20,11 @@ var (
 	Dim     = color.New(color.FgHiBlack).SprintFunc()
 	Bold    = color.New(color.Bold).SprintFunc()
 
-	GreenF   = color.New(color.FgGreen).PrintfFunc()
-	YellowF  = color.New(color.FgYellow).PrintfFunc()
-	RedF     = color.New(color.FgRed).PrintfFunc()
-	BlueF    = color.New(color.FgBlue).PrintfFunc()
-	CyanF    = color.New(color.FgCyan).PrintfFunc()
-	MagentaF = color.New(color.FgMagenta).PrintfFunc()
-	DimF     = color.New(color.FgHiBlack).PrintfFunc()
+	GreenF  = color.New(color.FgGreen).PrintfFunc()
+	YellowF = color.New(color.FgYellow).PrintfFunc()
+	BlueF   = color.New(color.FgBlue).PrintfFunc()
+	CyanF   = color.New(color.FgCyan).PrintfFunc()
+	DimF    = color.New(color.FgHiBlack).PrintfFunc()
 )
 
 // Glyphs used throughout the UI.

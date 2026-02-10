@@ -81,7 +81,7 @@ func newFromExisting(ctx *cmdContext, name, fromBranch string) error {
 
 	wtPath := ctx.worktreePath(name)
 
-	if git.IsDir(wtPath) {
+	if isDir(wtPath) {
 		return fmt.Errorf("worktree already exists: %s", wtPath)
 	}
 
@@ -121,7 +121,7 @@ func newFromBase(ctx *cmdContext, name string) error {
 	branch := ctx.branchName(name)
 	wtPath := ctx.worktreePath(name)
 
-	if git.IsDir(wtPath) {
+	if isDir(wtPath) {
 		return fmt.Errorf("worktree already exists: %s", wtPath)
 	}
 

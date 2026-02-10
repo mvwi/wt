@@ -88,7 +88,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	// Worktree name
-	short := shortName(cwd, ctx)
+	short := ctx.shortName(cwd)
 	isMain := cwd == ctx.MainWorktree || isSubpath(cwd, ctx.MainWorktree)
 
 	fmt.Printf("%s %s", ui.Yellow(ui.Current), short)
@@ -98,7 +98,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 
 	// Base/main branch: just show it
-	if isMain || branch == ctx.Config.BaseBranch || branch == "main" || branch == "master" {
+	if isMain || ctx.isBaseBranch(branch) {
 		return nil
 	}
 

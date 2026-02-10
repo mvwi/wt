@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/mvwi/wt/internal/git"
@@ -61,10 +60,7 @@ func runList(cmd *cobra.Command, args []string) error {
 	var featureBranches []string
 
 	for _, wt := range worktrees {
-		short := filepath.Base(wt.Path)
-		// Strip configured worktree prefix
-		prefix := ctx.Config.EffectiveWorktreeDir(ctx.RepoName, "")
-		short = strings.TrimPrefix(short, prefix)
+		short := ctx.shortName(wt.Path)
 
 		branch := wt.Branch
 		if branch == "" {
@@ -80,7 +76,7 @@ func runList(cmd *cobra.Command, args []string) error {
 			IsCurrent: isCurrent,
 		}
 
-		if branch != ctx.Config.BaseBranch && branch != "main" && branch != "master" {
+		if !ctx.isBaseBranch(branch) {
 			info.Age = git.LastCommitAge(wt.Path)
 			ab, err := git.GetAheadBehindIn(wt.Path, ctx.baseRef())
 			if err == nil {
@@ -126,7 +122,7 @@ func runList(cmd *cobra.Command, args []string) error {
 		hasStale := false
 
 		for _, info := range infos {
-			if info.Branch == ctx.Config.BaseBranch || info.Branch == "main" || info.Branch == "master" {
+			if ctx.isBaseBranch(info.Branch) {
 				continue
 			}
 

@@ -1,6 +1,7 @@
 package git
 
 import (
+	"strconv"
 	"strings"
 )
 
@@ -81,17 +82,12 @@ func StatusPorcelainIn(dir string) ([]FileChange, error) {
 	return changes, nil
 }
 
-// UnpushedCount returns the number of commits ahead of the upstream.
+// UnpushedCountIn returns the number of commits ahead of the upstream.
 func UnpushedCountIn(dir string) int {
 	out, err := RunIn(dir, "rev-list", "--count", "@{upstream}..HEAD")
 	if err != nil {
 		return 0
 	}
-	var n int
-	for _, c := range out {
-		if c >= '0' && c <= '9' {
-			n = n*10 + int(c-'0')
-		}
-	}
+	n, _ := strconv.Atoi(strings.TrimSpace(out))
 	return n
 }

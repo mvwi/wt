@@ -83,12 +83,14 @@ func Load(dir, repoName string) (*Config, error) {
 		}
 	}
 
-	// Layer 3: repo-local .wt.toml (overrides everything)
+	// Layer 3: repo-local .wt.toml (overrides non-zero fields, same as other layers)
 	repoPath := filepath.Join(dir, ".wt.toml")
 	if data, err := os.ReadFile(repoPath); err == nil {
-		if err := toml.Unmarshal(data, cfg); err != nil {
+		var repoCfg Config
+		if err := toml.Unmarshal(data, &repoCfg); err != nil {
 			return nil, fmt.Errorf("repo config (%s): %w", repoPath, err)
 		}
+		mergeConfig(cfg, &repoCfg)
 	}
 
 	return cfg, nil

@@ -50,7 +50,7 @@ func runRename(cmd *cobra.Command, args []string) error {
 	if cwd == ctx.MainWorktree || isSubpath(cwd, ctx.MainWorktree) {
 		return fmt.Errorf("cannot rename the main repository\n   Switch to a worktree first: wt switch <name>")
 	}
-	if currentBranch == ctx.Config.BaseBranch || currentBranch == "main" || currentBranch == "master" {
+	if ctx.isBaseBranch(currentBranch) {
 		return fmt.Errorf("cannot rename %s", currentBranch)
 	}
 
@@ -76,7 +76,7 @@ func runRename(cmd *cobra.Command, args []string) error {
 	if currentBranch != newBranch && git.BranchExists(newBranch) {
 		return fmt.Errorf("branch already exists: %s", newBranch)
 	}
-	if cwd != newPath && git.IsDir(newPath) {
+	if cwd != newPath && isDir(newPath) {
 		return fmt.Errorf("directory already exists: %s", newPath)
 	}
 
@@ -104,7 +104,7 @@ func runRename(cmd *cobra.Command, args []string) error {
 		fmt.Printf("  Branch:    %s\n", ui.Dim(currentBranch+" (no change)"))
 	}
 
-	currentShort := shortName(cwd, ctx)
+	currentShort := ctx.shortName(cwd)
 	if cwd != newPath {
 		fmt.Printf("  Directory: %s → %s\n", currentShort, ctx.worktreeDir(newName))
 	} else {

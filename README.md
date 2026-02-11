@@ -56,13 +56,16 @@ wt prune                  # Clean up merged worktrees
 | `wt new <name>` | `create` | Create worktree with feature branch |
 | `wt init` | | Initialize worktree (deps, .env, prisma) |
 | `wt list` | `ls` | Show all worktrees with PR status |
-| `wt switch [name]` | `sw`, `cd`, `co` | Switch to a worktree (fzf picker if no args) |
+| `wt switch [name]` | `sw`, `cd`, `checkout`, `co` | Switch to a worktree (fzf picker if no args) |
 | `wt rebase` | | Rebase current branch onto base branch |
 | `wt submit` | | Rebase + push to remote |
-| `wt move <name>` | `mv`, `tp` | Move uncommitted changes to another worktree |
+| `wt move <name>` | `mv`, `teleport`, `tp` | Move uncommitted changes to another worktree |
 | `wt close [name]` | `rm` | Close and clean up a worktree |
 | `wt rename <name>` | `rn` | Rename worktree, branch, and remote |
 | `wt prune` | | Clean up stale worktrees (merged/closed PRs) |
+| `wt open [name]` | | Open PR in browser |
+| `wt watch` | | Watch PR until mergeable or blocked |
+| `wt feedback [message]` | | Open a GitHub issue for feedback |
 
 Run `wt <command> --help` for detailed usage of any command.
 

@@ -96,6 +96,10 @@ branch_prefix = "michael"
 # Set to customize (e.g., "wt-" for shorter names).
 worktree_prefix = ""
 
+# Days before a worktree with no open PR is flagged stale in `wt list`.
+# Default: 7
+stale_threshold = 14
+
 [init]
 # .env files to copy from main worktree during init.
 # Default: [".env", ".env.local", ".env.development.local"]
@@ -141,6 +145,7 @@ A `.wt.toml` in a repo root always wins, but most users won't need one.
 | `remote` | `"origin"` | Remote for fetch/push operations |
 | `branch_prefix` | git username | New branches: `<prefix>/<name>` |
 | `worktree_prefix` | `"wt-<repo>-"` | Directory naming: `<prefix><name>` |
+| `stale_threshold` | `7` | Days before worktree flagged stale in `wt list` |
 | `init.env_files` | `.env`, `.env.local`, `.env.development.local` | Files copied from main repo |
 | `init.package_manager` | auto-detect | Force specific package manager |
 | `init.post_commands` | `[]` | Custom init steps |

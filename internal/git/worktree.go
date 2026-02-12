@@ -17,7 +17,11 @@ func ListWorktrees() ([]Worktree, error) {
 	if err != nil {
 		return nil, err
 	}
+	return ParseWorktreeList(out), nil
+}
 
+// ParseWorktreeList parses the porcelain output of `git worktree list`.
+func ParseWorktreeList(out string) []Worktree {
 	var worktrees []Worktree
 	var current Worktree
 
@@ -41,7 +45,7 @@ func ListWorktrees() ([]Worktree, error) {
 		worktrees = append(worktrees, current)
 	}
 
-	return worktrees, nil
+	return worktrees
 }
 
 // MainWorktree returns the path of the main (first) worktree.

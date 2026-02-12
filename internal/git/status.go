@@ -52,9 +52,13 @@ func StatusPorcelainIn(dir string) ([]FileChange, error) {
 	if err != nil {
 		return nil, err
 	}
+	return ParsePorcelainOutput(out), nil
+}
 
+// ParsePorcelainOutput parses the output of `git status --porcelain` into FileChanges.
+func ParsePorcelainOutput(out string) []FileChange {
 	if strings.TrimSpace(out) == "" {
-		return nil, nil
+		return nil
 	}
 
 	var changes []FileChange
@@ -79,7 +83,7 @@ func StatusPorcelainIn(dir string) ([]FileChange, error) {
 		changes = append(changes, fc)
 	}
 
-	return changes, nil
+	return changes
 }
 
 // UnpushedCountIn returns the number of commits ahead of the upstream.

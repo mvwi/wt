@@ -13,15 +13,13 @@
 
 Git worktrees are the best way to work on multiple branches at the same time. No stashing, no context-switching, no waiting for `node_modules` to reinstall. Every branch gets its own directory, ready to go.
 
-But the built-in commands make it hard to love them. Creating a worktree means juggling `git worktree add`, `git checkout -b`, and a path you have to remember. Switching between them means typing out full directory paths. Figuring out which ones still have open PRs — or which ones were merged three weeks ago and are just sitting there — means checking GitHub manually, one by one.
+But the built-in commands make it hard to love them. Creating a worktree means juggling `git worktree add`, `git checkout -b`, and a path you have to remember. Switching between them means typing out full directory paths. Figuring out which ones still have open PRs, or which ones were merged three weeks ago and are just sitting there, means checking GitHub manually.
 
-`wt` handles all of that. One command to create a worktree and branch — or wrap an existing branch in a worktree with `--from`. One command to switch. One command to rebase and push. A dashboard that shows PR status, CI checks, and code review right in your terminal. And when a PR merges, one command to clean everything up.
+`wt` handles all of that. Create a worktree and branch in one command, or wrap an existing branch with `--from`. Switch without typing paths. Rebase and push with `wt submit`. PR status, CI checks, and code review show up right in your terminal, and when a PR merges, `wt prune` cleans everything up.
 
-It's also just a thin layer over git. No special repo format, no lock-in. Your worktrees and branches are normal git — `wt` just makes them easier to manage. Remove it and everything still works.
+It's a thin layer over git. No special repo format, no lock-in. Your worktrees and branches are normal git. `wt` just makes them easier to manage. Remove it and everything still works.
 
-**Zero config** — works out of the box with sensible defaults.
-**PR-aware** — shows GitHub status, CI checks, and reviews in your terminal.
-**Shell-native** — `cd` just works when you switch worktrees.
+Works without config. `wt list` pulls in PR status, CI, and code review from GitHub. Shell `cd` just works when you switch worktrees.
 
 ## How It Works
 
@@ -93,7 +91,7 @@ Run `wt <command> --help` for detailed usage of any command.
 
 ## Configuration
 
-All fields are optional — sensible defaults work out of the box. Config is layered: **defaults -> global -> repo**, each layer only overrides what it sets.
+All fields are optional. Config is layered: **defaults -> global -> repo**, each layer only overrides what it sets.
 
 - **Global** (`~/.config/wt/config.toml`): applies to all repos
 - **Repo** (`.wt.toml` in repo root): overrides global for that repo
@@ -141,7 +139,7 @@ post_commands = [
 
 ### Global Config with Per-Repo Overrides
 
-Set everything in `~/.config/wt/config.toml` — no need to commit config to repos:
+Set everything in `~/.config/wt/config.toml` so you don't need to commit config to repos:
 
 ```toml
 # Defaults for all repos
@@ -177,9 +175,9 @@ A `.wt.toml` in a repo root always wins, but most users won't need one.
 
 ## Dependencies
 
-- **git** — required
-- **gh** (GitHub CLI) — optional, enables PR status in `wt list`, safety checks in `wt close`, and remote rename in `wt rename`
-- **fzf** — optional, enables interactive picker in `wt switch`
+- **git** (required)
+- **gh** (GitHub CLI, optional): PR status in `wt list`, safety checks in `wt close`, remote rename in `wt rename`
+- **fzf** (optional): interactive picker in `wt switch`
 
 ## License
 

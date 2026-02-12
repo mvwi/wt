@@ -316,6 +316,8 @@ func rebaseAll(ctx *cmdContext) error {
 func restoreStash(didStash bool) {
 	if didStash {
 		fmt.Println("Restoring stashed changes...")
-		_ = git.StashPop()
+		if err := git.StashPop(); err != nil {
+			ui.Warn("Failed to restore stash — run 'git stash pop' manually")
+		}
 	}
 }

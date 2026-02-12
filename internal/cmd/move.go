@@ -87,7 +87,10 @@ func runMove(cmd *cobra.Command, args []string) error {
 	targetShort := ctx.shortName(targetPath)
 
 	// Safety: check for conflicting changes in destination
-	destChanges, _ := git.StatusPorcelainIn(targetPath)
+	destChanges, err := git.StatusPorcelainIn(targetPath)
+	if err != nil {
+		return fmt.Errorf("failed to check destination for conflicts: %w", err)
+	}
 	if len(destChanges) > 0 {
 		var destFiles []string
 		for _, dc := range destChanges {
@@ -149,12 +152,23 @@ func runMove(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Clean up source worktree
+	if errors == 0 {
+		_ = git.RunSilentIn(sourceRoot, "reset", ".")
+		if err := git.RunSilentIn(sourceRoot, "checkout", "."); err != nil {
+			ui.Warn("Could not restore source worktree: %v", err)
+		}
+		if err := git.RunSilentIn(sourceRoot, "clean", "-fd"); err != nil {
+			ui.Warn("Could not clean source untracked files: %v", err)
+		}
+	}
+
 	// Summary
 	fmt.Println()
 	if errors == 0 {
-		ui.Success("Done")
+		ui.Success("Moved to %s", targetShort)
 	} else {
-		ui.Warn("Done with %d error(s)", errors)
+		ui.Warn("Done with %d error(s) — source worktree not cleaned up", errors)
 	}
 
 	var parts []string
@@ -223,13 +237,18 @@ func resolveOrCreateTarget(ctx *cmdContext, name, sourceRoot string) (string, bo
 }
 
 func copyFile(src, dst string) error {
+	info, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+
 	in, err := os.Open(src)
 	if err != nil {
 		return err
 	}
 	defer in.Close()
 
-	out, err := os.Create(dst)
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, info.Mode())
 	if err != nil {
 		return err
 	}

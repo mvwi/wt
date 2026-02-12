@@ -90,7 +90,7 @@ func isSubpath(child, parent string) bool {
 	if err != nil {
 		return false
 	}
-	return rel != ".." && !filepath.IsAbs(rel) && rel[0] != '.'
+	return rel != ".." && !filepath.IsAbs(rel) && len(rel) > 0 && rel[0] != '.'
 }
 
 // fileExists returns true if the path exists.

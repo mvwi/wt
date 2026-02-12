@@ -108,8 +108,11 @@ func runClose(cmd *cobra.Command, args []string) error {
 
 	// Delete local branch
 	if targetBranch != "" && git.BranchExists(targetBranch) {
-		_ = git.DeleteBranch(targetBranch)
-		ui.Success("Deleted local branch: %s", targetBranch)
+		if err := git.DeleteBranch(targetBranch); err != nil {
+			ui.Warn("Could not delete local branch %s: %v", targetBranch, err)
+		} else {
+			ui.Success("Deleted local branch: %s", targetBranch)
+		}
 	}
 
 	fmt.Println()

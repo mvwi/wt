@@ -9,8 +9,9 @@ import (
 // Spinner shows an animated wave indicator for long-running operations.
 // The animation uses block element characters rendered as a 3-bar equalizer.
 type Spinner struct {
-	done chan struct{}
-	once sync.Once
+	done    chan struct{}
+	stopped chan struct{}
+	once    sync.Once
 }
 
 // Wave frames: 3 bars that rise and fall in sequence.
@@ -39,10 +40,12 @@ func NewSpinnerRich(message string) *Spinner {
 
 func newSpinner(formatted string) *Spinner {
 	s := &Spinner{
-		done: make(chan struct{}),
+		done:    make(chan struct{}),
+		stopped: make(chan struct{}),
 	}
 
 	go func() {
+		defer close(s.stopped)
 		ticker := time.NewTicker(80 * time.Millisecond)
 		defer ticker.Stop()
 
@@ -67,7 +70,6 @@ func newSpinner(formatted string) *Spinner {
 func (s *Spinner) Stop() {
 	s.once.Do(func() {
 		close(s.done)
-		// Brief sleep to let the goroutine clear the line
-		time.Sleep(10 * time.Millisecond)
+		<-s.stopped
 	})
 }

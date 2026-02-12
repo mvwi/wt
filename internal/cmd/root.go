@@ -24,7 +24,7 @@ sync with your base branch, track PR status, and clean up when done.
 
 Typical workflow:
   wt new feature        Create worktree + branch
-  wt init               Install deps, copy .env, generate prisma
+  wt init               Initialize worktree (see .wt.toml)
   ...work on feature...
   wt submit             Rebase on base branch + push
   ...merge PR...

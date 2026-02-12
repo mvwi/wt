@@ -11,7 +11,7 @@
 
 *Worktrees without the irk thees.*
 
-Git worktrees are the best way to work on multiple branches at the same time. No stashing, no context-switching, no waiting for `node_modules` to reinstall. Every branch gets its own directory, ready to go.
+Git worktrees are the best way to work on multiple branches at the same time. No stashing, no context-switching, no waiting for dependencies to reinstall. Every branch gets its own directory, ready to go.
 
 But the built-in commands make it hard to love them. Creating a worktree means juggling `git worktree add`, `git checkout -b`, and a path you have to remember. Switching between them means typing out full directory paths. Figuring out which ones still have open PRs, or which ones were merged three weeks ago and are just sitting there, means checking GitHub manually.
 
@@ -25,7 +25,7 @@ Works without config. `wt list` pulls in PR status, CI, and code review from Git
 
 ```sh
 wt new sidebar-card       # Create worktree + branch, cd into it
-wt init                   # Install deps, copy .env, etc.
+wt init                   # Copy files, run commands from .wt.toml
 # ...work on your feature...
 wt submit                 # Rebase onto main + push
 wt list                   # See all worktrees with PR/CI/review status
@@ -74,7 +74,7 @@ eval "$(wt completion zsh)"
 | Command | Aliases | Description |
 |---------|---------|-------------|
 | `wt new <name>` | `create` | Create worktree with feature branch |
-| `wt init` | | Initialize worktree (deps, .env, prisma) |
+| `wt init` | | Initialize worktree (copy files, run commands) |
 | `wt list` | `ls` | Show all worktrees with PR status |
 | `wt switch [name]` | `sw`, `cd`, `checkout`, `co` | Switch to a worktree (fzf picker if no args) |
 | `wt rebase` | | Rebase current branch onto base branch |
@@ -122,19 +122,11 @@ worktree_prefix = ""
 stale_threshold = 14
 
 [init]
-# .env files to copy from main worktree during init.
-# Default: [".env", ".env.local", ".env.development.local"]
-env_files = [".env", ".env.local"]
+# Files to copy from the main worktree (if missing in the new worktree).
+copy_files = [".env", ".env.local"]
 
-# Override package manager auto-detection.
-# Values: "pnpm", "yarn", "npm", "bun", or "" for auto-detect.
-package_manager = ""
-
-# Commands to run after init (replaces .wt-init scripts).
-post_commands = [
-  "npx prisma generate",
-  "npx prisma db push",
-]
+# Shell commands to run sequentially during init.
+commands = ["pnpm install", "npx prisma generate"]
 ```
 
 ### Global Config with Per-Repo Overrides
@@ -167,9 +159,8 @@ A `.wt.toml` in a repo root always wins, but most users won't need one.
 | `branch_prefix` | git username | New branches: `<prefix>/<name>` |
 | `worktree_prefix` | `"wt-<repo>-"` | Directory naming: `<prefix><name>` |
 | `stale_threshold` | `7` | Days before worktree flagged stale in `wt list` |
-| `init.env_files` | `.env`, `.env.local`, `.env.development.local` | Files copied from main repo |
-| `init.package_manager` | auto-detect | Force specific package manager |
-| `init.post_commands` | `[]` | Custom init steps |
+| `init.copy_files` | `[]` | Files copied from main worktree if missing |
+| `init.commands` | `[]` | Shell commands run during init |
 
 </details>
 

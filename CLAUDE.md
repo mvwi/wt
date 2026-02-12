@@ -13,7 +13,7 @@ internal/
     context.go               Shared cmdContext: config + repo info, built once per command
     root.go                  Root command, version flag
     new.go                   Create worktree + branch
-    init.go                  Initialize worktree (deps, .env, prisma)
+    init.go                  Initialize worktree (copy files, run commands)
     list.go                  Show worktrees + PR/review/CI status
     switch.go                Switch worktree (fzf picker or fuzzy match)
     rebase.go                Rebase onto base branch (--all, --continue, --abort)

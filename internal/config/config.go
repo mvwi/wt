@@ -41,20 +41,15 @@ type globalFile struct {
 	Repos map[string]Config `toml:"repos"`
 }
 
-// InitConfig controls what `wt init` does.
+// InitConfig controls what `wt init` does. Entirely config-driven —
+// no auto-detection. Configure in .wt.toml under [init].
 type InitConfig struct {
-	// EnvFiles to copy from the main worktree. Empty = use defaults.
-	EnvFiles []string `toml:"env_files"`
+	// CopyFiles are copied from the main worktree if missing in the target.
+	CopyFiles []string `toml:"copy_files"`
 
-	// PackageManager overrides auto-detection. Values: "pnpm", "yarn", "npm", "bun", or "" for auto.
-	PackageManager string `toml:"package_manager"`
-
-	// PostCommands are shell commands to run after init (replaces .wt-init scripts).
-	PostCommands []string `toml:"post_commands"`
+	// Commands are shell commands run sequentially during init.
+	Commands []string `toml:"commands"`
 }
-
-// DefaultEnvFiles are copied when no env_files config is set.
-var DefaultEnvFiles = []string{".env", ".env.local", ".env.development.local"}
 
 // Load reads config with layered precedence:
 //  1. Hardcoded defaults (base_branch="main", remote="origin")
@@ -117,14 +112,11 @@ func mergeConfig(dst, src *Config) {
 	if src.StaleThreshold > 0 {
 		dst.StaleThreshold = src.StaleThreshold
 	}
-	if len(src.Init.EnvFiles) > 0 {
-		dst.Init.EnvFiles = src.Init.EnvFiles
+	if len(src.Init.CopyFiles) > 0 {
+		dst.Init.CopyFiles = src.Init.CopyFiles
 	}
-	if src.Init.PackageManager != "" {
-		dst.Init.PackageManager = src.Init.PackageManager
-	}
-	if len(src.Init.PostCommands) > 0 {
-		dst.Init.PostCommands = src.Init.PostCommands
+	if len(src.Init.Commands) > 0 {
+		dst.Init.Commands = src.Init.Commands
 	}
 }
 
@@ -135,14 +127,6 @@ func globalConfigPath() (string, error) {
 		return "", err
 	}
 	return filepath.Join(home, ".config", "wt", "config.toml"), nil
-}
-
-// EffectiveEnvFiles returns the env files list, falling back to defaults.
-func (c *Config) EffectiveEnvFiles() []string {
-	if len(c.Init.EnvFiles) > 0 {
-		return c.Init.EnvFiles
-	}
-	return DefaultEnvFiles
 }
 
 // EffectiveBranchName builds the full branch name for a new worktree.

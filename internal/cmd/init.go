@@ -13,14 +13,21 @@ import (
 var initCmd = &cobra.Command{
 	Use:     "init",
 	GroupID: groupWorkflow,
-	Short:   "Initialize worktree (install deps, copy .env, etc.)",
+	Short:   "Initialize worktree (copy files, run commands)",
 	Long: `Initialize a worktree for development.
 
-Steps:
-  1. Copy .env files from main repo (configurable in .wt.toml)
-  2. Install dependencies (auto-detects pnpm/yarn/npm/bun)
-  3. Generate Prisma client (if prisma/schema.prisma exists)
-  4. Run custom init commands (from .wt.toml or .wt-init script)`,
+Runs the steps defined in .wt.toml under [init]:
+
+  copy_files — files copied from the main worktree (if missing)
+  commands   — shell commands run sequentially
+
+Example config:
+
+  [init]
+  copy_files = [".env", ".env.local"]
+  commands = ["pnpm install", "npx prisma generate"]
+
+If no [init] section is configured, prints a hint and exits.`,
 	RunE: runInit,
 }
 
@@ -40,115 +47,53 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 func runInitIn(dir string, ctx *cmdContext) error {
 	// Check if we're in the main repo
-	cwd := dir
-	if cwd == ctx.MainWorktree || isSubpath(cwd, ctx.MainWorktree) {
+	if dir == ctx.MainWorktree || isSubpath(dir, ctx.MainWorktree) {
 		return fmt.Errorf("you're in the main repo\n   Switch to a worktree first: wt switch <name>")
+	}
+
+	hasCopyFiles := len(ctx.Config.Init.CopyFiles) > 0
+	hasCommands := len(ctx.Config.Init.Commands) > 0
+
+	if !hasCopyFiles && !hasCommands {
+		fmt.Println("Nothing to initialize — no [init] section in .wt.toml")
+		fmt.Println()
+		fmt.Println("Add an [init] section to configure worktree setup:")
+		fmt.Println()
+		fmt.Println("  [init]")
+		fmt.Println("  copy_files = [\".env\"]")
+		fmt.Println("  commands = [\"pnpm install\"]")
+		return nil
 	}
 
 	fmt.Println("Initializing worktree...")
 	fmt.Println()
 
-	didSomething := false
-
-	// Step 1: Copy .env files
-	for _, envFile := range ctx.Config.EffectiveEnvFiles() {
-		src := filepath.Join(ctx.MainWorktree, envFile)
-		dst := filepath.Join(cwd, envFile)
+	// Step 1: Copy files from main worktree
+	for _, file := range ctx.Config.Init.CopyFiles {
+		src := filepath.Join(ctx.MainWorktree, file)
+		dst := filepath.Join(dir, file)
 		if fileExists(src) && !fileExists(dst) {
-			fmt.Printf("Copying %s from main repo...\n", envFile)
+			fmt.Printf("Copying %s from main repo...\n", file)
 			data, err := os.ReadFile(src)
 			if err == nil {
 				if err := os.WriteFile(dst, data, 0644); err != nil {
-					ui.Warn("Failed to write %s: %v", envFile, err)
+					ui.Warn("Failed to write %s: %v", file, err)
 				}
-				didSomething = true
 			}
 		}
 	}
 
-	// Step 2: Install dependencies
-	pm := detectPackageManager(cwd, ctx.Config.Init.PackageManager)
-	if pm != "" {
-		fmt.Printf("Installing dependencies (%s)...\n", pm)
-		if err := runShellCmd(cwd, pm, "install"); err != nil {
-			ui.Warn("Install failed: %v", err)
-		} else {
-			didSomething = true
-		}
-	}
-
-	// Step 3: Prisma generate
-	if fileExists(filepath.Join(cwd, "prisma/schema.prisma")) {
-		fmt.Println("Generating Prisma client...")
-		if err := runShellCmd(cwd, "npx", "prisma", "generate"); err != nil {
-			ui.Warn("Prisma generate failed: %v", err)
-		} else {
-			didSomething = true
-		}
-	}
-
-	// Step 4: Custom commands from config
-	for _, cmd := range ctx.Config.Init.PostCommands {
-		fmt.Printf("Running: %s\n", cmd)
-		if err := runShellString(cwd, cmd); err != nil {
+	// Step 2: Run commands
+	for _, command := range ctx.Config.Init.Commands {
+		fmt.Printf("Running: %s\n", command)
+		if err := runShellString(dir, command); err != nil {
 			ui.Warn("Command failed: %v", err)
-		} else {
-			didSomething = true
 		}
 	}
 
-	// Step 4b: Legacy .wt-init script support
-	if len(ctx.Config.Init.PostCommands) == 0 {
-		for _, script := range []string{".wt-init.fish", ".wt-init"} {
-			scriptPath := filepath.Join(cwd, script)
-			if fileExists(scriptPath) {
-				fmt.Printf("Running custom init script (%s)...\n", script)
-				if err := runShellString(cwd, "fish "+scriptPath); err != nil {
-					// Try sh if fish fails
-					_ = runShellString(cwd, "sh "+scriptPath)
-				}
-				didSomething = true
-				break
-			}
-		}
-	}
-
-	if !didSomething {
-		fmt.Println("Nothing to initialize (no package.json, prisma, or .env files found)")
-	} else {
-		fmt.Println()
-		ui.Success("Worktree initialized!")
-	}
+	fmt.Println()
+	ui.Success("Worktree initialized!")
 	return nil
-}
-
-func detectPackageManager(dir, override string) string {
-	if override != "" {
-		return override
-	}
-	if !fileExists(filepath.Join(dir, "package.json")) {
-		return ""
-	}
-	switch {
-	case fileExists(filepath.Join(dir, "bun.lockb")):
-		return "bun"
-	case fileExists(filepath.Join(dir, "pnpm-lock.yaml")):
-		return "pnpm"
-	case fileExists(filepath.Join(dir, "yarn.lock")):
-		return "yarn"
-	case fileExists(filepath.Join(dir, "package-lock.json")):
-		return "npm"
-	default:
-		return "pnpm"
-	}
-}
-
-func runShellCmd(dir string, name string, args ...string) error {
-	cmd := exec.Command(name, args...)
-	cmd.Dir = dir
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
 }
 
 func runShellString(dir, command string) error {

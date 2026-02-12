@@ -186,7 +186,7 @@ func runMove(cmd *cobra.Command, args []string) error {
 	fmt.Println("To continue working there:")
 	fmt.Printf("  %s\n", ui.Cyan("wt switch "+targetName))
 	if createdNew {
-		fmt.Println("  wt init    # install deps, copy .env, etc.")
+		fmt.Println("  wt init    # run init commands from .wt.toml")
 	}
 	return nil
 }

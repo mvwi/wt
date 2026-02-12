@@ -28,9 +28,8 @@ func TestMergeConfig(t *testing.T) {
 			WorktreePrefix: "wt-",
 			StaleThreshold: 14,
 			Init: InitConfig{
-				EnvFiles:       []string{".env"},
-				PackageManager: "pnpm",
-				PostCommands:   []string{"make build"},
+				CopyFiles: []string{".env"},
+				Commands:  []string{"make build"},
 			},
 		}
 		src := &Config{} // all zero values
@@ -42,18 +41,18 @@ func TestMergeConfig(t *testing.T) {
 		if dst.StaleThreshold != 14 {
 			t.Errorf("StaleThreshold was overwritten by zero value")
 		}
-		if len(dst.Init.EnvFiles) != 1 || dst.Init.EnvFiles[0] != ".env" {
-			t.Errorf("EnvFiles was overwritten by zero value")
+		if len(dst.Init.CopyFiles) != 1 || dst.Init.CopyFiles[0] != ".env" {
+			t.Errorf("CopyFiles was overwritten by zero value")
 		}
 	})
 
 	t.Run("slices replace entirely", func(t *testing.T) {
-		dst := &Config{Init: InitConfig{EnvFiles: []string{".env", ".env.local"}}}
-		src := &Config{Init: InitConfig{EnvFiles: []string{".env.production"}}}
+		dst := &Config{Init: InitConfig{CopyFiles: []string{".env", ".env.local"}}}
+		src := &Config{Init: InitConfig{CopyFiles: []string{".env.production"}}}
 		mergeConfig(dst, src)
 
-		if len(dst.Init.EnvFiles) != 1 || dst.Init.EnvFiles[0] != ".env.production" {
-			t.Errorf("EnvFiles = %v, want [.env.production]", dst.Init.EnvFiles)
+		if len(dst.Init.CopyFiles) != 1 || dst.Init.CopyFiles[0] != ".env.production" {
+			t.Errorf("CopyFiles = %v, want [.env.production]", dst.Init.CopyFiles)
 		}
 	})
 }
@@ -117,9 +116,8 @@ branch_prefix = "fix"
 		dir := t.TempDir()
 		err := os.WriteFile(filepath.Join(dir, ".wt.toml"), []byte(`
 [init]
-env_files = [".env.prod"]
-package_manager = "bun"
-post_commands = ["bun install", "bun run build"]
+copy_files = [".env", ".env.local"]
+commands = ["pnpm install", "npx prisma generate"]
 `), 0644)
 		if err != nil {
 			t.Fatal(err)
@@ -130,14 +128,11 @@ post_commands = ["bun install", "bun run build"]
 			t.Fatal(err)
 		}
 
-		if len(cfg.Init.EnvFiles) != 1 || cfg.Init.EnvFiles[0] != ".env.prod" {
-			t.Errorf("EnvFiles = %v, want [.env.prod]", cfg.Init.EnvFiles)
+		if len(cfg.Init.CopyFiles) != 2 || cfg.Init.CopyFiles[0] != ".env" {
+			t.Errorf("CopyFiles = %v, want [.env .env.local]", cfg.Init.CopyFiles)
 		}
-		if cfg.Init.PackageManager != "bun" {
-			t.Errorf("PackageManager = %q, want %q", cfg.Init.PackageManager, "bun")
-		}
-		if len(cfg.Init.PostCommands) != 2 {
-			t.Errorf("PostCommands length = %d, want 2", len(cfg.Init.PostCommands))
+		if len(cfg.Init.Commands) != 2 || cfg.Init.Commands[0] != "pnpm install" {
+			t.Errorf("Commands = %v, want [pnpm install, npx prisma generate]", cfg.Init.Commands)
 		}
 	})
 }

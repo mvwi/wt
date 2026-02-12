@@ -18,6 +18,9 @@ coverage.txt
 *.swo
 *~
 
+# Config
+.wt.toml
+
 # OS
 .DS_Store
 Thumbs.db

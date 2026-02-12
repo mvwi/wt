@@ -1,6 +1,39 @@
-# wt — Git Worktree Manager
+```
+                  █████
+                 ▒▒███
+ █████ ███ █████ ███████
+▒▒███ ▒███▒▒███ ▒▒▒███▒
+ ▒███ ▒███ ▒███   ▒███
+ ▒▒███████████    ▒███ ███
+  ▒▒████▒████     ▒▒█████
+   ▒▒▒▒ ▒▒▒▒       ▒▒▒▒▒
+```
 
-A streamlined CLI for managing git worktrees. Create feature branches, sync with your base branch, track PR status, and clean up when done.
+*taking the orkrees out of worktrees.*
+
+Git worktrees are the best way to work on multiple branches at the same time. No stashing, no context-switching, no waiting for `node_modules` to reinstall. Every branch gets its own directory, ready to go.
+
+But the built-in commands make it hard to love them. Creating a worktree means juggling `git worktree add`, `git checkout -b`, and a path you have to remember. Switching between them means typing out full directory paths. Figuring out which ones still have open PRs — or which ones were merged three weeks ago and are just sitting there — means checking GitHub manually, one by one.
+
+`wt` handles all of that. One command to create a worktree and branch — or wrap an existing branch in a worktree with `--from`. One command to switch. One command to rebase and push. A dashboard that shows PR status, CI checks, and code review right in your terminal. And when a PR merges, one command to clean everything up.
+
+It's also just a thin layer over git. No special repo format, no lock-in. Your worktrees and branches are normal git — `wt` just makes them easier to manage. Remove it and everything still works.
+
+**Zero config** — works out of the box with sensible defaults.
+**PR-aware** — shows GitHub status, CI checks, and reviews in your terminal.
+**Shell-native** — `cd` just works when you switch worktrees.
+
+## How It Works
+
+```sh
+wt new sidebar-card       # Create worktree + branch, cd into it
+wt init                   # Install deps, copy .env, etc.
+# ...work on your feature...
+wt submit                 # Rebase onto main + push
+wt list                   # See all worktrees with PR/CI/review status
+# ...PR gets merged on GitHub...
+wt prune                  # Clean up merged worktrees
+```
 
 ## Install
 
@@ -16,9 +49,9 @@ go install github.com/mvwi/wt@latest
 
 **Binary:** Download from [Releases](https://github.com/mvwi/wt/releases).
 
-## Shell Setup
+### Shell Setup
 
-`wt` needs a thin shell wrapper to change directories (e.g., when switching worktrees). Add to your shell config:
+`wt` needs a thin shell wrapper so it can `cd` into worktrees for you. Add one line to your shell config:
 
 **Fish** (`~/.config/fish/config.fish`):
 ```fish
@@ -36,17 +69,6 @@ eval "$(wt completion bash)"
 ```zsh
 eval "$(wt init-shell zsh)"
 eval "$(wt completion zsh)"
-```
-
-## Quick Start
-
-```sh
-wt new sidebar-card       # Create worktree + branch from base branch
-wt init                   # Install deps, copy .env, etc.
-# ...work on feature...
-wt submit                 # Rebase + push
-# ...merge PR on GitHub...
-wt prune                  # Clean up merged worktrees
 ```
 
 ## Commands
@@ -71,12 +93,13 @@ Run `wt <command> --help` for detailed usage of any command.
 
 ## Configuration
 
-Config is layered: **defaults → global → repo**. Each layer only overrides what it sets.
+All fields are optional — sensible defaults work out of the box. Config is layered: **defaults -> global -> repo**, each layer only overrides what it sets.
 
 - **Global** (`~/.config/wt/config.toml`): applies to all repos
 - **Repo** (`.wt.toml` in repo root): overrides global for that repo
 
-All fields are optional — sensible defaults work out of the box.
+<details>
+<summary>Config reference and examples</summary>
 
 ```toml
 # Base branch to create worktrees from and rebase onto.
@@ -116,7 +139,7 @@ post_commands = [
 ]
 ```
 
-### Example: Global Config with Per-Repo Overrides
+### Global Config with Per-Repo Overrides
 
 Set everything in `~/.config/wt/config.toml` — no need to commit config to repos:
 
@@ -133,11 +156,11 @@ base_branch = "develop"
 branch_prefix = "fix"
 ```
 
-Precedence: **defaults → global → global per-repo → .wt.toml**
+Precedence: **defaults -> global -> global per-repo -> .wt.toml**
 
 A `.wt.toml` in a repo root always wins, but most users won't need one.
 
-### What Gets Configured
+### Settings Reference
 
 | Setting | Default | Effect |
 |---------|---------|--------|
@@ -150,25 +173,13 @@ A `.wt.toml` in a repo root always wins, but most users won't need one.
 | `init.package_manager` | auto-detect | Force specific package manager |
 | `init.post_commands` | `[]` | Custom init steps |
 
+</details>
+
 ## Dependencies
 
 - **git** — required
 - **gh** (GitHub CLI) — optional, enables PR status in `wt list`, safety checks in `wt close`, and remote rename in `wt rename`
 - **fzf** — optional, enables interactive picker in `wt switch`
-
-## Migration from Fish Script
-
-If you were using the fish function version of `wt`:
-
-1. Remove `~/.config/fish/functions/wt.fish`
-2. Install the Go binary (see Install above)
-3. Add shell integration (see Shell Setup above)
-4. Configure your repos in `~/.config/wt/config.toml`:
-   ```toml
-   [repos.platform]
-   base_branch = "staging"
-   ```
-5. All commands and aliases work identically
 
 ## License
 

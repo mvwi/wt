@@ -136,6 +136,11 @@ func rebaseFeatureBranch(ctx *cmdContext, branch string) error {
 		fmt.Println()
 		ui.Warn("Rebase paused due to conflicts")
 		fmt.Println()
+		if didStash {
+			fmt.Println("Your uncommitted changes are stashed and will be restored")
+			fmt.Println("after --continue or --abort.")
+			fmt.Println()
+		}
 		fmt.Println("To resolve:")
 		fmt.Println("  1. Fix the conflicts in the listed files")
 		fmt.Println("  2. Stage the fixes: git add <files>")

@@ -36,7 +36,7 @@ func IsRebaseInProgress() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return IsDir(gitDir+"/rebase-merge") || IsDir(gitDir+"/rebase-apply"), nil
+	return isDir(gitDir+"/rebase-merge") || isDir(gitDir+"/rebase-apply"), nil
 }
 
 // MergeFF does a fast-forward merge.
@@ -132,5 +132,5 @@ func StateFileExists(name string) bool {
 	if err != nil {
 		return false
 	}
-	return FileExists(gitDir + "/" + name)
+	return fileExists(gitDir + "/" + name)
 }

@@ -57,14 +57,14 @@ func FetchAll(remote string) error {
 	return RunSilent("fetch", remote)
 }
 
-// IsDir returns true if the path exists and is a directory.
-func IsDir(path string) bool {
+// isDir returns true if the path exists and is a directory.
+func isDir(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && info.IsDir()
 }
 
-// FileExists returns true if the path exists.
-func FileExists(path string) bool {
+// fileExists returns true if the path exists.
+func fileExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
 }

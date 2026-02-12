@@ -9,7 +9,7 @@
    ▒▒▒▒ ▒▒▒▒       ▒▒▒▒▒
 ```
 
-*taking the orkrees out of worktrees.*
+*Worktrees without the irk thees.*
 
 Git worktrees are the best way to work on multiple branches at the same time. No stashing, no context-switching, no waiting for `node_modules` to reinstall. Every branch gets its own directory, ready to go.
 

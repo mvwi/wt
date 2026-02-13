@@ -45,7 +45,7 @@ func runOpen(cmd *cobra.Command, args []string) error {
 		// Current branch
 		branch, err = git.CurrentBranch()
 		if err != nil {
-			return fmt.Errorf("not in a git repository or detached HEAD")
+			return fmt.Errorf("not in a git repository or detached HEAD\n   Run this from inside a worktree")
 		}
 	} else {
 		// Resolve worktree by name
@@ -55,7 +55,7 @@ func runOpen(cmd *cobra.Command, args []string) error {
 		}
 		target := resolveWorktree(ctx, worktrees, args[0])
 		if target == "" {
-			return fmt.Errorf("worktree not found: %s", args[0])
+			return fmt.Errorf("worktree not found: %s\n   Run wt list to see available worktrees", args[0])
 		}
 		branch, err = git.CurrentBranchIn(target)
 		if err != nil {
@@ -65,7 +65,7 @@ func runOpen(cmd *cobra.Command, args []string) error {
 
 	pr := github.GetPRForBranch(branch)
 	if pr == nil {
-		return fmt.Errorf("no open PR for branch: %s", branch)
+		return fmt.Errorf("no open PR for branch: %s\n   Run wt submit to push and create one", branch)
 	}
 
 	return exec.Command("gh", "pr", "view", strconv.Itoa(pr.Number), "--web").Run()

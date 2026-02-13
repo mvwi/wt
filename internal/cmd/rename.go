@@ -43,7 +43,7 @@ func runRename(cmd *cobra.Command, args []string) error {
 	cwd, _ := os.Getwd()
 	currentBranch, err := git.CurrentBranch()
 	if err != nil {
-		return fmt.Errorf("not in a git repository or detached HEAD")
+		return fmt.Errorf("not in a git repository or detached HEAD\n   Run this from inside a worktree")
 	}
 
 	// Safety: must be in a worktree, not main repo
@@ -51,7 +51,7 @@ func runRename(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("cannot rename the main repository\n   Switch to a worktree first: wt switch <name>")
 	}
 	if ctx.isBaseBranch(currentBranch) {
-		return fmt.Errorf("cannot rename %s", currentBranch)
+		return fmt.Errorf("cannot rename the base branch (%s)\n   Switch to a feature worktree first", currentBranch)
 	}
 
 	newName := args[0]

@@ -53,7 +53,7 @@ func Execute() {
 		// Cobra includes "Did you mean this?" in the error message
 		// when SuggestionsMinimumDistance is set. Since we silence
 		// errors to control output, we print the error ourselves.
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintf(os.Stderr, "%s %s\n", ui.Red(ui.Fail), err)
 		os.Exit(1)
 	}
 }

@@ -68,12 +68,12 @@ func runSwitch(cmd *cobra.Command, args []string) error {
 func switchPrevious(cwd string) error {
 	prev, err := git.ReadStateFile(prevWorktreeStateFile)
 	if err != nil {
-		return fmt.Errorf("no previous worktree")
+		return fmt.Errorf("no previous worktree to switch to\n   Use wt switch <name> to specify one")
 	}
 
 	prev = strings.TrimSpace(prev)
 	if !isDir(prev) {
-		return fmt.Errorf("previous worktree no longer exists: %s", prev)
+		return fmt.Errorf("previous worktree no longer exists: %s\n   It may have been closed. Run wt list to see available worktrees", prev)
 	}
 
 	savePreviousWorktree(cwd)
@@ -144,7 +144,7 @@ func switchByName(ctx *cmdContext, worktrees []git.Worktree, cwd, name string) e
 	target := resolveWorktree(ctx, worktrees, name)
 
 	if target == "" {
-		return fmt.Errorf("worktree not found: %s", name)
+		return fmt.Errorf("worktree not found: %s\n   Run wt list to see available worktrees", name)
 	}
 
 	savePreviousWorktree(cwd)

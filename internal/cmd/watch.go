@@ -52,17 +52,17 @@ func runWatch(cmd *cobra.Command, args []string) error {
 
 	branch, err := git.CurrentBranch()
 	if err != nil {
-		return fmt.Errorf("not in a git repository or detached HEAD")
+		return fmt.Errorf("not in a git repository or detached HEAD\n   Run this from inside a worktree")
 	}
 
 	if ctx.isBaseBranch(branch) {
-		return fmt.Errorf("no PR to watch %s the base branch (%s) has no associated PR", ui.Dash, branch)
+		return fmt.Errorf("can't watch the base branch (%s) %s it has no associated PR\n   Switch to a feature worktree first", branch, ui.Dash)
 	}
 
 	// Initial fetch to verify PR exists
 	ws, err := github.GetWatchStatus(branch)
 	if err != nil {
-		return fmt.Errorf("no open PR found for branch %s %s run wt submit to push and create one", branch, ui.Dash)
+		return fmt.Errorf("no open PR found for branch %s\n   Run wt submit to push and create one", branch)
 	}
 
 	// Print header (once)

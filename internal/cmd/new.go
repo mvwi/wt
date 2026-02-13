@@ -84,7 +84,7 @@ func newFromExisting(ctx *cmdContext, name, fromBranch string) error {
 	wtPath := ctx.worktreePath(name)
 
 	if isDir(wtPath) {
-		return fmt.Errorf("worktree already exists: %s", wtPath)
+		return fmt.Errorf("worktree already exists: %s\n   Use wt switch %s to switch to it", wtPath, name)
 	}
 
 	fmt.Println("Creating worktree from existing branch...")
@@ -122,11 +122,11 @@ func newFromBase(ctx *cmdContext, name string) error {
 	wtPath := ctx.worktreePath(name)
 
 	if isDir(wtPath) {
-		return fmt.Errorf("worktree already exists: %s", wtPath)
+		return fmt.Errorf("worktree already exists: %s\n   Use wt switch %s to switch to it", wtPath, name)
 	}
 
 	if git.BranchExists(branch) {
-		return fmt.Errorf("branch already exists: %s\n   Use 'wt new --from %s' to create a worktree for it\n   Or 'wt switch %s' if worktree already exists", branch, branch, name)
+		return fmt.Errorf("branch already exists: %s\n   Use wt new --from %s to create a worktree for it\n   Or wt switch %s if the worktree already exists", branch, branch, name)
 	}
 
 	fmt.Println("Creating worktree...")

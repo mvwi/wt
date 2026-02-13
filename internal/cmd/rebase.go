@@ -48,7 +48,7 @@ func runRebase(cmd *cobra.Command, args []string) error {
 
 	branch, err := git.CurrentBranch()
 	if err != nil {
-		return fmt.Errorf("not in a git repository or detached HEAD")
+		return fmt.Errorf("not in a git repository or detached HEAD\n   Run this from inside a worktree")
 	}
 
 	if rebaseContinueFlag {
@@ -97,7 +97,7 @@ func rebaseFeatureBranch(ctx *cmdContext, branch string) error {
 		spin.Stop()
 		restoreStash(didStash)
 		git.RemoveStateFile(stateFileName)
-		return fmt.Errorf("failed to fetch: %w", err)
+		return fmt.Errorf("failed to fetch from remote: %w", err)
 	}
 
 	spin.Stop()
@@ -184,7 +184,7 @@ func rebaseBaseBranch(ctx *cmdContext, branch string) error {
 	if err := git.Fetch(ctx.Config.Remote, branch); err != nil {
 		spin.Stop()
 		restoreStash(didStash)
-		return fmt.Errorf("failed to fetch: %w", err)
+		return fmt.Errorf("failed to fetch from remote: %w", err)
 	}
 
 	spin.Stop()
@@ -200,7 +200,7 @@ func rebaseBaseBranch(ctx *cmdContext, branch string) error {
 	fmt.Printf("Fast-forwarding (%d commit(s) behind)...\n", ab.Behind)
 	if _, err := git.MergeFF(remoteRef); err != nil {
 		restoreStash(didStash)
-		return fmt.Errorf("cannot fast-forward: %w", err)
+		return fmt.Errorf("cannot fast-forward %s: %w", branch, err)
 	}
 
 	restoreStash(didStash)
@@ -211,7 +211,7 @@ func rebaseBaseBranch(ctx *cmdContext, branch string) error {
 
 func rebaseContinue() error {
 	if !git.StateFileExists(stateFileName) {
-		return fmt.Errorf("no sync in progress")
+		return fmt.Errorf("no rebase in progress\n   Start one with: wt rebase")
 	}
 
 	inProgress, _ := git.IsRebaseInProgress()

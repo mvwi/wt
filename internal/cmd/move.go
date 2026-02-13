@@ -81,7 +81,7 @@ func runMove(cmd *cobra.Command, args []string) error {
 
 	// Prevent moving to self
 	if sourceRoot == targetPath {
-		return fmt.Errorf("can't move changes to the same worktree")
+		return fmt.Errorf("can't move changes to the same worktree\n   Specify a different worktree: wt move <name>")
 	}
 
 	targetShort := ctx.shortName(targetPath)

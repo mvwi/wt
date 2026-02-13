@@ -51,7 +51,7 @@ func runClose(cmd *cobra.Command, args []string) error {
 	if len(args) > 0 {
 		targetPath = resolveWorktree(ctx, worktrees, args[0])
 		if targetPath == "" {
-			return fmt.Errorf("worktree not found: %s", args[0])
+			return fmt.Errorf("worktree not found: %s\n   Run wt list to see available worktrees", args[0])
 		}
 	} else {
 		// Close current worktree

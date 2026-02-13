@@ -38,11 +38,11 @@ func runSubmit(cmd *cobra.Command, args []string) error {
 
 	branch, err := git.CurrentBranch()
 	if err != nil {
-		return fmt.Errorf("not in a git repository or detached HEAD")
+		return fmt.Errorf("not in a git repository or detached HEAD\n   Run this from inside a worktree")
 	}
 
 	if ctx.isBaseBranch(branch) {
-		return fmt.Errorf("cannot submit %s (use git push directly)", branch)
+		return fmt.Errorf("cannot submit the base branch (%s)\n   Switch to a feature worktree, or use git push directly", branch)
 	}
 
 	// Delegate to rebase first
@@ -74,7 +74,7 @@ func runSubmit(cmd *cobra.Command, args []string) error {
 
 	if actualUpstream == expectedUpstream {
 		if err := git.PushForceWithLease(); err != nil {
-			return fmt.Errorf("push failed: %w", err)
+			return fmt.Errorf("failed to push to remote: %w", err)
 		}
 	} else {
 		if actualUpstream != "" {
@@ -83,7 +83,7 @@ func runSubmit(cmd *cobra.Command, args []string) error {
 			fmt.Println("(setting upstream for new branch)")
 		}
 		if err := git.PushSetUpstream(ctx.Config.Remote); err != nil {
-			return fmt.Errorf("push failed: %w", err)
+			return fmt.Errorf("failed to push to remote: %w", err)
 		}
 	}
 

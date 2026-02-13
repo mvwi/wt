@@ -25,6 +25,7 @@ When no [init] section exists, auto-detects common patterns:
 
   • Copies .env files found in the main worktree
   • Detects package manager from lockfile and runs install
+  • Detects Prisma schema and runs prisma generate
 
 Example config (overrides auto-detection):
 
@@ -122,25 +123,40 @@ func detectInit(mainWorktree string) (copyFiles []string, commands []string) {
 	}
 
 	// Detect package manager from lockfile
-	lockfiles := []struct {
+	type lockfile struct {
 		file    string
 		command string
-	}{
-		{"pnpm-lock.yaml", "pnpm install"},
-		{"yarn.lock", "yarn install"},
-		{"bun.lockb", "bun install"},
-		{"package-lock.json", "npm install"},
-		{"go.sum", "go mod download"},
-		{"Gemfile.lock", "bundle install"},
-		{"Cargo.lock", "cargo fetch"},
-		{"requirements.txt", "pip install -r requirements.txt"},
-		{"pyproject.toml", "pip install -e ."},
+		exec    string // exec runner for post-install codegen (JS only)
+	}
+	lockfiles := []lockfile{
+		{"pnpm-lock.yaml", "pnpm install", "pnpm exec"},
+		{"yarn.lock", "yarn install", "yarn"},
+		{"bun.lockb", "bun install", "bunx"},
+		{"package-lock.json", "npm install", "npx"},
+		{"go.sum", "go mod download", ""},
+		{"Gemfile.lock", "bundle install", ""},
+		{"Cargo.lock", "cargo fetch", ""},
+		{"requirements.txt", "pip install -r requirements.txt", ""},
+		{"pyproject.toml", "pip install -e .", ""},
 	}
 
+	var execRunner string
 	for _, lf := range lockfiles {
 		if fileExists(filepath.Join(mainWorktree, lf.file)) {
 			commands = append(commands, lf.command)
+			execRunner = lf.exec
 			break
+		}
+	}
+
+	// Detect Prisma schema (requires a JS package manager)
+	if execRunner != "" {
+		prismaSchemas := []string{"prisma/schema.prisma", "schema.prisma", "prisma/schema"}
+		for _, schema := range prismaSchemas {
+			if fileExists(filepath.Join(mainWorktree, schema)) {
+				commands = append(commands, execRunner+" prisma generate")
+				break
+			}
 		}
 	}
 

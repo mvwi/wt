@@ -126,6 +126,16 @@ func runWatch(cmd *cobra.Command, args []string) error {
 
 // checkResolved returns a result if the PR has reached a terminal state, or nil to keep polling.
 func checkResolved(ws *github.WatchStatus) *watchResult {
+	// Already merged
+	if ws.State == "MERGED" {
+		return &watchResult{success: true, message: "Already merged"}
+	}
+
+	// Closed without merge
+	if ws.State == "CLOSED" {
+		return &watchResult{success: false, message: "PR was closed"}
+	}
+
 	// Ready to merge
 	if ws.MergeStateStatus == "CLEAN" {
 		return &watchResult{success: true, message: "Ready to merge"}
@@ -292,6 +302,10 @@ func printWatchVerdict(ws *github.WatchStatus) {
 	fmt.Print("\a")
 
 	switch {
+	case ws.State == "MERGED":
+		ui.Success("Already merged")
+	case ws.State == "CLOSED":
+		ui.Error("PR was closed")
 	case ws.MergeStateStatus == "CLEAN":
 		ui.Success("Ready to merge")
 	case ws.Mergeable == "CONFLICTING":
@@ -316,6 +330,10 @@ func sendNotification(ws *github.WatchStatus) {
 	title := fmt.Sprintf("PR #%d", ws.Number)
 	var message string
 	switch {
+	case ws.State == "MERGED":
+		message = "Already merged"
+	case ws.State == "CLOSED":
+		message = "PR was closed"
 	case ws.MergeStateStatus == "CLEAN":
 		message = "Ready to merge"
 	case ws.Mergeable == "CONFLICTING":

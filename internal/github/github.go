@@ -95,9 +95,14 @@ func (pr *PR) GetReviewSummary() ReviewSummary {
 }
 
 // GetCISummary computes CI check state counts.
+// Checks with empty names (GitHub summary checks) are excluded.
 func (pr *PR) GetCISummary() CISummary {
-	s := CISummary{Total: len(pr.StatusChecks)}
+	var s CISummary
 	for _, c := range pr.StatusChecks {
+		if c.Name == "" {
+			continue
+		}
+		s.Total++
 		switch {
 		case c.Conclusion == "SUCCESS" || c.Conclusion == "SKIPPED" || c.State == "SUCCESS":
 			s.Pass++
@@ -219,6 +224,7 @@ func GetPRDetails(branch string) (*PRDetails, error) {
 type WatchStatus struct {
 	Number           int              `json:"number"`
 	Title            string           `json:"title"`
+	State            string           `json:"state"`            // OPEN, CLOSED, MERGED
 	HeadRefName      string           `json:"headRefName"`
 	MergeStateStatus string           `json:"mergeStateStatus"` // CLEAN, BLOCKED, BEHIND, DRAFT, DIRTY, UNKNOWN
 	Mergeable        string           `json:"mergeable"`        // MERGEABLE, CONFLICTING, UNKNOWN
@@ -243,9 +249,14 @@ func (ws *WatchStatus) GetReviewSummary() ReviewSummary {
 }
 
 // GetCISummary computes CI check state counts for a WatchStatus.
+// Checks with empty names (GitHub summary checks) are excluded.
 func (ws *WatchStatus) GetCISummary() CISummary {
-	s := CISummary{Total: len(ws.StatusChecks)}
+	var s CISummary
 	for _, c := range ws.StatusChecks {
+		if c.Name == "" {
+			continue
+		}
+		s.Total++
 		switch {
 		case c.Conclusion == "SUCCESS" || c.Conclusion == "SKIPPED" || c.State == "SUCCESS":
 			s.Pass++
@@ -271,8 +282,12 @@ func (ws *WatchStatus) FailedCheckNames() []string {
 }
 
 // ChecksByStatus returns checks sorted into pass, fail, and pending buckets.
+// Checks with empty names (GitHub summary checks) are excluded.
 func (ws *WatchStatus) ChecksByStatus() (pass, fail, pending []StatusCheckRun) {
 	for _, c := range ws.StatusChecks {
+		if c.Name == "" {
+			continue
+		}
 		switch {
 		case c.Conclusion == "SUCCESS" || c.Conclusion == "SKIPPED" || c.State == "SUCCESS":
 			pass = append(pass, c)
@@ -317,7 +332,7 @@ func GetWatchStatus(branch string) (*WatchStatus, error) {
 		return nil, fmt.Errorf("gh not installed")
 	}
 
-	fields := "number,title,headRefName,mergeStateStatus,mergeable,reviewDecision,reviewRequests,latestReviews,statusCheckRollup"
+	fields := "number,title,state,headRefName,mergeStateStatus,mergeable,reviewDecision,reviewRequests,latestReviews,statusCheckRollup"
 	out, err := runGH("pr", "view", branch, "--json", fields)
 	if err != nil {
 		return nil, err

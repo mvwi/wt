@@ -113,14 +113,15 @@ func runRename(cmd *cobra.Command, args []string) error {
 		fmt.Printf("  Directory: %s\n", ui.Dim(currentShort+" (no change)"))
 	}
 
-	if renameLocalOnly {
+	switch {
+	case renameLocalOnly:
 		fmt.Printf("  Remote:    %s\n", ui.Dim("(skipped, --local)"))
-	} else if hasRemote {
+	case hasRemote:
 		fmt.Printf("  Remote:    %s/%s → %s/%s\n", ctx.Config.Remote, currentBranch, ctx.Config.Remote, newBranch)
 		if prDetails != nil {
 			fmt.Printf("             └─ PR #%d will be recreated\n", prDetails.Number)
 		}
-	} else {
+	default:
 		fmt.Printf("  Remote:    %s\n", ui.Dim("(no remote branch)"))
 	}
 

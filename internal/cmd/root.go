@@ -165,11 +165,12 @@ func runStatus(cmd *cobra.Command, args []string) error {
 			if rs.Pending > 0 {
 				details = append(details, fmt.Sprintf("%d pending", rs.Pending))
 			}
-			if cs.Fail > 0 {
+			switch {
+			case cs.Fail > 0:
 				details = append(details, ui.Red("CI failing"))
-			} else if cs.Pending > 0 {
+			case cs.Pending > 0:
 				details = append(details, ui.Yellow("CI pending"))
-			} else if cs.Pass > 0 {
+			case cs.Pass > 0:
 				details = append(details, ui.Green("CI passing"))
 			}
 

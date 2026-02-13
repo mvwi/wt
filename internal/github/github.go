@@ -52,6 +52,9 @@ type ReviewRequest struct {
 
 // Review represents a completed review.
 type Review struct {
+	Author struct {
+		Login string `json:"login"`
+	} `json:"author"`
 	State string `json:"state"` // APPROVED, CHANGES_REQUESTED, COMMENTED
 }
 
@@ -215,6 +218,7 @@ func GetPRDetails(branch string) (*PRDetails, error) {
 // not available from `gh pr list` (mergeStateStatus, mergeable).
 type WatchStatus struct {
 	Number           int              `json:"number"`
+	Title            string           `json:"title"`
 	HeadRefName      string           `json:"headRefName"`
 	MergeStateStatus string           `json:"mergeStateStatus"` // CLEAN, BLOCKED, BEHIND, DRAFT, DIRTY, UNKNOWN
 	Mergeable        string           `json:"mergeable"`        // MERGEABLE, CONFLICTING, UNKNOWN
@@ -266,13 +270,54 @@ func (ws *WatchStatus) FailedCheckNames() []string {
 	return names
 }
 
+// ChecksByStatus returns checks sorted into pass, fail, and pending buckets.
+func (ws *WatchStatus) ChecksByStatus() (pass, fail, pending []StatusCheckRun) {
+	for _, c := range ws.StatusChecks {
+		switch {
+		case c.Conclusion == "SUCCESS" || c.Conclusion == "SKIPPED" || c.State == "SUCCESS":
+			pass = append(pass, c)
+		case c.Conclusion == "FAILURE" || c.Conclusion == "TIMED_OUT" || c.Conclusion == "CANCELLED" || c.State == "FAILURE" || c.State == "ERROR":
+			fail = append(fail, c)
+		default:
+			pending = append(pending, c)
+		}
+	}
+	return
+}
+
+// ReviewItem represents a unified review entry (completed or pending).
+type ReviewItem struct {
+	Login string
+	State string // "approved", "changes_requested", "pending"
+}
+
+// ReviewItems merges LatestReviews and ReviewRequests into a unified list.
+// Completed reviews come first, then pending requests.
+func (ws *WatchStatus) ReviewItems() []ReviewItem {
+	var items []ReviewItem
+	for _, r := range ws.LatestReviews {
+		if r.State == "COMMENTED" {
+			continue
+		}
+		state := "approved"
+		if r.State == "CHANGES_REQUESTED" {
+			state = "changes_requested"
+		}
+		items = append(items, ReviewItem{Login: r.Author.Login, State: state})
+	}
+	for _, rr := range ws.ReviewRequests {
+		items = append(items, ReviewItem{Login: rr.Login, State: "pending"})
+	}
+	return items
+}
+
 // GetWatchStatus fetches detailed PR status for a branch using `gh pr view`.
 func GetWatchStatus(branch string) (*WatchStatus, error) {
 	if !IsAvailable() {
 		return nil, fmt.Errorf("gh not installed")
 	}
 
-	fields := "number,headRefName,mergeStateStatus,mergeable,reviewDecision,reviewRequests,latestReviews,statusCheckRollup"
+	fields := "number,title,headRefName,mergeStateStatus,mergeable,reviewDecision,reviewRequests,latestReviews,statusCheckRollup"
 	out, err := runGH("pr", "view", branch, "--json", fields)
 	if err != nil {
 		return nil, err

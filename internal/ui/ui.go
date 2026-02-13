@@ -102,6 +102,14 @@ func Info(format string, args ...any) {
 	fmt.Printf(format+"\n", args...)
 }
 
+// ClearLines moves the cursor up n lines and clears each one.
+// Used by wt watch to redraw the live status table in-place.
+func ClearLines(n int) {
+	for i := 0; i < n; i++ {
+		fmt.Print("\033[A\033[K")
+	}
+}
+
 // Header prints a dim section header (like "WORKTREES").
 func Header(text string) {
 	fmt.Println()

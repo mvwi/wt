@@ -3,8 +3,9 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"os/signal"
-	"strings"
+	"runtime"
 	"time"
 
 	"github.com/mvwi/wt/internal/git"
@@ -13,11 +14,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const watchCheckColWidth = 28
+
 var watchCmd = &cobra.Command{
 	Use:     "watch",
 	GroupID: groupSync,
 	Short:   "Watch PR until mergeable or blocked",
-	Long: `Poll the GitHub API every 15 seconds, showing a live spinner with CI and
+	Long: `Poll the GitHub API every 15 seconds, showing a live table with CI and
 review status, and exit when the PR reaches a terminal state.
 
 Exits successfully when the PR is ready to merge. Exits with an error on
@@ -62,12 +65,13 @@ func runWatch(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("no open PR found for branch %s %s run wt submit to push and create one", branch, ui.Dash)
 	}
 
-	fmt.Printf("Watching PR #%d %s %s\n", ws.Number, ui.Dash, ui.Dim(ws.HeadRefName))
+	// Print header (once)
+	printWatchHeader(ws)
 
 	// Check if already resolved
 	if res := checkResolved(ws); res != nil {
-		fmt.Println()
-		printFinalStatus(ws)
+		renderWatchTable(ws)
+		printWatchVerdict(ws)
 		if res.success {
 			return nil
 		}
@@ -83,6 +87,7 @@ func runWatch(cmd *cobra.Command, args []string) error {
 	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
 
+	tableLines := renderWatchTable(ws)
 	spin := ui.NewSpinnerRich(buildSpinnerMessage(ws))
 
 	for {
@@ -99,18 +104,21 @@ func runWatch(cmd *cobra.Command, args []string) error {
 				return fmt.Errorf("failed to fetch PR status: %w", err)
 			}
 
+			// Clear and redraw
+			spin.Stop()
+			ui.ClearLines(tableLines)
+
 			if res := checkResolved(ws); res != nil {
-				spin.Stop()
-				fmt.Println()
-				printFinalStatus(ws)
+				renderWatchTable(ws)
+				printWatchVerdict(ws)
+				sendNotification(ws)
 				if res.success {
 					return nil
 				}
 				return fmt.Errorf("%s", res.message)
 			}
 
-			// Update spinner with new status
-			spin.Stop()
+			tableLines = renderWatchTable(ws)
 			spin = ui.NewSpinnerRich(buildSpinnerMessage(ws))
 		}
 	}
@@ -155,114 +163,134 @@ func checkResolved(ws *github.WatchStatus) *watchResult {
 	return nil
 }
 
-// buildSpinnerMessage creates a glyph-based status string matching wt list's style.
+// printWatchHeader prints the PR title and branch (called once at start).
+func printWatchHeader(ws *github.WatchStatus) {
+	fmt.Println()
+	title := ws.Title
+	if title == "" {
+		title = fmt.Sprintf("PR #%d", ws.Number)
+	} else {
+		title = fmt.Sprintf("PR #%d %s %s", ws.Number, ui.Dash, title)
+	}
+	fmt.Printf("  %s\n", ui.Bold(title))
+	fmt.Printf("  %s\n", ui.Dim(ws.HeadRefName))
+}
+
+// renderWatchTable prints the CI and Review sections and returns the number of lines printed.
+func renderWatchTable(ws *github.WatchStatus) int {
+	lines := 0
+
+	// CI section
+	pass, fail, pending := ws.ChecksByStatus()
+	total := len(pass) + len(fail) + len(pending)
+	if total > 0 {
+		fmt.Println()
+		lines++
+
+		fmt.Printf("  %s  %s\n", ui.Bold("CI"), ui.Dim(fmt.Sprintf("%d/%d", len(pass), total)))
+		lines++
+
+		// Build sorted list: pass, fail, pending
+		type checkEntry struct {
+			glyph string
+			name  string
+		}
+		var entries []checkEntry
+		for _, c := range pass {
+			entries = append(entries, checkEntry{glyph: ui.Green(ui.Pass), name: c.Name})
+		}
+		for _, c := range fail {
+			entries = append(entries, checkEntry{glyph: ui.Red(ui.Fail), name: c.Name})
+		}
+		for _, c := range pending {
+			entries = append(entries, checkEntry{glyph: ui.Yellow(ui.Pending), name: c.Name})
+		}
+
+		// Render in two columns
+		for i := 0; i < len(entries); i += 2 {
+			left := entries[i]
+			leftName := ui.Truncate(left.name, watchCheckColWidth)
+			if i+1 < len(entries) {
+				right := entries[i+1]
+				rightName := ui.Truncate(right.name, watchCheckColWidth)
+				fmt.Printf("    %s  %-*s  %s  %s\n", left.glyph, watchCheckColWidth, leftName, right.glyph, rightName)
+			} else {
+				fmt.Printf("    %s  %s\n", left.glyph, leftName)
+			}
+			lines++
+		}
+	}
+
+	// Review section
+	items := ws.ReviewItems()
+	if len(items) > 0 {
+		fmt.Println()
+		lines++
+
+		fmt.Printf("  %s\n", ui.Bold("Review"))
+		lines++
+
+		for i := 0; i < len(items); i += 2 {
+			lg, lt := formatReviewItem(items[i])
+			if i+1 < len(items) {
+				rg, rt := formatReviewItem(items[i+1])
+				fmt.Printf("    %s  %-*s  %s  %s\n", lg, watchCheckColWidth, lt, rg, rt)
+			} else {
+				fmt.Printf("    %s  %s\n", lg, lt)
+			}
+			lines++
+		}
+	}
+
+	fmt.Println()
+	lines++
+	return lines
+}
+
+// formatReviewItem returns the glyph and text for a review item separately,
+// so the caller can pad the text correctly (ANSI codes break %-*s alignment).
+func formatReviewItem(item github.ReviewItem) (glyph, text string) {
+	login := ui.Truncate(item.Login, 16)
+	switch item.State {
+	case "approved":
+		return ui.Green(ui.Pass), login + "  " + ui.Dim("approved")
+	case "changes_requested":
+		return ui.Red(ui.Fail), login + "  " + ui.Dim("changes")
+	default:
+		return ui.Blue(ui.Pending), login + "  " + ui.Dim("pending")
+	}
+}
+
+// buildSpinnerMessage creates a concise status message for the spinner line.
 func buildSpinnerMessage(ws *github.WatchStatus) string {
 	cs := ws.GetCISummary()
 	rs := ws.GetReviewSummary()
 
-	var parts []string
+	ciWaiting := cs.Pending > 0 || cs.Total == 0
+	reviewWaiting := rs.Pending > 0
 
-	// Review glyphs (same colors as printOpenPRStatus in list.go)
-	reviewTotal := rs.Approved + rs.Changes + rs.Pending
-	if reviewTotal > 0 {
-		glyphs := ""
-		if rs.Approved > 0 {
-			glyphs += ui.Green(strings.Repeat(ui.Pass, rs.Approved))
+	switch {
+	case ciWaiting && reviewWaiting:
+		return ui.Dim("Waiting for checks and review...")
+	case ciWaiting:
+		if cs.Total > 0 {
+			return ui.Dim(fmt.Sprintf("Waiting for %d check(s)...", cs.Pending))
 		}
-		if rs.Changes > 0 {
-			glyphs += ui.Red(strings.Repeat(ui.Fail, rs.Changes))
-		}
-		if rs.Pending > 0 {
-			glyphs += ui.Blue(strings.Repeat(ui.Pending, rs.Pending))
-		}
-		parts = append(parts, ui.Dim("Review ")+glyphs)
-	}
-
-	// CI glyphs
-	if cs.Total > 0 {
-		glyphs := ""
-		if cs.Pass > 0 {
-			glyphs += ui.Green(strings.Repeat(ui.Pass, cs.Pass))
-		}
-		if cs.Fail > 0 {
-			glyphs += ui.Red(strings.Repeat(ui.Fail, cs.Fail))
-		}
-		if cs.Pending > 0 {
-			glyphs += ui.Yellow(strings.Repeat(ui.Pending, cs.Pending))
-		}
-		parts = append(parts, ui.Dim("CI ")+glyphs)
-	}
-
-	if len(parts) == 0 {
+		return ui.Dim("Waiting for status...")
+	case reviewWaiting:
+		return ui.Dim("Waiting for review...")
+	default:
 		return ui.Dim("Waiting for status...")
 	}
-	return strings.Join(parts, ui.Dim("  "))
 }
 
-// printFinalStatus outputs the detailed resolution display.
-func printFinalStatus(ws *github.WatchStatus) {
+// printWatchVerdict outputs the final success/error line after resolution.
+func printWatchVerdict(ws *github.WatchStatus) {
 	cs := ws.GetCISummary()
-	rs := ws.GetReviewSummary()
 
-	// CI line
-	if cs.Total > 0 {
-		fmt.Printf("  CI      ")
-		if cs.Pass > 0 {
-			fmt.Print(ui.Green(strings.Repeat(ui.Pass, cs.Pass)))
-		}
-		if cs.Fail > 0 {
-			fmt.Print(ui.Red(strings.Repeat(ui.Fail, cs.Fail)))
-		}
-		if cs.Pending > 0 {
-			fmt.Print(ui.Yellow(strings.Repeat(ui.Pending, cs.Pending)))
-		}
+	// Terminal bell
+	fmt.Print("\a")
 
-		// Summary text
-		var ciParts []string
-		if cs.Fail > 0 {
-			ciParts = append(ciParts, fmt.Sprintf("%d/%d passed, %d failed", cs.Pass, cs.Total, cs.Fail))
-		} else if cs.Pending > 0 {
-			ciParts = append(ciParts, fmt.Sprintf("%d/%d passed, %d pending", cs.Pass, cs.Total, cs.Pending))
-		} else {
-			ciParts = append(ciParts, fmt.Sprintf("%d/%d passed", cs.Pass, cs.Total))
-		}
-		fmt.Printf("  %s\n", ui.Dim(strings.Join(ciParts, "")))
-
-		// List failed checks
-		for _, name := range ws.FailedCheckNames() {
-			fmt.Printf("    %s %s\n", ui.Red(ui.Fail), name)
-		}
-	}
-
-	// Review line
-	reviewTotal := rs.Approved + rs.Changes + rs.Pending
-	if reviewTotal > 0 {
-		fmt.Printf("  Review  ")
-		if rs.Approved > 0 {
-			fmt.Print(ui.Green(strings.Repeat(ui.Pass, rs.Approved)))
-		}
-		if rs.Changes > 0 {
-			fmt.Print(ui.Red(strings.Repeat(ui.Fail, rs.Changes)))
-		}
-		if rs.Pending > 0 {
-			fmt.Print(ui.Blue(strings.Repeat(ui.Pending, rs.Pending)))
-		}
-
-		var rParts []string
-		if rs.Approved > 0 {
-			rParts = append(rParts, fmt.Sprintf("%d approved", rs.Approved))
-		}
-		if rs.Changes > 0 {
-			rParts = append(rParts, fmt.Sprintf("%d changes requested", rs.Changes))
-		}
-		if rs.Pending > 0 {
-			rParts = append(rParts, fmt.Sprintf("%d pending", rs.Pending))
-		}
-		fmt.Printf("  %s\n", ui.Dim(strings.Join(rParts, ", ")))
-	}
-
-	// Final verdict
-	fmt.Println()
 	switch {
 	case ws.MergeStateStatus == "CLEAN":
 		ui.Success("Ready to merge")
@@ -277,4 +305,32 @@ func printFinalStatus(ws *github.WatchStatus) {
 	case ws.MergeStateStatus == "BLOCKED":
 		ui.Error("Blocked by branch protection")
 	}
+}
+
+// sendNotification sends a desktop notification on macOS.
+func sendNotification(ws *github.WatchStatus) {
+	if runtime.GOOS != "darwin" {
+		return
+	}
+
+	title := fmt.Sprintf("PR #%d", ws.Number)
+	var message string
+	switch {
+	case ws.MergeStateStatus == "CLEAN":
+		message = "Ready to merge"
+	case ws.Mergeable == "CONFLICTING":
+		message = "Merge conflict"
+	case ws.ReviewDecision == "CHANGES_REQUESTED":
+		message = "Changes requested"
+	default:
+		cs := ws.GetCISummary()
+		if cs.Fail > 0 {
+			message = fmt.Sprintf("%d check(s) failed", cs.Fail)
+		} else {
+			message = "Status resolved"
+		}
+	}
+
+	script := fmt.Sprintf(`display notification %q with title %q`, message, title)
+	_ = exec.Command("osascript", "-e", script).Run()
 }

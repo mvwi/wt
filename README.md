@@ -74,7 +74,7 @@ eval "$(wt completion zsh)"
 | Command | Aliases | Description |
 |---------|---------|-------------|
 | `wt new <name>` | `create` | Create worktree with feature branch |
-| `wt init` | | Initialize worktree (copy files, run commands) |
+| `wt init` | | Initialize worktree (auto-detects or uses config) |
 | `wt list` | `ls` | Show all worktrees with PR status |
 | `wt switch [name]` | `sw`, `cd`, `checkout`, `co` | Switch to a worktree (fzf picker if no args) |
 | `wt rebase` | | Rebase current branch onto base branch |
@@ -123,9 +123,11 @@ stale_threshold = 14
 
 [init]
 # Files to copy from the main worktree (if missing in the new worktree).
+# Without [init], auto-detected: .env, .env.local, .env.development, .env.test
 copy_files = [".env", ".env.local"]
 
 # Shell commands to run sequentially during init.
+# Without [init], auto-detected from lockfile: pnpm/yarn/npm/go/cargo/bundler
 commands = ["pnpm install", "npx prisma generate"]
 ```
 

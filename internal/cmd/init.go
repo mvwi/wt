@@ -16,18 +16,21 @@ var initCmd = &cobra.Command{
 	Short:   "Initialize worktree (copy files, run commands)",
 	Long: `Initialize a worktree for development.
 
-Runs the steps defined in .wt.toml under [init]:
+When [init] is configured in .wt.toml, runs exactly those steps:
 
   copy_files — files copied from the main worktree (if missing)
   commands   — shell commands run sequentially
 
-Example config:
+When no [init] section exists, auto-detects common patterns:
+
+  • Copies .env files found in the main worktree
+  • Detects package manager from lockfile and runs install
+
+Example config (overrides auto-detection):
 
   [init]
   copy_files = [".env", ".env.local"]
-  commands = ["pnpm install", "npx prisma generate"]
-
-If no [init] section is configured, prints a hint and exits.`,
+  commands = ["pnpm install", "npx prisma generate"]`,
 	RunE: runInit,
 }
 
@@ -51,25 +54,30 @@ func runInitIn(dir string, ctx *cmdContext) error {
 		return fmt.Errorf("you're in the main repo\n   Switch to a worktree first: wt switch <name>")
 	}
 
-	hasCopyFiles := len(ctx.Config.Init.CopyFiles) > 0
-	hasCommands := len(ctx.Config.Init.Commands) > 0
+	copyFiles := ctx.Config.Init.CopyFiles
+	commands := ctx.Config.Init.Commands
+	configured := len(copyFiles) > 0 || len(commands) > 0
 
-	if !hasCopyFiles && !hasCommands {
-		fmt.Println("Nothing to initialize — no [init] section in .wt.toml")
-		fmt.Println()
-		fmt.Println("Add an [init] section to configure worktree setup:")
-		fmt.Println()
-		fmt.Println("  [init]")
-		fmt.Println("  copy_files = [\".env\"]")
-		fmt.Println("  commands = [\"pnpm install\"]")
-		return nil
+	// Auto-detect when no [init] section is configured
+	if !configured {
+		copyFiles, commands = detectInit(ctx.MainWorktree)
+		if len(copyFiles) == 0 && len(commands) == 0 {
+			fmt.Println("Nothing to initialize — no [init] config and nothing detected.")
+			fmt.Println()
+			fmt.Println("Add an [init] section to .wt.toml to configure setup:")
+			fmt.Println()
+			fmt.Println("  [init]")
+			fmt.Println("  copy_files = [\".env\"]")
+			fmt.Println("  commands = [\"pnpm install\"]")
+			return nil
+		}
 	}
 
 	fmt.Println("Initializing worktree...")
 	fmt.Println()
 
 	// Step 1: Copy files from main worktree
-	for _, file := range ctx.Config.Init.CopyFiles {
+	for _, file := range copyFiles {
 		src := filepath.Join(ctx.MainWorktree, file)
 		dst := filepath.Join(dir, file)
 		if fileExists(src) && !fileExists(dst) {
@@ -84,7 +92,7 @@ func runInitIn(dir string, ctx *cmdContext) error {
 	}
 
 	// Step 2: Run commands
-	for _, command := range ctx.Config.Init.Commands {
+	for _, command := range commands {
 		fmt.Printf("Running: %s\n", command)
 		if err := runShellString(dir, command); err != nil {
 			ui.Warn("Command failed: %v", err)
@@ -93,7 +101,50 @@ func runInitIn(dir string, ctx *cmdContext) error {
 
 	fmt.Println()
 	ui.Success("Worktree initialized!")
+
+	if !configured {
+		fmt.Println()
+		fmt.Println(ui.Dim("Tip: add [init] to .wt.toml to customize this behavior"))
+	}
+
 	return nil
+}
+
+// detectInit auto-detects initialization steps from the main worktree.
+// Returns env files to copy and install commands to run.
+func detectInit(mainWorktree string) (copyFiles []string, commands []string) {
+	// Detect .env files
+	envFiles := []string{".env", ".env.local", ".env.development", ".env.test"}
+	for _, f := range envFiles {
+		if fileExists(filepath.Join(mainWorktree, f)) {
+			copyFiles = append(copyFiles, f)
+		}
+	}
+
+	// Detect package manager from lockfile
+	lockfiles := []struct {
+		file    string
+		command string
+	}{
+		{"pnpm-lock.yaml", "pnpm install"},
+		{"yarn.lock", "yarn install"},
+		{"bun.lockb", "bun install"},
+		{"package-lock.json", "npm install"},
+		{"go.sum", "go mod download"},
+		{"Gemfile.lock", "bundle install"},
+		{"Cargo.lock", "cargo fetch"},
+		{"requirements.txt", "pip install -r requirements.txt"},
+		{"pyproject.toml", "pip install -e ."},
+	}
+
+	for _, lf := range lockfiles {
+		if fileExists(filepath.Join(mainWorktree, lf.file)) {
+			commands = append(commands, lf.command)
+			break
+		}
+	}
+
+	return
 }
 
 func runShellString(dir, command string) error {

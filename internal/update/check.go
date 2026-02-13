@@ -147,7 +147,7 @@ func parseSemver(v string) [3]int {
 		if idx := strings.IndexAny(s, "-+"); idx >= 0 {
 			s = s[:idx]
 		}
-		fmt.Sscanf(s, "%d", &parts[i])
+		_, _ = fmt.Sscanf(s, "%d", &parts[i])
 	}
 	return parts
 }

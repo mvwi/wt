@@ -8,6 +8,7 @@ import (
 	"github.com/mvwi/wt/internal/git"
 	"github.com/mvwi/wt/internal/github"
 	"github.com/mvwi/wt/internal/ui"
+	"github.com/mvwi/wt/internal/update"
 	"github.com/spf13/cobra"
 )
 
@@ -49,6 +50,8 @@ const (
 
 // Execute runs the root command.
 func Execute() {
+	update.CheckInBackground()
+
 	if err := rootCmd.Execute(); err != nil {
 		// Cobra includes "Did you mean this?" in the error message
 		// when SuggestionsMinimumDistance is set. Since we silence
@@ -56,6 +59,8 @@ func Execute() {
 		fmt.Fprintf(os.Stderr, "%s %s\n", ui.Red(ui.Fail), err)
 		os.Exit(1)
 	}
+
+	update.PrintNoticeIfNewer(Version)
 }
 
 func init() {

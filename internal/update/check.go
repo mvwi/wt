@@ -63,7 +63,7 @@ func CheckInBackground() {
 		if err != nil {
 			return
 		}
-		defer resp.Body.Close()
+		defer resp.Body.Close() //nolint:errcheck // best-effort close
 		if resp.StatusCode != 200 {
 			return
 		}

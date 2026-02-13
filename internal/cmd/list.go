@@ -200,28 +200,30 @@ func runList(cmd *cobra.Command, args []string) error {
 
 			// Sync
 			syncStr := buildSyncStr(info.Behind, info.Ahead)
-			if isStale {
+			switch {
+			case isStale:
 				fmt.Printf("%s ", colorize("%-8s", syncStr))
-			} else if info.Behind > 0 {
+			case info.Behind > 0:
 				ui.YellowF("%-8s ", syncStr)
-			} else {
+			default:
 				ui.GreenF("%-8s ", syncStr)
 			}
 
 			// PR status
-			if openPR != nil {
+			switch {
+			case openPR != nil:
 				printOpenPRStatus(openPR, info.Path)
-			} else if mergedPR != nil {
+			case mergedPR != nil:
 				ui.BlueF("%-6s ", fmt.Sprintf("#%d", mergedPR.Number))
 				fmt.Printf("%s   %s", ui.Green("merged"), ui.Yellow("stale"))
 				hasStale = true
 				fmt.Println()
-			} else if closedPR != nil {
+			case closedPR != nil:
 				ui.BlueF("%-6s ", fmt.Sprintf("#%d", closedPR.Number))
 				fmt.Printf("%s  %s", ui.Red("closed"), ui.Yellow("stale"))
 				hasStale = true
 				fmt.Println()
-			} else {
+			default:
 				if isStale {
 					fmt.Print(ui.Dim(ui.Dash))
 					fmt.Print(" \U0001f4a4") // 💤

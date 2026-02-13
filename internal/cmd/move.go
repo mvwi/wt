@@ -55,15 +55,16 @@ func runMove(cmd *cobra.Command, args []string) error {
 	// Categorize: copy vs delete
 	var filesToCopy, filesToDelete []string
 	for _, c := range changes {
-		if c.IsRename() {
+		switch {
+		case c.IsRename():
 			filesToDelete = append(filesToDelete, c.OldPath)
 			src := filepath.Join(sourceRoot, c.Path)
 			if fileExists(src) {
 				filesToCopy = append(filesToCopy, c.Path)
 			}
-		} else if fileExists(filepath.Join(sourceRoot, c.Path)) {
+		case fileExists(filepath.Join(sourceRoot, c.Path)):
 			filesToCopy = append(filesToCopy, c.Path)
-		} else {
+		default:
 			filesToDelete = append(filesToDelete, c.Path)
 		}
 	}
@@ -98,7 +99,9 @@ func runMove(cmd *cobra.Command, args []string) error {
 		}
 
 		var conflicts []string
-		allFiles := append(filesToCopy, filesToDelete...)
+		allFiles := make([]string, 0, len(filesToCopy)+len(filesToDelete))
+		allFiles = append(allFiles, filesToCopy...)
+		allFiles = append(allFiles, filesToDelete...)
 		for _, f := range allFiles {
 			for _, df := range destFiles {
 				if f == df {
@@ -246,17 +249,17 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer in.Close()
+	defer in.Close() //nolint:errcheck // best-effort close on read-only file
 
 	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, info.Mode())
 	if err != nil {
 		return err
 	}
-	defer out.Close()
+	defer out.Close() //nolint:errcheck // closed explicitly below on success
 
 	if _, err = io.Copy(out, in); err != nil {
-		out.Close()
-		os.Remove(dst)
+		_ = out.Close()
+		_ = os.Remove(dst)
 		return err
 	}
 	return out.Sync()

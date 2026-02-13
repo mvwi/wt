@@ -278,8 +278,7 @@ func (ws *WatchStatus) GetCISummary() CISummary {
 func (ws *WatchStatus) FailedCheckNames() []string {
 	var names []string
 	for _, c := range ws.StatusChecks {
-		switch {
-		case c.Conclusion == "FAILURE" || c.Conclusion == "TIMED_OUT" || c.Conclusion == "CANCELLED" || c.State == "FAILURE" || c.State == "ERROR":
+		if c.Conclusion == "FAILURE" || c.Conclusion == "TIMED_OUT" || c.Conclusion == "CANCELLED" || c.State == "FAILURE" || c.State == "ERROR" {
 			names = append(names, c.Name)
 		}
 	}

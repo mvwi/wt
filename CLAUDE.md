@@ -94,6 +94,12 @@ go vet ./...      # Static analysis
 - GitHub operations go through `internal/github/`, always check `IsAvailable()` first
 - Interactive prompts use `ui.Confirm(message, defaultYes)` — defaultYes=true for safe operations (Y/n), false for destructive (y/N)
 
+## Maintaining Documentation
+
+When adding features, establishing new patterns, or making architectural decisions that future work should follow, update this file to reflect them. Examples: new conventions (e.g. how errors are displayed), new command files, new helpers in `internal/`, config fields, or external tool integrations. This file is the source of truth for how the codebase works — keep it accurate as things change.
+
+Also keep the README updated when user-facing behavior changes — new commands, changed flags, new config options, updated installation steps, or revised usage examples.
+
 ## Distribution
 
 - GoReleaser builds darwin/linux × amd64/arm64

@@ -27,7 +27,7 @@ Works without config. `wt list` pulls in PR status, CI, and code review from Git
 wt new sidebar-card       # Create worktree + branch, cd into it
 wt init                   # Copy files, run commands from .wt.toml
 # ...work on your feature...
-wt submit                 # Rebase onto main + push
+wt submit                 # Rebase onto main + push (offers to watch PR)
 wt list                   # See all worktrees with PR/CI/review status
 # ...PR gets merged on GitHub...
 wt prune                  # Clean up merged worktrees
@@ -73,10 +73,11 @@ eval "$(wt completion zsh)"
 
 | Command | Aliases | Description |
 |---------|---------|-------------|
+| `wt` | | Show current worktree status (branch, sync, PR) |
 | `wt new <name>` | `create` | Create worktree with feature branch |
 | `wt init` | | Initialize worktree (auto-detects or uses config) |
 | `wt list` | `ls` | Show all worktrees with PR status |
-| `wt switch [name]` | `sw`, `cd`, `checkout`, `co` | Switch to a worktree (fzf picker if no args) |
+| `wt switch [name]` | `sw`, `cd`, `checkout`, `co` | Switch to a worktree (fzf picker if no args, `-` for previous) |
 | `wt rebase` | | Rebase current branch onto base branch |
 | `wt submit` | | Rebase + push to remote |
 | `wt move <name>` | `mv`, `teleport`, `tp` | Move uncommitted changes to another worktree |
@@ -84,7 +85,7 @@ eval "$(wt completion zsh)"
 | `wt rename <name>` | `rn` | Rename worktree, branch, and remote |
 | `wt prune` | | Clean up stale worktrees (merged/closed PRs) |
 | `wt open [name]` | | Open PR in browser |
-| `wt watch` | | Watch PR until mergeable or blocked |
+| `wt watch [branch or PR]` | | Watch PR until mergeable or blocked |
 | `wt feedback [message]` | | Open a GitHub issue for feedback |
 
 Run `wt <command> --help` for detailed usage of any command.
@@ -171,6 +172,8 @@ A `.wt.toml` in a repo root always wins, but most users won't need one.
 - **git** (required)
 - **gh** (GitHub CLI, optional): PR status in `wt list`, safety checks in `wt close`, remote rename in `wt rename`
 - **fzf** (optional): interactive picker in `wt switch`
+
+`wt` checks for new versions once daily and shows a notification when an update is available.
 
 ## License
 

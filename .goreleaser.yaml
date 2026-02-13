@@ -27,16 +27,12 @@ changelog:
 release:
   header: "{{ .Env.CHANGELOG }}"
 
-brews:
-  - repository:
-      owner: mvwi
-      name: homebrew-tap
-      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+homebrew_casks:
+  - name: wt
+    binaries:
+      - wt
     homepage: "https://github.com/mvwi/wt"
     description: "Git worktree manager - streamlined workflow for feature branches"
-    license: "MIT"
-    install: |
-      bin.install "wt"
     caveats: |
       To enable shell integration (required for 'wt switch' and 'wt new' to change directories):
 
@@ -53,5 +49,13 @@ brews:
         wt completion fish | source
         eval "$(wt completion bash)"
         eval "$(wt completion zsh)"
-    test: |
-      system "#{bin}/wt", "--version"
+    url:
+      verified: "github.com/mvwi/wt/"
+    hooks:
+      post:
+        install: |
+          system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/wt"]
+    repository:
+      owner: mvwi
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"

@@ -44,6 +44,11 @@ func MergeFF(ref string) (string, error) {
 	return Run("merge", "--ff-only", ref)
 }
 
+// MergeFFIn does a fast-forward merge in a specific directory.
+func MergeFFIn(dir, ref string) error {
+	return RunSilentIn(dir, "merge", "--ff-only", ref)
+}
+
 // Push pushes with force-with-lease.
 func PushForceWithLease() error {
 	return RunPassthrough("push", "--force-with-lease")

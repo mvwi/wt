@@ -272,6 +272,20 @@ func rebaseAll(ctx *cmdContext) error {
 	for _, wt := range worktrees {
 		branch, _ := git.CurrentBranchIn(wt.Path)
 		if ctx.isBaseBranch(branch) {
+			short := ctx.shortName(wt.Path)
+			fmt.Printf("  %-25s ", short)
+			remoteRef := ctx.Config.Remote + "/" + ctx.Config.BaseBranch
+			ab, err := git.GetAheadBehindIn(wt.Path, remoteRef)
+			if err != nil || ab.Behind == 0 {
+				fmt.Printf("%s\n", ui.Green("✓ up to date"))
+				uptodate++
+			} else if err := git.MergeFFIn(wt.Path, remoteRef); err != nil {
+				fmt.Printf("%s\n", ui.Red("✗ fast-forward failed"))
+				failed++
+			} else {
+				fmt.Printf("%s\n", ui.Green(fmt.Sprintf("✓ fast-forwarded (%d commits)", ab.Behind)))
+				rebased++
+			}
 			continue
 		}
 

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/mvwi/wt/internal/git"
+	"github.com/mvwi/wt/internal/github"
 	"github.com/mvwi/wt/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -89,5 +90,14 @@ func runSubmit(cmd *cobra.Command, args []string) error {
 
 	fmt.Println()
 	ui.Success("Submitted!")
+
+	if github.IsAvailable() {
+		fmt.Println()
+		if ui.Confirm("Watch PR status?", true) {
+			fmt.Println()
+			return runWatch(cmd, nil)
+		}
+	}
+
 	return nil
 }

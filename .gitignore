@@ -21,6 +21,9 @@ coverage.txt
 # Config
 .wt.toml
 
+# CI artifacts
+git-cliff/
+
 # OS
 .DS_Store
 Thumbs.db

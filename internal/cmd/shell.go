@@ -50,7 +50,7 @@ function wt --wraps wt --description "Git worktree manager"
     set -l cdfile (mktemp -t wt-cd.XXXXXXXX)
     or begin
         command wt $argv
-        return $?
+        return $status
     end
     WT_CD_FILE=$cdfile command wt $argv
     set -l exit_code $status

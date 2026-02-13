@@ -47,11 +47,16 @@ const fishWrapper = `# wt shell integration (fish)
 #   wt init-shell fish | source
 
 function wt --wraps wt --description "Git worktree manager"
-    set -l cdfile (mktemp)
+    set -l cdfile (mktemp -t wt-cd.XXXXXXXX)
+    or begin
+        command wt $argv
+        return $?
+    end
     WT_CD_FILE=$cdfile command wt $argv
     set -l exit_code $status
     if test -s $cdfile
-        cd (cat $cdfile)
+        read -l target < $cdfile
+        and cd $target
     end
     rm -f $cdfile
     return $exit_code
@@ -67,13 +72,18 @@ const bashWrapper = `# wt shell integration (bash)
 
 wt() {
     local cdfile
-    cdfile=$(mktemp)
+    cdfile=$(mktemp -t wt-cd.XXXXXXXX) || {
+        command wt "$@"
+        return $?
+    }
+    trap 'rm -f "$cdfile"' EXIT
     WT_CD_FILE="$cdfile" command wt "$@"
     local exit_code=$?
     if [ -s "$cdfile" ]; then
         cd "$(cat "$cdfile")" || true
     fi
     rm -f "$cdfile"
+    trap - EXIT
     return $exit_code
 }
 
@@ -86,13 +96,18 @@ const zshWrapper = `# wt shell integration (zsh)
 
 wt() {
     local cdfile
-    cdfile=$(mktemp)
+    cdfile=$(mktemp -t wt-cd.XXXXXXXX) || {
+        command wt "$@"
+        return $?
+    }
+    trap 'rm -f "$cdfile"' EXIT
     WT_CD_FILE="$cdfile" command wt "$@"
     local exit_code=$?
     if [ -s "$cdfile" ]; then
         cd "$(cat "$cdfile")" || true
     fi
     rm -f "$cdfile"
+    trap - EXIT
     return $exit_code
 }
 

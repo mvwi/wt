@@ -20,11 +20,13 @@ type Config struct {
 
 	// BranchPrefix is prepended to new branch names: "<prefix>/<name>".
 	// Default: git user's first name (lowercase). Set to "" to disable prefixing.
-	BranchPrefix string `toml:"branch_prefix"`
+	// Pointer so we can distinguish "not set" (nil) from "explicitly empty" ("").
+	BranchPrefix *string `toml:"branch_prefix"`
 
 	// WorktreePrefix controls the directory naming: "<prefix><name>".
 	// Default: "wt-<repo>-". Set to customize (e.g., "wt-" for shorter names).
-	WorktreePrefix string `toml:"worktree_prefix"`
+	// Pointer so we can distinguish "not set" (nil) from "explicitly empty" ("").
+	WorktreePrefix *string `toml:"worktree_prefix"`
 
 	// StaleThreshold is the number of days after which a worktree with no open PR
 	// is considered stale in `wt list`. Default: 7.
@@ -103,10 +105,10 @@ func mergeConfig(dst, src *Config) {
 	if src.Remote != "" {
 		dst.Remote = src.Remote
 	}
-	if src.BranchPrefix != "" {
+	if src.BranchPrefix != nil {
 		dst.BranchPrefix = src.BranchPrefix
 	}
-	if src.WorktreePrefix != "" {
+	if src.WorktreePrefix != nil {
 		dst.WorktreePrefix = src.WorktreePrefix
 	}
 	if src.StaleThreshold > 0 {
@@ -130,10 +132,13 @@ func globalConfigPath() (string, error) {
 }
 
 // EffectiveBranchName builds the full branch name for a new worktree.
-// If BranchPrefix is set, returns "prefix/name". If empty, returns just "name".
+// If BranchPrefix is explicitly set (even to ""), uses that value.
+// Otherwise falls back to gitUsername. Returns just "name" if both are empty.
 func (c *Config) EffectiveBranchName(name, gitUsername string) string {
-	prefix := c.BranchPrefix
-	if prefix == "" {
+	var prefix string
+	if c.BranchPrefix != nil {
+		prefix = *c.BranchPrefix
+	} else {
 		prefix = gitUsername
 	}
 	if prefix == "" {
@@ -151,10 +156,11 @@ func (c *Config) EffectiveStaleThreshold() int {
 }
 
 // EffectiveWorktreeDir builds the worktree directory name.
-// Default pattern: "wt-<repo>-<name>"
+// Default pattern: "wt-<repo>-<name>". If WorktreePrefix is explicitly set
+// (even to ""), uses that value instead of the default pattern.
 func (c *Config) EffectiveWorktreeDir(repoName, name string) string {
-	if c.WorktreePrefix != "" {
-		return c.WorktreePrefix + name
+	if c.WorktreePrefix != nil {
+		return *c.WorktreePrefix + name
 	}
 	return "wt-" + repoName + "-" + name
 }

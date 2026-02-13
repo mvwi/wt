@@ -63,7 +63,10 @@ func runOpen(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	pr := github.GetPRForBranch(branch)
+	pr, err := github.GetPRForBranch(branch)
+	if err != nil {
+		return fmt.Errorf("failed to check for PR: %w", err)
+	}
 	if pr == nil {
 		return fmt.Errorf("no open PR for branch: %s\n   Run wt submit to push and create one", branch)
 	}

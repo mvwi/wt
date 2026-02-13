@@ -50,7 +50,10 @@ func runSwitch(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	cwd, _ := os.Getwd()
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("cannot determine current directory: %w", err)
+	}
 
 	// Handle "wt switch -" — toggle to previous worktree
 	if len(args) == 1 && args[0] == "-" {

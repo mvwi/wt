@@ -2,6 +2,7 @@ package git
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -36,7 +37,7 @@ func IsRebaseInProgress() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return isDir(gitDir+"/rebase-merge") || isDir(gitDir+"/rebase-apply"), nil
+	return isDir(filepath.Join(gitDir, "rebase-merge")) || isDir(filepath.Join(gitDir, "rebase-apply")), nil
 }
 
 // MergeFF does a fast-forward merge.
@@ -70,7 +71,7 @@ func SaveStateFile(name, content string) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(gitDir+"/"+name, []byte(content), 0644)
+	return os.WriteFile(filepath.Join(gitDir, name), []byte(content), 0600)
 }
 
 // ReadStateFile reads a state file from the git dir.
@@ -79,19 +80,21 @@ func ReadStateFile(name string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	data, err := os.ReadFile(gitDir + "/" + name)
+	data, err := os.ReadFile(filepath.Join(gitDir, name))
 	if err != nil {
 		return "", err
 	}
 	return string(data), nil
 }
 
-// RemoveStateFile deletes a state file.
+// RemoveStateFile deletes a state file. Errors are ignored since
+// leftover state files in .git/ are harmless.
 func RemoveStateFile(name string) {
-	gitDir, _ := GitDir()
-	if gitDir != "" {
-		os.Remove(gitDir + "/" + name)
+	gitDir, err := GitDir()
+	if err != nil {
+		return
 	}
+	_ = os.Remove(filepath.Join(gitDir, name))
 }
 
 // PotentialConflicts returns files modified on both HEAD and baseRef since they diverged.
@@ -137,5 +140,5 @@ func StateFileExists(name string) bool {
 	if err != nil {
 		return false
 	}
-	return fileExists(gitDir + "/" + name)
+	return fileExists(filepath.Join(gitDir, name))
 }

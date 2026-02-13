@@ -13,6 +13,9 @@ func TestTruncate(t *testing.T) {
 		{"truncates with ellipsis", "hello world", 8, "hello w…"},
 		{"max 0 returns ellipsis", "hello", 0, "…"},
 		{"empty string", "", 5, ""},
+		{"multi-byte runes", "héllo wörld", 8, "héllo w…"},
+		{"emoji", "🎉🎊🎈🎁", 3, "🎉🎊…"},
+		{"cjk characters", "日本語テスト", 4, "日本語…"},
 	}
 
 	for _, tt := range tests {

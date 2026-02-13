@@ -244,22 +244,28 @@ func renderWatchTable(ws *github.WatchStatus) int {
 
 	// Review section
 	items := ws.ReviewItems()
-	if len(items) > 0 {
+	showReview := len(items) > 0 || ws.ReviewDecision == "REVIEW_REQUIRED"
+	if showReview {
 		fmt.Println()
 		lines++
 
 		fmt.Printf("  %s\n", ui.Bold("Review"))
 		lines++
 
-		for i := 0; i < len(items); i += 2 {
-			lg, lt := formatReviewItem(items[i])
-			if i+1 < len(items) {
-				rg, rt := formatReviewItem(items[i+1])
-				fmt.Printf("    %s  %-*s  %s  %s\n", lg, watchCheckColWidth, lt, rg, rt)
-			} else {
-				fmt.Printf("    %s  %s\n", lg, lt)
-			}
+		if len(items) == 0 {
+			fmt.Printf("    %s  %s\n", ui.Blue(ui.Pending), ui.Dim("review required"))
 			lines++
+		} else {
+			for i := 0; i < len(items); i += 2 {
+				lg, lt := formatReviewItem(items[i])
+				if i+1 < len(items) {
+					rg, rt := formatReviewItem(items[i+1])
+					fmt.Printf("    %s  %-*s  %s  %s\n", lg, watchCheckColWidth, lt, rg, rt)
+				} else {
+					fmt.Printf("    %s  %s\n", lg, lt)
+				}
+				lines++
+			}
 		}
 	}
 
@@ -285,10 +291,9 @@ func formatReviewItem(item github.ReviewItem) (glyph, text string) {
 // buildSpinnerMessage creates a concise status message for the spinner line.
 func buildSpinnerMessage(ws *github.WatchStatus) string {
 	cs := ws.GetCISummary()
-	rs := ws.GetReviewSummary()
 
 	ciWaiting := cs.Pending > 0 || cs.Total == 0
-	reviewWaiting := rs.Pending > 0
+	reviewWaiting := ws.ReviewDecision == "REVIEW_REQUIRED"
 
 	switch {
 	case ciWaiting && reviewWaiting:

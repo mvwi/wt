@@ -39,7 +39,10 @@ func runClose(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	cwd, _ := os.Getwd()
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("cannot determine current directory: %w", err)
+	}
 	worktrees, err := git.ListWorktrees()
 	if err != nil {
 		return err
@@ -81,7 +84,7 @@ func runClose(cmd *cobra.Command, args []string) error {
 
 	// Safety: open PR
 	if github.IsAvailable() && targetBranch != "" {
-		pr := github.GetPRForBranch(targetBranch)
+		pr, _ := github.GetPRForBranch(targetBranch)
 		if pr != nil && pr.State == "OPEN" {
 			ui.Warn("PR #%d is still open", pr.Number)
 			if !ui.Confirm("Close worktree anyway?", false) {

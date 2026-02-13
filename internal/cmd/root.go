@@ -60,7 +60,14 @@ func Execute() {
 		os.Exit(1)
 	}
 
-	update.PrintNoticeIfNewer(Version)
+	if info := update.GetUpdateInfo(Version); info != nil {
+		fmt.Fprintf(os.Stderr, "\n%s %s → %s\n",
+			ui.Cyan(ui.PushUp+" Update available:"),
+			ui.Dim(info.Current),
+			ui.Cyan(info.Latest),
+		)
+		fmt.Fprintf(os.Stderr, "  %s\n", ui.Dim("brew upgrade wt"))
+	}
 }
 
 func init() {
@@ -86,7 +93,10 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		return cmd.Help()
 	}
 
-	cwd, _ := os.Getwd()
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("cannot determine current directory: %w", err)
+	}
 	branch, err := git.CurrentBranch()
 	if err != nil {
 		return cmd.Help()
@@ -139,7 +149,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 	// PR status
 	if github.IsAvailable() {
-		pr := github.GetPRForBranch(branch)
+		pr, _ := github.GetPRForBranch(branch)
 		if pr != nil && pr.State == "OPEN" {
 			rs := pr.GetReviewSummary()
 			cs := pr.GetCISummary()

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
+	"github.com/mattn/go-isatty"
 )
 
 // Color shortcuts — matches the fish script's set_color calls.
@@ -41,15 +42,16 @@ const (
 	ErrorMark  = "✗"
 )
 
-// Truncate shortens a string to max length, adding "…" if truncated.
+// Truncate shortens a string to max runes, adding "…" if truncated.
 func Truncate(s string, max int) string {
-	if len(s) <= max {
+	runes := []rune(s)
+	if len(runes) <= max {
 		return s
 	}
 	if max <= 1 {
 		return "…"
 	}
-	return s[:max-1] + "…"
+	return string(runes[:max-1]) + "…"
 }
 
 // Confirm prompts the user with a y/n question.
@@ -62,7 +64,10 @@ func Confirm(message string, defaultYes bool) bool {
 
 	fmt.Printf("%s [%s] ", message, hint)
 	reader := bufio.NewReader(os.Stdin)
-	input, _ := reader.ReadString('\n')
+	input, err := reader.ReadString('\n')
+	if err != nil {
+		return defaultYes
+	}
 	input = strings.TrimSpace(strings.ToLower(input))
 
 	if input == "" {
@@ -76,10 +81,20 @@ func Confirm(message string, defaultYes bool) bool {
 // Otherwise prints a hint so the user knows to cd manually.
 func PrintCdHint(path string) {
 	if cdFile := os.Getenv("WT_CD_FILE"); cdFile != "" {
-		_ = os.WriteFile(cdFile, []byte(path), 0600)
+		if err := os.WriteFile(cdFile, []byte(path), 0600); err != nil {
+			fmt.Printf("  → cd %s\n", shellQuote(path))
+		}
 		return
 	}
-	fmt.Printf("  → cd %s\n", path)
+	fmt.Printf("  → cd %s\n", shellQuote(path))
+}
+
+// shellQuote wraps a path in single quotes if it contains shell-special characters.
+func shellQuote(s string) string {
+	if !strings.ContainsAny(s, " \t\n'\"\\$`|&;<>(){}[]!*?~") {
+		return s
+	}
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
 // Error prints an error message with ✗ prefix.
@@ -102,9 +117,18 @@ func Info(format string, args ...any) {
 	fmt.Printf(format+"\n", args...)
 }
 
+// IsTTY reports whether stdout is connected to a terminal.
+func IsTTY() bool {
+	return isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
+}
+
 // ClearLines moves the cursor up n lines and clears each one.
 // Used by wt watch to redraw the live status table in-place.
+// No-op when stdout is not a terminal.
 func ClearLines(n int) {
+	if !IsTTY() {
+		return
+	}
 	for i := 0; i < n; i++ {
 		fmt.Print("\033[A\033[K")
 	}

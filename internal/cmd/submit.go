@@ -47,13 +47,10 @@ func runSubmit(cmd *cobra.Command, args []string) error {
 	}
 
 	// Delegate to rebase first
-	if submitContinueFlag {
-		rebaseContinueFlag = true
-	}
-	if submitAbortFlag {
-		rebaseAbortFlag = true
-	}
-	if err := runRebase(cmd, args); err != nil {
+	if err := runRebaseWith(rebaseOpts{
+		continueRebase: submitContinueFlag,
+		abort:          submitAbortFlag,
+	}); err != nil {
 		return err
 	}
 

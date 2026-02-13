@@ -23,6 +23,13 @@ func IsAvailable() bool {
 	return ghInstalled
 }
 
+// ResetAvailability resets the cached gh availability check.
+// Intended for testing only.
+func ResetAvailability() {
+	ghOnce = sync.Once{}
+	ghInstalled = false
+}
+
 // runGH executes a gh command and returns stdout.
 func runGH(args ...string) (string, error) {
 	cmd := exec.Command("gh", args...)
@@ -81,17 +88,30 @@ type CISummary struct {
 }
 
 // GetReviewSummary computes review state counts.
-// A pending re-review request supersedes a stale completed review.
 func (pr *PR) GetReviewSummary() ReviewSummary {
+	return getReviewSummary(pr.ReviewRequests, pr.LatestReviews)
+}
+
+// GetCISummary computes CI check state counts.
+func (pr *PR) GetCISummary() CISummary {
+	return getCISummary(pr.StatusChecks)
+}
+
+// getReviewSummary computes review state counts from requests and reviews.
+// A pending re-review request supersedes a stale completed review.
+func getReviewSummary(requests []ReviewRequest, reviews []Review) ReviewSummary {
 	reRequested := make(map[string]bool)
-	for _, rr := range pr.ReviewRequests {
+	for _, rr := range requests {
 		reRequested[rr.Login] = true
 	}
 
 	var s ReviewSummary
 	seen := make(map[string]bool)
-	for _, r := range pr.LatestReviews {
+	for _, r := range reviews {
 		login := r.Author.Login
+		if login == "" {
+			continue
+		}
 		seen[login] = true
 		if reRequested[login] {
 			s.Pending++
@@ -104,7 +124,7 @@ func (pr *PR) GetReviewSummary() ReviewSummary {
 			s.Changes++
 		}
 	}
-	for _, rr := range pr.ReviewRequests {
+	for _, rr := range requests {
 		if !seen[rr.Login] {
 			s.Pending++
 		}
@@ -112,11 +132,11 @@ func (pr *PR) GetReviewSummary() ReviewSummary {
 	return s
 }
 
-// GetCISummary computes CI check state counts.
+// getCISummary computes CI check state counts from status checks.
 // Checks with empty names (GitHub summary checks) are excluded.
-func (pr *PR) GetCISummary() CISummary {
+func getCISummary(checks []StatusCheckRun) CISummary {
 	var s CISummary
-	for _, c := range pr.StatusChecks {
+	for _, c := range checks {
 		if c.Name == "" {
 			continue
 		}
@@ -167,19 +187,23 @@ func FindPRForBranch(prs []PR, branch string) *PR {
 }
 
 // GetPRForBranch fetches the PR for a specific branch.
-func GetPRForBranch(branch string) *PR {
+// Returns (nil, nil) if gh is not available or no PR exists.
+func GetPRForBranch(branch string) (*PR, error) {
 	if !IsAvailable() {
-		return nil
+		return nil, nil
 	}
 	out, err := runGH("pr", "list", "--head", branch, "--json", "number,state", "--limit", "1")
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	var prs []PR
-	if err := json.Unmarshal([]byte(out), &prs); err != nil || len(prs) == 0 {
-		return nil
+	if err := json.Unmarshal([]byte(out), &prs); err != nil {
+		return nil, err
 	}
-	return &prs[0]
+	if len(prs) == 0 {
+		return nil, nil
+	}
+	return &prs[0], nil
 }
 
 // RepoSlug returns the "owner/repo" string.
@@ -188,18 +212,6 @@ func RepoSlug() (string, error) {
 		return "", fmt.Errorf("gh not installed")
 	}
 	return runGH("repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner")
-}
-
-// RenameBranch renames a branch on the remote via GitHub API (preserves PRs).
-func RenameBranch(repoSlug, oldBranch, newBranch string) error {
-	if !IsAvailable() {
-		return fmt.Errorf("gh not installed")
-	}
-	// URL-encode slashes in the branch name
-	encoded := strings.ReplaceAll(oldBranch, "/", "%2F")
-	_, err := runGH("api", fmt.Sprintf("repos/%s/branches/%s/rename", repoSlug, encoded),
-		"-f", "new_name="+newBranch)
-	return err
 }
 
 // PRLabel represents a label on a PR.
@@ -253,56 +265,13 @@ type WatchStatus struct {
 }
 
 // GetReviewSummary computes review state counts for a WatchStatus.
-// A pending re-review request supersedes a stale completed review.
 func (ws *WatchStatus) GetReviewSummary() ReviewSummary {
-	reRequested := make(map[string]bool)
-	for _, rr := range ws.ReviewRequests {
-		reRequested[rr.Login] = true
-	}
-
-	var s ReviewSummary
-	seen := make(map[string]bool)
-	for _, r := range ws.LatestReviews {
-		login := r.Author.Login
-		seen[login] = true
-		if reRequested[login] {
-			s.Pending++
-			continue
-		}
-		switch r.State {
-		case "APPROVED":
-			s.Approved++
-		case "CHANGES_REQUESTED":
-			s.Changes++
-		}
-	}
-	for _, rr := range ws.ReviewRequests {
-		if !seen[rr.Login] {
-			s.Pending++
-		}
-	}
-	return s
+	return getReviewSummary(ws.ReviewRequests, ws.LatestReviews)
 }
 
 // GetCISummary computes CI check state counts for a WatchStatus.
-// Checks with empty names (GitHub summary checks) are excluded.
 func (ws *WatchStatus) GetCISummary() CISummary {
-	var s CISummary
-	for _, c := range ws.StatusChecks {
-		if c.Name == "" {
-			continue
-		}
-		s.Total++
-		switch {
-		case c.Conclusion == "SUCCESS" || c.Conclusion == "SKIPPED" || c.State == "SUCCESS":
-			s.Pass++
-		case c.Conclusion == "FAILURE" || c.Conclusion == "TIMED_OUT" || c.Conclusion == "CANCELLED" || c.State == "FAILURE" || c.State == "ERROR":
-			s.Fail++
-		default:
-			s.Pending++
-		}
-	}
-	return s
+	return getCISummary(ws.StatusChecks)
 }
 
 // FailedCheckNames returns the names of checks that failed.
@@ -349,7 +318,9 @@ func (ws *WatchStatus) ReviewItems() []ReviewItem {
 	// Build set of logins with pending re-review requests
 	reRequested := make(map[string]bool)
 	for _, rr := range ws.ReviewRequests {
-		reRequested[rr.Login] = true
+		if rr.Login != "" {
+			reRequested[rr.Login] = true
+		}
 	}
 
 	seen := make(map[string]bool)
@@ -360,6 +331,9 @@ func (ws *WatchStatus) ReviewItems() []ReviewItem {
 			continue
 		}
 		login := r.Author.Login
+		if login == "" {
+			continue
+		}
 		seen[login] = true
 
 		// Re-review request supersedes the stale completed review
@@ -377,7 +351,7 @@ func (ws *WatchStatus) ReviewItems() []ReviewItem {
 
 	// Add reviewers who were requested but haven't reviewed yet
 	for _, rr := range ws.ReviewRequests {
-		if !seen[rr.Login] {
+		if rr.Login != "" && !seen[rr.Login] {
 			items = append(items, ReviewItem{Login: rr.Login, State: "pending"})
 		}
 	}

@@ -36,13 +36,27 @@ func init() {
 
 const stateFileName = "wt-rebase-state"
 
+type rebaseOpts struct {
+	continueRebase bool
+	abort          bool
+	all            bool
+}
+
 func runRebase(cmd *cobra.Command, args []string) error {
+	return runRebaseWith(rebaseOpts{
+		continueRebase: rebaseContinueFlag,
+		abort:          rebaseAbortFlag,
+		all:            rebaseAllFlag,
+	})
+}
+
+func runRebaseWith(opts rebaseOpts) error {
 	ctx, err := newContext()
 	if err != nil {
 		return err
 	}
 
-	if rebaseAllFlag {
+	if opts.all {
 		return rebaseAll(ctx)
 	}
 
@@ -51,10 +65,10 @@ func runRebase(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("not in a git repository or detached HEAD\n   Run this from inside a worktree")
 	}
 
-	if rebaseContinueFlag {
+	if opts.continueRebase {
 		return rebaseContinue()
 	}
-	if rebaseAbortFlag {
+	if opts.abort {
 		return rebaseAbort()
 	}
 

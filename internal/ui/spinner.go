@@ -44,8 +44,18 @@ func newSpinner(formatted string) *Spinner {
 		stopped: make(chan struct{}),
 	}
 
+	tty := IsTTY()
+
 	go func() {
 		defer close(s.stopped)
+
+		if !tty {
+			// Non-TTY: just print the message once and wait for stop
+			fmt.Printf("  %s\n", formatted)
+			<-s.done
+			return
+		}
+
 		ticker := time.NewTicker(80 * time.Millisecond)
 		defer ticker.Stop()
 

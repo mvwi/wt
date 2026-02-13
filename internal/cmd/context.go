@@ -7,6 +7,7 @@ import (
 
 	"github.com/mvwi/wt/internal/config"
 	"github.com/mvwi/wt/internal/git"
+	"github.com/mvwi/wt/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -41,7 +42,12 @@ func newContext() (*cmdContext, error) {
 		return nil, err
 	}
 
-	username, _ := git.Username()
+	username, err := git.Username()
+	if err != nil && cfg.BranchPrefix == nil {
+		// Only warn if branch_prefix isn't explicitly configured,
+		// since the username is only used as a fallback prefix.
+		ui.Warn("Could not determine git username — branches won't have a prefix. Set branch_prefix in .wt.toml or run: git config user.name \"Your Name\"")
+	}
 
 	return &cmdContext{
 		Config:       cfg,
@@ -90,7 +96,7 @@ func isSubpath(child, parent string) bool {
 	if err != nil {
 		return false
 	}
-	return rel != ".." && !filepath.IsAbs(rel) && len(rel) > 0 && rel[0] != '.'
+	return rel != "." && !strings.HasPrefix(rel, "..") && !filepath.IsAbs(rel)
 }
 
 // fileExists returns true if the path exists.

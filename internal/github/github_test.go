@@ -2,14 +2,23 @@ package github
 
 import "testing"
 
+func review(login, state string) Review {
+	return Review{
+		Author: struct {
+			Login string `json:"login"`
+		}{Login: login},
+		State: state,
+	}
+}
+
 func TestPRGetReviewSummary(t *testing.T) {
 	pr := &PR{
 		ReviewRequests: []ReviewRequest{{Login: "alice"}, {Login: "bob"}},
 		LatestReviews: []Review{
-			{State: "APPROVED"},
-			{State: "CHANGES_REQUESTED"},
-			{State: "COMMENTED"}, // should not count as approved or changes
-			{State: "APPROVED"},
+			review("charlie", "APPROVED"),
+			review("dave", "CHANGES_REQUESTED"),
+			review("eve", "COMMENTED"),  // should not count as approved or changes
+			review("frank", "APPROVED"),
 		},
 	}
 
@@ -23,6 +32,24 @@ func TestPRGetReviewSummary(t *testing.T) {
 	}
 	if s.Changes != 1 {
 		t.Errorf("Changes = %d, want 1", s.Changes)
+	}
+}
+
+func TestReviewSummaryReRequestedSupersedes(t *testing.T) {
+	pr := &PR{
+		ReviewRequests: []ReviewRequest{{Login: "alice"}},
+		LatestReviews: []Review{
+			review("alice", "APPROVED"), // stale — re-review requested
+		},
+	}
+
+	s := pr.GetReviewSummary()
+
+	if s.Approved != 0 {
+		t.Errorf("Approved = %d, want 0 (re-review supersedes)", s.Approved)
+	}
+	if s.Pending != 1 {
+		t.Errorf("Pending = %d, want 1", s.Pending)
 	}
 }
 

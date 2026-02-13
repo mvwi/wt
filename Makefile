@@ -5,7 +5,7 @@ LDFLAGS := -ldflags "-s -w -X github.com/mvwi/wt/internal/cmd.Version=$(VERSION)
 .PHONY: build install test lint clean
 
 build:
-	go build $(LDFLAGS) -o $(BINARY) ./cmd/wt
+	go build -trimpath $(LDFLAGS) -o $(BINARY) ./cmd/wt
 
 install:
 	go install $(LDFLAGS) ./cmd/wt

@@ -40,7 +40,10 @@ func runRename(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	cwd, _ := os.Getwd()
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("cannot determine current directory: %w", err)
+	}
 	currentBranch, err := git.CurrentBranch()
 	if err != nil {
 		return fmt.Errorf("not in a git repository or detached HEAD\n   Run this from inside a worktree")
@@ -57,11 +60,15 @@ func runRename(cmd *cobra.Command, args []string) error {
 	newName := args[0]
 
 	// Strip prefix if user accidentally includes it
-	prefix := ctx.Config.BranchPrefix
-	if prefix == "" {
+	var prefix string
+	if ctx.Config.BranchPrefix != nil {
+		prefix = *ctx.Config.BranchPrefix
+	} else {
 		prefix = ctx.Username
 	}
-	newName = strings.TrimPrefix(newName, prefix+"/")
+	if prefix != "" {
+		newName = strings.TrimPrefix(newName, prefix+"/")
+	}
 
 	newBranch := ctx.branchName(newName)
 	newPath := ctx.worktreePath(newName)
@@ -139,7 +146,9 @@ func runRename(cmd *cobra.Command, args []string) error {
 			// Rollback branch rename
 			if currentBranch != newBranch {
 				fmt.Println("   Rolling back branch rename...")
-				_ = git.RenameBranch(newBranch, currentBranch)
+				if rbErr := git.RenameBranch(newBranch, currentBranch); rbErr != nil {
+					return fmt.Errorf("failed to move worktree: %w (rollback also failed: %v)", err, rbErr)
+				}
 			}
 			return fmt.Errorf("failed to move worktree: %w", err)
 		}

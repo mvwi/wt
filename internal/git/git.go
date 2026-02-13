@@ -3,9 +3,17 @@ package git
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 )
+
+// gitCmd creates a git command with LC_ALL=C to ensure English output for parsing.
+func gitCmd(args ...string) *exec.Cmd {
+	cmd := exec.Command("git", args...)
+	cmd.Env = append(os.Environ(), "LC_ALL=C")
+	return cmd
+}
 
 // Run executes a git command and returns its trimmed stdout.
 // If the command fails, the error includes stderr.
@@ -15,7 +23,7 @@ func Run(args ...string) (string, error) {
 
 // RunIn executes a git command in a specific directory.
 func RunIn(dir string, args ...string) (string, error) {
-	cmd := exec.Command("git", args...)
+	cmd := gitCmd(args...)
 	if dir != "" {
 		cmd.Dir = dir
 	}
@@ -43,19 +51,20 @@ func RunPassthrough(args ...string) error {
 
 // RunPassthroughIn executes a git command in a directory with passthrough I/O.
 func RunPassthroughIn(dir string, args ...string) error {
-	cmd := exec.Command("git", args...)
+	cmd := gitCmd(args...)
 	if dir != "" {
 		cmd.Dir = dir
 	}
-	cmd.Stdout = nil // inherit
-	cmd.Stderr = nil // inherit
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 	return cmd.Run()
 }
 
 // RunSilent executes a git command and discards all output.
 // Returns only whether it succeeded.
 func RunSilent(args ...string) error {
-	cmd := exec.Command("git", args...)
+	cmd := gitCmd(args...)
 	cmd.Stdout = nil
 	cmd.Stderr = nil
 	return cmd.Run()
@@ -63,7 +72,7 @@ func RunSilent(args ...string) error {
 
 // RunSilentIn executes a git command in a directory silently.
 func RunSilentIn(dir string, args ...string) error {
-	cmd := exec.Command("git", args...)
+	cmd := gitCmd(args...)
 	if dir != "" {
 		cmd.Dir = dir
 	}

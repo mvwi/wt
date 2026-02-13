@@ -8,8 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
-	"github.com/mvwi/wt/internal/ui"
 )
 
 const (
@@ -62,10 +60,13 @@ func CheckInBackground() {
 	go func() {
 		client := &http.Client{Timeout: httpTimeout}
 		resp, err := client.Get(releasesURL)
-		if err != nil || resp.StatusCode != 200 {
+		if err != nil {
 			return
 		}
 		defer resp.Body.Close()
+		if resp.StatusCode != 200 {
+			return
+		}
 
 		var release struct {
 			TagName string `json:"tag_name"`
@@ -77,26 +78,38 @@ func CheckInBackground() {
 			return
 		}
 
-		_ = os.WriteFile(path, []byte(release.TagName), 0644)
+		// Atomic write via temp file + rename to prevent corruption
+		// if the process exits mid-write.
+		tmpPath := path + ".tmp"
+		if err := os.WriteFile(tmpPath, []byte(release.TagName), 0644); err != nil {
+			return
+		}
+		_ = os.Rename(tmpPath, path)
 	}()
 }
 
-// PrintNoticeIfNewer reads the cached latest version and prints an update
-// notice to stderr if it's newer than the current version.
-func PrintNoticeIfNewer(currentVersion string) {
+// UpdateInfo holds version comparison results for the caller to format.
+type UpdateInfo struct {
+	Current string
+	Latest  string
+}
+
+// GetUpdateInfo reads the cached latest version and returns update info
+// if a newer version is available. Returns nil if no update is needed.
+func GetUpdateInfo(currentVersion string) *UpdateInfo {
 	path, err := cacheFile()
 	if err != nil {
-		return
+		return nil
 	}
 
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return
+		return nil
 	}
 
 	latest := strings.TrimSpace(string(data))
 	if latest == "" {
-		return
+		return nil
 	}
 
 	// Normalize: strip "v" prefix for comparison
@@ -104,19 +117,14 @@ func PrintNoticeIfNewer(currentVersion string) {
 	lat := strings.TrimPrefix(latest, "v")
 
 	if cur == "dev" || lat == cur {
-		return
+		return nil
 	}
 
 	if !isNewer(lat, cur) {
-		return
+		return nil
 	}
 
-	fmt.Fprintf(os.Stderr, "\n%s %s → %s\n",
-		ui.Cyan(ui.PushUp+" Update available:"),
-		ui.Dim(currentVersion),
-		ui.Cyan(latest),
-	)
-	fmt.Fprintf(os.Stderr, "  %s\n", ui.Dim("brew upgrade wt"))
+	return &UpdateInfo{Current: currentVersion, Latest: latest}
 }
 
 // isNewer returns true if version a is newer than b (simple semver comparison).

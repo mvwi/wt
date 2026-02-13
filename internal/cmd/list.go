@@ -46,7 +46,10 @@ func runList(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	cwd, _ := os.Getwd()
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("cannot determine current directory: %w", err)
+	}
 	worktrees, err := git.ListWorktrees()
 	if err != nil {
 		return err
@@ -136,14 +139,19 @@ func runList(cmd *cobra.Command, args []string) error {
 
 		// Fetch open, merged, and closed PRs in parallel
 		var openPRs, mergedPRs, closedPRs []github.PR
+		var openErr, mergedErr, closedErr error
 		var wg sync.WaitGroup
 		wg.Add(3)
-		go func() { defer wg.Done(); openPRs, _ = github.ListPRs("open") }()
-		go func() { defer wg.Done(); mergedPRs, _ = github.ListPRs("merged") }()
-		go func() { defer wg.Done(); closedPRs, _ = github.ListPRs("closed") }()
+		go func() { defer wg.Done(); openPRs, openErr = github.ListPRs("open") }()
+		go func() { defer wg.Done(); mergedPRs, mergedErr = github.ListPRs("merged") }()
+		go func() { defer wg.Done(); closedPRs, closedErr = github.ListPRs("closed") }()
 		wg.Wait()
 
 		spin.Stop()
+
+		if openErr != nil || mergedErr != nil || closedErr != nil {
+			ui.Warn("Could not fetch some PR data — status may be incomplete")
+		}
 
 		staleThreshold := ctx.Config.EffectiveStaleThreshold()
 

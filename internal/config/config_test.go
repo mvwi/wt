@@ -21,18 +21,20 @@ func TestMergeConfig(t *testing.T) {
 	})
 
 	t.Run("zero values do not override", func(t *testing.T) {
+		fix := "fix"
+		wtPrefix := "wt-"
 		dst := &Config{
 			BaseBranch:     "develop",
 			Remote:         "upstream",
-			BranchPrefix:   "fix",
-			WorktreePrefix: "wt-",
+			BranchPrefix:   &fix,
+			WorktreePrefix: &wtPrefix,
 			StaleThreshold: 14,
 			Init: InitConfig{
 				CopyFiles: []string{".env"},
 				Commands:  []string{"make build"},
 			},
 		}
-		src := &Config{} // all zero values
+		src := &Config{} // all zero/nil values
 		mergeConfig(dst, src)
 
 		if dst.BaseBranch != "develop" {
@@ -43,6 +45,18 @@ func TestMergeConfig(t *testing.T) {
 		}
 		if len(dst.Init.CopyFiles) != 1 || dst.Init.CopyFiles[0] != ".env" {
 			t.Errorf("CopyFiles was overwritten by zero value")
+		}
+	})
+
+	t.Run("explicit empty string overrides non-empty", func(t *testing.T) {
+		fix := "fix"
+		empty := ""
+		dst := &Config{BranchPrefix: &fix}
+		src := &Config{BranchPrefix: &empty}
+		mergeConfig(dst, src)
+
+		if dst.BranchPrefix == nil || *dst.BranchPrefix != "" {
+			t.Errorf("BranchPrefix should be explicitly empty, got %v", dst.BranchPrefix)
 		}
 	})
 
@@ -91,8 +105,8 @@ branch_prefix = "fix"
 		if cfg.BaseBranch != "staging" {
 			t.Errorf("BaseBranch = %q, want %q", cfg.BaseBranch, "staging")
 		}
-		if cfg.BranchPrefix != "fix" {
-			t.Errorf("BranchPrefix = %q, want %q", cfg.BranchPrefix, "fix")
+		if cfg.BranchPrefix == nil || *cfg.BranchPrefix != "fix" {
+			t.Errorf("BranchPrefix = %v, want %q", cfg.BranchPrefix, "fix")
 		}
 		if cfg.Remote != "origin" {
 			t.Errorf("Remote = %q, want %q (default should survive)", cfg.Remote, "origin")
@@ -137,17 +151,46 @@ commands = ["pnpm install", "npx prisma generate"]
 	})
 }
 
+func strPtr(s string) *string { return &s }
+
+func TestEffectiveWorktreeDir(t *testing.T) {
+	tests := []struct {
+		name     string
+		prefix   *string
+		repoName string
+		input    string
+		want     string
+	}{
+		{"default pattern", nil, "myrepo", "feat", "wt-myrepo-feat"},
+		{"explicit prefix", strPtr("wt-"), "myrepo", "feat", "wt-feat"},
+		{"explicit empty prefix", strPtr(""), "myrepo", "feat", "feat"},
+		{"empty repo name", nil, "", "feat", "wt--feat"},
+		{"empty worktree name", nil, "myrepo", "", "wt-myrepo-"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{WorktreePrefix: tt.prefix}
+			got := cfg.EffectiveWorktreeDir(tt.repoName, tt.input)
+			if got != tt.want {
+				t.Errorf("EffectiveWorktreeDir(%q, %q) = %q, want %q", tt.repoName, tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestEffectiveBranchName(t *testing.T) {
 	tests := []struct {
 		name        string
-		prefix      string
+		prefix      *string
 		gitUsername string
 		input       string
 		want        string
 	}{
-		{"with config prefix", "michael", "ignored", "sidebar", "michael/sidebar"},
-		{"falls back to git username", "", "jane", "sidebar", "jane/sidebar"},
-		{"no prefix at all", "", "", "sidebar", "sidebar"},
+		{"with config prefix", strPtr("michael"), "ignored", "sidebar", "michael/sidebar"},
+		{"falls back to git username", nil, "jane", "sidebar", "jane/sidebar"},
+		{"no prefix at all", nil, "", "sidebar", "sidebar"},
+		{"explicit empty disables prefix", strPtr(""), "jane", "sidebar", "sidebar"},
 	}
 
 	for _, tt := range tests {

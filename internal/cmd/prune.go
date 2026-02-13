@@ -42,15 +42,19 @@ func runPrune(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	cwd, _ := os.Getwd()
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("cannot determine current directory: %w", err)
+	}
 
 	spin := ui.NewSpinner("Scanning for stale worktrees")
 
 	var mergedPRs, closedPRs []github.PR
+	var mergedErr, closedErr error
 	var wg sync.WaitGroup
 	wg.Add(2)
-	go func() { defer wg.Done(); mergedPRs, _ = github.ListPRs("merged") }()
-	go func() { defer wg.Done(); closedPRs, _ = github.ListPRs("closed") }()
+	go func() { defer wg.Done(); mergedPRs, mergedErr = github.ListPRs("merged") }()
+	go func() { defer wg.Done(); closedPRs, closedErr = github.ListPRs("closed") }()
 	wg.Wait()
 
 	worktrees, err := git.ListWorktrees()
@@ -98,6 +102,10 @@ func runPrune(cmd *cobra.Command, args []string) error {
 	git.PruneWorktrees()
 
 	spin.Stop()
+
+	if mergedErr != nil || closedErr != nil {
+		ui.Warn("Could not fetch some PR data — results may be incomplete")
+	}
 
 	if len(stale) == 0 {
 		ui.Success("No stale worktrees found")

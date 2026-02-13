@@ -83,13 +83,19 @@ func GetAheadBehindIn(dir, remoteRef string) (AheadBehind, error) {
 	if err != nil {
 		return ab, err
 	}
-	ab.Behind, _ = strconv.Atoi(behind)
+	ab.Behind, err = strconv.Atoi(strings.TrimSpace(behind))
+	if err != nil {
+		return ab, fmt.Errorf("invalid behind count %q: %w", behind, err)
+	}
 
 	ahead, err := RunIn(dir, "rev-list", "--count", remoteRef+"..HEAD")
 	if err != nil {
 		return ab, err
 	}
-	ab.Ahead, _ = strconv.Atoi(ahead)
+	ab.Ahead, err = strconv.Atoi(strings.TrimSpace(ahead))
+	if err != nil {
+		return ab, fmt.Errorf("invalid ahead count %q: %w", ahead, err)
+	}
 
 	return ab, nil
 }

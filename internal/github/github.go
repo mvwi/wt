@@ -81,14 +81,32 @@ type CISummary struct {
 }
 
 // GetReviewSummary computes review state counts.
+// A pending re-review request supersedes a stale completed review.
 func (pr *PR) GetReviewSummary() ReviewSummary {
-	s := ReviewSummary{Pending: len(pr.ReviewRequests)}
+	reRequested := make(map[string]bool)
+	for _, rr := range pr.ReviewRequests {
+		reRequested[rr.Login] = true
+	}
+
+	var s ReviewSummary
+	seen := make(map[string]bool)
 	for _, r := range pr.LatestReviews {
+		login := r.Author.Login
+		seen[login] = true
+		if reRequested[login] {
+			s.Pending++
+			continue
+		}
 		switch r.State {
 		case "APPROVED":
 			s.Approved++
 		case "CHANGES_REQUESTED":
 			s.Changes++
+		}
+	}
+	for _, rr := range pr.ReviewRequests {
+		if !seen[rr.Login] {
+			s.Pending++
 		}
 	}
 	return s
@@ -235,14 +253,32 @@ type WatchStatus struct {
 }
 
 // GetReviewSummary computes review state counts for a WatchStatus.
+// A pending re-review request supersedes a stale completed review.
 func (ws *WatchStatus) GetReviewSummary() ReviewSummary {
-	s := ReviewSummary{Pending: len(ws.ReviewRequests)}
+	reRequested := make(map[string]bool)
+	for _, rr := range ws.ReviewRequests {
+		reRequested[rr.Login] = true
+	}
+
+	var s ReviewSummary
+	seen := make(map[string]bool)
 	for _, r := range ws.LatestReviews {
+		login := r.Author.Login
+		seen[login] = true
+		if reRequested[login] {
+			s.Pending++
+			continue
+		}
 		switch r.State {
 		case "APPROVED":
 			s.Approved++
 		case "CHANGES_REQUESTED":
 			s.Changes++
+		}
+	}
+	for _, rr := range ws.ReviewRequests {
+		if !seen[rr.Login] {
+			s.Pending++
 		}
 	}
 	return s
@@ -307,21 +343,43 @@ type ReviewItem struct {
 }
 
 // ReviewItems merges LatestReviews and ReviewRequests into a unified list.
-// Completed reviews come first, then pending requests.
+// A pending re-review request supersedes any previous completed review
+// (the old approval is stale after new commits are pushed).
 func (ws *WatchStatus) ReviewItems() []ReviewItem {
+	// Build set of logins with pending re-review requests
+	reRequested := make(map[string]bool)
+	for _, rr := range ws.ReviewRequests {
+		reRequested[rr.Login] = true
+	}
+
+	seen := make(map[string]bool)
 	var items []ReviewItem
+
 	for _, r := range ws.LatestReviews {
 		if r.State == "COMMENTED" {
 			continue
 		}
+		login := r.Author.Login
+		seen[login] = true
+
+		// Re-review request supersedes the stale completed review
+		if reRequested[login] {
+			items = append(items, ReviewItem{Login: login, State: "pending"})
+			continue
+		}
+
 		state := "approved"
 		if r.State == "CHANGES_REQUESTED" {
 			state = "changes_requested"
 		}
-		items = append(items, ReviewItem{Login: r.Author.Login, State: state})
+		items = append(items, ReviewItem{Login: login, State: state})
 	}
+
+	// Add reviewers who were requested but haven't reviewed yet
 	for _, rr := range ws.ReviewRequests {
-		items = append(items, ReviewItem{Login: rr.Login, State: "pending"})
+		if !seen[rr.Login] {
+			items = append(items, ReviewItem{Login: rr.Login, State: "pending"})
+		}
 	}
 	return items
 }

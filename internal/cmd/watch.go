@@ -17,16 +17,20 @@ import (
 const watchCheckColWidth = 28
 
 var watchCmd = &cobra.Command{
-	Use:     "watch",
+	Use:     "watch [branch or PR number]",
 	GroupID: groupSync,
 	Short:   "Watch PR until mergeable or blocked",
 	Long: `Poll the GitHub API every 15 seconds, showing a live table with CI and
 review status, and exit when the PR reaches a terminal state.
 
+Optionally pass a branch name or PR number to watch any PR in the repo,
+even if the branch isn't checked out locally.
+
 Exits successfully when the PR is ready to merge. Exits with an error on
 merge conflicts, CI failures, or changes requested.
 
 Requires the GitHub CLI (gh) to be installed.`,
+	Args: cobra.MaximumNArgs(1),
 	RunE: runWatch,
 }
 
@@ -45,24 +49,31 @@ func runWatch(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("gh CLI is required for this command (brew install gh)")
 	}
 
-	ctx, err := newContext()
-	if err != nil {
-		return err
-	}
+	// Resolve what to watch: explicit argument (branch name or PR number) or current branch
+	var ref string
+	if len(args) > 0 {
+		ref = args[0]
+	} else {
+		ctx, err := newContext()
+		if err != nil {
+			return err
+		}
 
-	branch, err := git.CurrentBranch()
-	if err != nil {
-		return fmt.Errorf("not in a git repository or detached HEAD\n   Run this from inside a worktree")
-	}
+		branch, err := git.CurrentBranch()
+		if err != nil {
+			return fmt.Errorf("not in a git repository or detached HEAD\n   Run this from inside a worktree")
+		}
 
-	if ctx.isBaseBranch(branch) {
-		return fmt.Errorf("can't watch the base branch (%s) %s it has no associated PR\n   Switch to a feature worktree first", branch, ui.Dash)
+		if ctx.isBaseBranch(branch) {
+			return fmt.Errorf("can't watch the base branch (%s) %s it has no associated PR\n   Switch to a feature worktree first", branch, ui.Dash)
+		}
+		ref = branch
 	}
 
 	// Initial fetch to verify PR exists
-	ws, err := github.GetWatchStatus(branch)
+	ws, err := github.GetWatchStatus(ref)
 	if err != nil {
-		return fmt.Errorf("no open PR found for branch %s\n   Run wt submit to push and create one", branch)
+		return fmt.Errorf("no open PR found for %s", ref)
 	}
 
 	// Print header (once)
@@ -98,7 +109,7 @@ func runWatch(cmd *cobra.Command, args []string) error {
 			return nil
 
 		case <-ticker.C:
-			ws, err = github.GetWatchStatus(branch)
+			ws, err = github.GetWatchStatus(ref)
 			if err != nil {
 				spin.Stop()
 				return fmt.Errorf("failed to fetch PR status: %w", err)

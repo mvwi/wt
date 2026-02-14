@@ -30,12 +30,26 @@ Exits successfully when the PR is ready to merge. Exits with an error on
 merge conflicts, CI failures, or changes requested.
 
 Requires the GitHub CLI (gh) to be installed.`,
-	Args: cobra.MaximumNArgs(1),
-	RunE: runWatch,
+	Args:              cobra.MaximumNArgs(1),
+	ValidArgsFunction: completeWorktreeNames,
+	RunE:              runWatch,
 }
 
 func init() {
 	rootCmd.AddCommand(watchCmd)
+}
+
+// isAllDigits reports whether s is non-empty and contains only ASCII digits.
+func isAllDigits(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // watchResult describes why the watch loop ended.
@@ -49,16 +63,34 @@ func runWatch(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("gh CLI is required for this command (brew install gh)")
 	}
 
-	// Resolve what to watch: explicit argument (branch name or PR number) or current branch
+	ctx, err := newContext()
+	if err != nil {
+		return err
+	}
+
+	// Resolve what to watch: PR number, worktree name, or current branch
 	var ref string
 	if len(args) > 0 {
-		ref = args[0]
-	} else {
-		ctx, err := newContext()
-		if err != nil {
-			return err
+		if isAllDigits(args[0]) {
+			// PR number — use directly
+			ref = args[0]
+		} else {
+			// Fuzzy-match against worktrees
+			worktrees, err := git.ListWorktrees()
+			if err != nil {
+				return err
+			}
+			target := resolveWorktree(ctx, worktrees, args[0])
+			if target == "" {
+				return fmt.Errorf("worktree not found: %s\n   Run wt list to see available worktrees", args[0])
+			}
+			branch, err := git.CurrentBranchIn(target)
+			if err != nil {
+				return fmt.Errorf("could not determine branch for worktree: %s", args[0])
+			}
+			ref = branch
 		}
-
+	} else {
 		branch, err := git.CurrentBranch()
 		if err != nil {
 			return fmt.Errorf("not in a git repository or detached HEAD\n   Run this from inside a worktree")

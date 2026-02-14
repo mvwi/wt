@@ -40,15 +40,15 @@ homebrew_casks:
                wt init-shell fish | source
 
         Bash:  Add to ~/.bashrc:
-               eval "$(wt init-shell bash)"
+               eval \"$(wt init-shell bash)\"
 
         Zsh:   Add to ~/.zshrc:
-               eval "$(wt init-shell zsh)"
+               eval \"$(wt init-shell zsh)\"
 
       To generate shell completions:
         wt completion fish | source
-        eval "$(wt completion bash)"
-        eval "$(wt completion zsh)"
+        eval \"$(wt completion bash)\"
+        eval \"$(wt completion zsh)\"
     url:
       verified: "github.com/mvwi/wt/"
     hooks:

@@ -60,13 +60,17 @@ func Execute() {
 		os.Exit(1)
 	}
 
-	if info := update.GetUpdateInfo(Version); info != nil {
-		fmt.Fprintf(os.Stderr, "\n%s %s → %s\n",
-			ui.Cyan(ui.PushUp+" Update available:"),
-			ui.Dim(info.Current),
-			ui.Cyan(info.Latest),
-		)
-		fmt.Fprintf(os.Stderr, "  %s\n", ui.Dim("brew upgrade wt"))
+	// Suppress update banner for shell-infrastructure commands that run
+	// during shell init (their stderr is visible even though stdout is piped).
+	if !isShellInitCommand() {
+		if info := update.GetUpdateInfo(Version); info != nil {
+			fmt.Fprintf(os.Stderr, "\n%s %s → %s\n",
+				ui.Cyan(ui.PushUp+" Update available:"),
+				ui.Dim(info.Current),
+				ui.Cyan(info.Latest),
+			)
+			fmt.Fprintf(os.Stderr, "  %s\n", ui.Dim("brew upgrade wt"))
+		}
 	}
 }
 
@@ -79,6 +83,19 @@ func init() {
 		&cobra.Group{ID: groupSync, Title: "Sync:"},
 		&cobra.Group{ID: groupManage, Title: "Manage:"},
 	)
+}
+
+// isShellInitCommand returns true for commands that run during shell startup
+// (init-shell, completion) where stderr output would be disruptive.
+func isShellInitCommand() bool {
+	if len(os.Args) < 2 {
+		return false
+	}
+	switch os.Args[1] {
+	case "init-shell", "completion":
+		return true
+	}
+	return false
 }
 
 // runStatus is called when `wt` is run with no subcommand.

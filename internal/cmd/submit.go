@@ -72,7 +72,22 @@ func runSubmit(cmd *cobra.Command, args []string) error {
 
 	if actualUpstream == expectedUpstream {
 		if err := git.PushForceWithLease(); err != nil {
-			return fmt.Errorf("failed to push to remote: %w", err)
+			// Likely "stale info" — remote-tracking ref is outdated.
+			// Fetch and offer to retry.
+			fmt.Println()
+			ui.Warn("Push rejected %s remote tracking info is stale", ui.Dash)
+			fmt.Println("  Fetching latest remote state...")
+			if fetchErr := git.Fetch(ctx.Config.Remote, branch); fetchErr != nil {
+				return fmt.Errorf("failed to fetch: %w", fetchErr)
+			}
+			if !ui.Confirm("Retry push?", true) {
+				return fmt.Errorf("push cancelled")
+			}
+			fmt.Println()
+			fmt.Println("Pushing to remote...")
+			if err := git.PushForceWithLease(); err != nil {
+				return fmt.Errorf("failed to push to remote: %w", err)
+			}
 		}
 	} else {
 		if actualUpstream != "" {

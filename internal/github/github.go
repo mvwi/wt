@@ -206,6 +206,30 @@ func GetPRForBranch(branch string) (*PR, error) {
 	return &prs[0], nil
 }
 
+// PRInfo holds lightweight PR metadata for checkout.
+type PRInfo struct {
+	Number      int    `json:"number"`
+	Title       string `json:"title"`
+	HeadRefName string `json:"headRefName"`
+	State       string `json:"state"`
+}
+
+// GetPRByNumber fetches PR metadata by number.
+func GetPRByNumber(number int) (*PRInfo, error) {
+	if !IsAvailable() {
+		return nil, fmt.Errorf("gh not installed")
+	}
+	out, err := runGH("pr", "view", fmt.Sprintf("%d", number), "--json", "number,title,headRefName,state")
+	if err != nil {
+		return nil, err
+	}
+	var info PRInfo
+	if err := json.Unmarshal([]byte(out), &info); err != nil {
+		return nil, err
+	}
+	return &info, nil
+}
+
 // RepoSlug returns the "owner/repo" string.
 func RepoSlug() (string, error) {
 	if !IsAvailable() {

@@ -63,7 +63,7 @@ func runNew(cmd *cobra.Command, args []string) error {
 }
 
 func newFromExisting(ctx *cmdContext, name, fromBranch string) error {
-	// Fetch to get latest refs
+	// Fetch to get latest refs (needed for ResolveBranch to find remote branches)
 	spin := ui.NewSpinner("Fetching latest refs")
 	_ = git.FetchAll(ctx.Config.Remote)
 	spin.Stop()
@@ -75,12 +75,14 @@ func newFromExisting(ctx *cmdContext, name, fromBranch string) error {
 
 	// Derive name from branch if not provided
 	if name == "" {
-		parts := strings.Split(ref, "/")
-		name = parts[len(parts)-1]
-		// Remove remote prefix if present
-		name = strings.TrimPrefix(name, ctx.Config.Remote+"/")
+		name = nameFromBranch(ref, ctx.Config.Remote)
 	}
 
+	if isRemote {
+		return createWorktreeFromRemote(ctx, name, ref, newDoInit)
+	}
+
+	// Local branch path
 	wtPath := ctx.worktreePath(name)
 
 	if isDir(wtPath) {
@@ -92,15 +94,60 @@ func newFromExisting(ctx *cmdContext, name, fromBranch string) error {
 	fmt.Printf("  Branch: %s\n", ref)
 	fmt.Println()
 
-	if isRemote {
-		localBranch := strings.TrimPrefix(ref, ctx.Config.Remote+"/")
-		err = git.AddWorktreeFromRemote(wtPath, localBranch, ref)
-		if err != nil {
-			// Branch might already exist locally
-			err = git.AddWorktreeFromExisting(wtPath, localBranch)
-		}
-	} else {
-		err = git.AddWorktreeFromExisting(wtPath, ref)
+	if err := git.AddWorktreeFromExisting(wtPath, ref); err != nil {
+		return fmt.Errorf("failed to create worktree: %w", err)
+	}
+
+	fmt.Println()
+	ui.Success("Created worktree")
+	fmt.Println()
+
+	if newDoInit {
+		return runInitIn(wtPath, ctx)
+	}
+	fmt.Printf("  → wt switch %s && wt init\n", name)
+	return nil
+}
+
+// nameFromBranch derives a short worktree name from a branch ref.
+// Takes the last segment after "/" and strips the remote prefix if present.
+//
+//	"origin/user/fix-login" → "fix-login"
+//	"user/fix-login"        → "fix-login"
+//	"fix-login"             → "fix-login"
+func nameFromBranch(ref, remote string) string {
+	parts := strings.Split(ref, "/")
+	name := parts[len(parts)-1]
+	return strings.TrimPrefix(name, remote+"/")
+}
+
+// createWorktreeFromRemote handles the common flow for checking out a remote
+// branch into a new worktree: check if it already exists, fetch, create, and
+// optionally run init. Used by both `wt new --from` and `wt pr`.
+func createWorktreeFromRemote(ctx *cmdContext, name, remoteBranch string, doInit bool) error {
+	wtPath := ctx.worktreePath(name)
+
+	if isDir(wtPath) {
+		return fmt.Errorf("worktree already exists: %s\n   Use wt switch %s to switch to it", wtPath, name)
+	}
+
+	// Fetch to get latest refs
+	spin := ui.NewSpinner("Fetching latest refs")
+	_ = git.FetchAll(ctx.Config.Remote)
+	spin.Stop()
+
+	localBranch := strings.TrimPrefix(remoteBranch, ctx.Config.Remote+"/")
+	remoteRef := ctx.Config.Remote + "/" + localBranch
+
+	fmt.Println("Creating worktree from existing branch...")
+	fmt.Printf("  Directory: %s\n", wtPath)
+	fmt.Printf("  Branch: %s\n", localBranch)
+	fmt.Println()
+
+	err := git.AddWorktreeFromRemote(wtPath, localBranch, remoteRef)
+	if err != nil {
+		// Branch might already exist locally
+		err = git.AddWorktreeFromExisting(wtPath, localBranch)
 	}
 	if err != nil {
 		return fmt.Errorf("failed to create worktree: %w", err)
@@ -110,7 +157,7 @@ func newFromExisting(ctx *cmdContext, name, fromBranch string) error {
 	ui.Success("Created worktree")
 	fmt.Println()
 
-	if newDoInit {
+	if doInit {
 		return runInitIn(wtPath, ctx)
 	}
 	fmt.Printf("  → wt switch %s && wt init\n", name)

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -21,11 +22,14 @@ var listCmd = &cobra.Command{
 
 Output is in two phases:
   1. Worktree names and branches (instant)
-  2. PR status table with reviews and CI (requires GitHub API)`,
+  2. PR status table with reviews and CI (requires GitHub API)
+
+Use --json for machine-readable output (all data in one pass).`,
 	RunE: runList,
 }
 
 func init() {
+	listCmd.Flags().Bool("json", false, "Output as JSON")
 	rootCmd.AddCommand(listCmd)
 }
 
@@ -40,7 +44,44 @@ type worktreeInfo struct {
 	DirtyCount int
 }
 
+// JSON output structs
+
+type listJSONReview struct {
+	Approved int `json:"approved"`
+	Changes  int `json:"changes_requested"`
+	Pending  int `json:"pending"`
+}
+
+type listJSONCI struct {
+	Pass    int `json:"pass"`
+	Fail    int `json:"fail"`
+	Pending int `json:"pending"`
+	Total   int `json:"total"`
+}
+
+type listJSONPR struct {
+	Number int            `json:"number"`
+	State  string         `json:"state"`
+	Review listJSONReview `json:"review"`
+	CI     listJSONCI     `json:"ci"`
+}
+
+type listJSONEntry struct {
+	Name       string      `json:"name"`
+	Path       string      `json:"path"`
+	Branch     string      `json:"branch"`
+	Current    bool        `json:"current"`
+	BaseBranch bool        `json:"base_branch"`
+	Age        string      `json:"age,omitempty"`
+	Dirty      int         `json:"dirty"`
+	Behind     int         `json:"behind"`
+	Ahead      int         `json:"ahead"`
+	PR         *listJSONPR `json:"pr"`
+}
+
 func runList(cmd *cobra.Command, args []string) error {
+	jsonOutput, _ := cmd.Flags().GetBool("json")
+
 	ctx, err := newContext()
 	if err != nil {
 		return err
@@ -50,9 +91,14 @@ func runList(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("cannot determine current directory: %w", err)
 	}
+
 	worktrees, err := git.ListWorktrees()
 	if err != nil {
 		return err
+	}
+
+	if jsonOutput {
+		return runListJSON(ctx, cwd, worktrees)
 	}
 
 	if len(worktrees) == 0 {
@@ -60,7 +106,11 @@ func runList(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Collect info
+	return runListTerminal(ctx, cwd, worktrees)
+}
+
+// collectWorktreeInfos gathers branch/status data for all worktrees.
+func collectWorktreeInfos(ctx *cmdContext, cwd string, worktrees []git.Worktree) ([]worktreeInfo, []string) {
 	var infos []worktreeInfo
 	var featureBranches []string
 
@@ -98,6 +148,86 @@ func runList(cmd *cobra.Command, args []string) error {
 
 		infos = append(infos, info)
 	}
+
+	return infos, featureBranches
+}
+
+// fetchPRData fetches open, merged, and closed PRs in parallel.
+func fetchPRData() (openPRs, mergedPRs, closedPRs []github.PR, hasErrors bool) {
+	var openErr, mergedErr, closedErr error
+	var wg sync.WaitGroup
+	wg.Add(3)
+	go func() { defer wg.Done(); openPRs, openErr = github.ListPRs("open") }()
+	go func() { defer wg.Done(); mergedPRs, mergedErr = github.ListPRs("merged") }()
+	go func() { defer wg.Done(); closedPRs, closedErr = github.ListPRs("closed") }()
+	wg.Wait()
+	hasErrors = openErr != nil || mergedErr != nil || closedErr != nil
+	return
+}
+
+func runListJSON(ctx *cmdContext, cwd string, worktrees []git.Worktree) error {
+	infos, _ := collectWorktreeInfos(ctx, cwd, worktrees)
+
+	// Fetch PR data (no spinner, no terminal output)
+	var openPRs, mergedPRs, closedPRs []github.PR
+	if github.IsAvailable() {
+		openPRs, mergedPRs, closedPRs, _ = fetchPRData()
+	}
+
+	entries := make([]listJSONEntry, 0, len(infos))
+	for _, info := range infos {
+		isBase := ctx.isBaseBranch(info.Branch)
+
+		entry := listJSONEntry{
+			Name:       info.ShortName,
+			Path:       info.Path,
+			Branch:     info.Branch,
+			Current:    info.IsCurrent,
+			BaseBranch: isBase,
+			Age:        info.Age,
+			Dirty:      info.DirtyCount,
+			Behind:     info.Behind,
+			Ahead:      info.Ahead,
+		}
+
+		if !isBase {
+			entry.PR = findPRJSON(info.Branch, openPRs, mergedPRs, closedPRs)
+		}
+
+		entries = append(entries, entry)
+	}
+
+	data, err := json.MarshalIndent(entries, "", "  ")
+	if err != nil {
+		return err
+	}
+	fmt.Println(string(data))
+	return nil
+}
+
+// findPRJSON finds the PR for a branch and converts it to JSON format.
+func findPRJSON(branch string, openPRs, mergedPRs, closedPRs []github.PR) *listJSONPR {
+	if pr := github.FindPRForBranch(openPRs, branch); pr != nil {
+		rs := pr.GetReviewSummary()
+		cs := pr.GetCISummary()
+		return &listJSONPR{
+			Number: pr.Number,
+			State:  "open",
+			Review: listJSONReview{Approved: rs.Approved, Changes: rs.Changes, Pending: rs.Pending},
+			CI:     listJSONCI{Pass: cs.Pass, Fail: cs.Fail, Pending: cs.Pending, Total: cs.Total},
+		}
+	}
+	if pr := github.FindPRForBranch(mergedPRs, branch); pr != nil {
+		return &listJSONPR{Number: pr.Number, State: "merged"}
+	}
+	if pr := github.FindPRForBranch(closedPRs, branch); pr != nil {
+		return &listJSONPR{Number: pr.Number, State: "closed"}
+	}
+	return nil
+}
+
+func runListTerminal(ctx *cmdContext, cwd string, worktrees []git.Worktree) error {
+	infos, featureBranches := collectWorktreeInfos(ctx, cwd, worktrees)
 
 	// Phase 1: Show worktree names immediately
 	ui.Header("WORKTREES")
@@ -137,19 +267,11 @@ func runList(cmd *cobra.Command, args []string) error {
 		fmt.Println()
 		spin := ui.NewSpinner("Loading PR status")
 
-		// Fetch open, merged, and closed PRs in parallel
-		var openPRs, mergedPRs, closedPRs []github.PR
-		var openErr, mergedErr, closedErr error
-		var wg sync.WaitGroup
-		wg.Add(3)
-		go func() { defer wg.Done(); openPRs, openErr = github.ListPRs("open") }()
-		go func() { defer wg.Done(); mergedPRs, mergedErr = github.ListPRs("merged") }()
-		go func() { defer wg.Done(); closedPRs, closedErr = github.ListPRs("closed") }()
-		wg.Wait()
+		openPRs, mergedPRs, closedPRs, hasErrors := fetchPRData()
 
 		spin.Stop()
 
-		if openErr != nil || mergedErr != nil || closedErr != nil {
+		if hasErrors {
 			ui.Warn("Could not fetch some PR data — status may be incomplete")
 		}
 

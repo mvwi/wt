@@ -141,9 +141,9 @@ func TestCopyDirRecursive(t *testing.T) {
 		// Create nested structure
 		mkdir(t, src, "sub")
 		mkdir(t, src, "sub/deep")
-		os.WriteFile(filepath.Join(src, "root.txt"), []byte("root"), 0644)
-		os.WriteFile(filepath.Join(src, "sub", "mid.txt"), []byte("mid"), 0644)
-		os.WriteFile(filepath.Join(src, "sub", "deep", "leaf.txt"), []byte("leaf"), 0644)
+		writeFile(t, filepath.Join(src, "root.txt"), "root")
+		writeFile(t, filepath.Join(src, "sub", "mid.txt"), "mid")
+		writeFile(t, filepath.Join(src, "sub", "deep", "leaf.txt"), "leaf")
 
 		if err := copyDirRecursive(src, dst); err != nil {
 			t.Fatalf("copyDirRecursive failed: %v", err)
@@ -173,7 +173,9 @@ func TestCopyDirRecursive(t *testing.T) {
 		src := t.TempDir()
 		dst := filepath.Join(t.TempDir(), "dest")
 
-		os.WriteFile(filepath.Join(src, "exec.sh"), []byte("#!/bin/sh"), 0755)
+		if err := os.WriteFile(filepath.Join(src, "exec.sh"), []byte("#!/bin/sh"), 0755); err != nil {
+			t.Fatal(err)
+		}
 
 		if err := copyDirRecursive(src, dst); err != nil {
 			t.Fatalf("copyDirRecursive failed: %v", err)
@@ -192,6 +194,13 @@ func TestCopyDirRecursive(t *testing.T) {
 func touch(t *testing.T, dir, name string) {
 	t.Helper()
 	if err := os.WriteFile(filepath.Join(dir, name), nil, 0644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func writeFile(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		t.Fatal(err)
 	}
 }

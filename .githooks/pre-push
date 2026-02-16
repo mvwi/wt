@@ -1,0 +1,6 @@
+#!/bin/sh
+echo "pre-push: running lint..."
+golangci-lint run ./... || exit 1
+
+echo "pre-push: running tests..."
+go test ./...

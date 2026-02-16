@@ -118,7 +118,7 @@ func runWatch(cmd *cobra.Command, args []string) error {
 		if res.success {
 			return nil
 		}
-		return fmt.Errorf("%s", res.message)
+		return errSilent
 	}
 
 	// Set up Ctrl+C handler
@@ -158,7 +158,7 @@ func runWatch(cmd *cobra.Command, args []string) error {
 				if res.success {
 					return nil
 				}
-				return fmt.Errorf("%s", res.message)
+				return errSilent
 			}
 
 			tableLines = renderWatchTable(ws)

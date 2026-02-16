@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -11,6 +12,10 @@ import (
 	"github.com/mvwi/wt/internal/update"
 	"github.com/spf13/cobra"
 )
+
+// errSilent is returned when the error has already been printed and
+// Execute should exit non-zero without printing anything extra.
+var errSilent = errors.New("")
 
 // Version is set at build time via -ldflags.
 var Version = "dev"
@@ -53,10 +58,12 @@ func Execute() {
 	update.CheckInBackground()
 
 	if err := rootCmd.Execute(); err != nil {
-		// Cobra includes "Did you mean this?" in the error message
-		// when SuggestionsMinimumDistance is set. Since we silence
-		// errors to control output, we print the error ourselves.
-		fmt.Fprintf(os.Stderr, "%s %s\n", ui.Red(ui.Fail), err)
+		if !errors.Is(err, errSilent) {
+			// Cobra includes "Did you mean this?" in the error message
+			// when SuggestionsMinimumDistance is set. Since we silence
+			// errors to control output, we print the error ourselves.
+			fmt.Fprintf(os.Stderr, "%s %s\n", ui.Red(ui.Fail), err)
+		}
 		os.Exit(1)
 	}
 

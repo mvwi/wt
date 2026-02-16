@@ -33,6 +33,79 @@ wt list                   # See all worktrees with PR/CI/review status
 wt prune                  # Clean up merged worktrees
 ```
 
+## Use Cases
+
+<details open>
+<summary><b>Run multiple agent sessions in parallel</b></summary>
+
+You want two agents working on different tasks at the same time. If they share a branch, they'll overwrite each other's files and fight over `git status`.
+
+```sh
+wt new auth-refactor --init    # Agent 1 gets its own worktree
+wt new fix-pagination --init   # Agent 2 gets a separate one
+```
+
+Each agent works in complete isolation — its own directory, its own branch, its own node_modules. `--init` copies `.env` files, installs dependencies, and sets up AI config (`.claude`, `.cursorrules`) automatically. When they're done, push each independently, then `wt watch` for updates as CI runs.
+
+</details>
+
+<details>
+<summary><b>Fix a bug without derailing your current work</b></summary>
+
+You're deep in changes when you find an unrelated bug. The old way: stash your changes, make a new branch, fix the bug, switch back, pop the stash, and hope nothing broke (except your concentration). Or more likely, ignore it and tell yourself you'll fix it later.
+
+```sh
+wt new hotfix                  # New worktree from main — your feature branch is untouched
+# ...fix the bug...
+wt submit                     # Rebase + push the fix
+wt switch -                   # Back to your feature, exactly where you left off (or even better, farm this out to an agent to preserve your focus too)
+```
+
+Same thing works for addressing PR review comments on a different branch — `wt switch` to it, make the changes, `wt submit`, `wt switch -` back.
+
+</details>
+
+<details>
+<summary><b>Move work you started on the wrong branch</b></summary>
+
+You've been coding for 20 minutes before realizing you're on `main`. Or you started on `feature-a` but this really belongs in its own branch.
+
+```sh
+wt move new-feature            # Moves all uncommitted changes to another worktree
+```
+
+If the target doesn't exist, `wt move` offers to create it. It detects conflicts with files already modified in the target, cleans up the source after a successful move, and creates any missing directories. The manual alternative — copying files, checking for conflicts, running `git checkout .` and `git clean` — is tedious and error-prone.
+
+</details>
+
+<details>
+<summary><b>Set up a new worktree without the boilerplate</b></summary>
+
+A new worktree is a bare directory. No `node_modules`, no `.env`, no generated files. Getting it into a working state means copying environment files, running the right install command, generating Prisma schemas, and setting up AI tool configs. Lots of manual effort relative to `git checkout -b`.
+
+```sh
+wt init                        # Auto-detects and handles everything
+```
+
+With zero configuration, `wt init` detects your package manager from lockfiles, copies `.env` files from main, copies AI config directories, and runs install with the right frozen-lockfile flags. Support out of the box for `pnpm`, `yarn`, `bun`, `npm`, `Go`, `Cargo`, `Bundler`, and `pip`. If you use Prisma, it finds your schema and generates. All of this is customizable in `.wt.toml` if the defaults aren't right.
+
+</details>
+
+<details>
+<summary><b>Push and stop refreshing GitHub</b></summary>
+
+You push your branch and alt-tab to GitHub, refreshing until CI goes green and reviewers approve. If a check fails, you might not notice for 10 minutes.
+
+```sh
+wt submit                     # Rebase onto main + push (force-with-lease)
+# "Watch PR status? [Y/n]"
+wt watch                      # Live terminal dashboard, polls every 15s
+```
+
+`wt watch` shows CI checks and review status in a live-updating table. When everything resolves — or something fails — you get a desktop notification and a terminal bell. No more tab-switching.
+
+</details>
+
 ## Install
 
 **Homebrew:**

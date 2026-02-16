@@ -84,6 +84,7 @@ eval "$(wt completion zsh)"
 | `wt close [name]` | `rm` | Close and clean up a worktree |
 | `wt rename <name>` | `rn` | Rename worktree, branch, and remote |
 | `wt prune` | | Clean up stale worktrees (merged/closed PRs) |
+| `wt pr <number>` | | Checkout a PR into a worktree |
 | `wt open [name]` | | Open PR in browser |
 | `wt watch [branch or PR]` | | Watch PR until mergeable or blocked |
 | `wt feedback [message]` | | Open a GitHub issue for feedback |
@@ -166,6 +167,14 @@ A `.wt.toml` in a repo root always wins, but most users won't need one.
 | `init.commands` | `[]` | Shell commands run during init |
 
 </details>
+
+## AI Tools
+
+`wt` works well with AI coding agents (Claude Code, Cursor, Aider, etc.) — agents with shell access can run `wt` commands directly.
+
+- Run `wt --help` or `wt <command> --help` for full usage
+- `wt list --json` outputs machine-readable worktree and PR status
+- `wt init` auto-copies AI config (`.claude`, `.cursorrules`, `.cursor/rules`) to new worktrees
 
 ## Dependencies
 

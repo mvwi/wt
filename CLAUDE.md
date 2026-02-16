@@ -22,6 +22,7 @@ internal/
     close.go                 Close + clean up worktree
     prune.go                 Remove stale worktrees (merged/closed PRs)
     rename.go                Rename branch + directory + remote
+    pr.go                    Checkout a GitHub PR into a worktree
     open.go                  Open PR in browser
     watch.go                 Poll PR until mergeable or blocked
     feedback.go              Open GitHub issue for feedback/bugs
@@ -42,6 +43,8 @@ internal/
     spinner.go               Animated spinner for long-running operations
   config/                    Configuration from .wt.toml
     config.go                Load config with defaults, Effective* methods
+  update/                    Version update checking
+    check.go                 Daily update check + banner display
 ```
 
 ## Key Patterns

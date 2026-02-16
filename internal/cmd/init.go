@@ -132,10 +132,10 @@ func detectInit(mainWorktree string) (copyFiles []string, commands []string) {
 		exec    string // exec runner for post-install codegen (JS only)
 	}
 	lockfiles := []lockfile{
-		{"pnpm-lock.yaml", "pnpm install", "pnpm exec"},
-		{"yarn.lock", "yarn install", "yarn"},
-		{"bun.lockb", "bun install", "bunx"},
-		{"package-lock.json", "npm install", "npx"},
+		{"pnpm-lock.yaml", "pnpm install --frozen-lockfile", "pnpm exec"},
+		{"yarn.lock", "yarn install --frozen-lockfile", "yarn"},
+		{"bun.lockb", "bun install --frozen-lockfile", "bunx"},
+		{"package-lock.json", "npm ci", "npx"},
 		{"go.sum", "go mod download", ""},
 		{"Gemfile.lock", "bundle install", ""},
 		{"Cargo.lock", "cargo fetch", ""},

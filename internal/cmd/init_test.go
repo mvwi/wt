@@ -18,8 +18,8 @@ func TestDetectInit(t *testing.T) {
 		if len(copyFiles) != 2 || copyFiles[0] != ".env" || copyFiles[1] != ".env.development" {
 			t.Errorf("copyFiles = %v, want [.env .env.development]", copyFiles)
 		}
-		if len(commands) != 1 || commands[0] != "pnpm install" {
-			t.Errorf("commands = %v, want [pnpm install]", commands)
+		if len(commands) != 1 || commands[0] != "pnpm install --frozen-lockfile" {
+			t.Errorf("commands = %v, want [pnpm install --frozen-lockfile]", commands)
 		}
 	})
 
@@ -29,8 +29,8 @@ func TestDetectInit(t *testing.T) {
 
 		_, commands := detectInit(dir)
 
-		if len(commands) != 1 || commands[0] != "yarn install" {
-			t.Errorf("commands = %v, want [yarn install]", commands)
+		if len(commands) != 1 || commands[0] != "yarn install --frozen-lockfile" {
+			t.Errorf("commands = %v, want [yarn install --frozen-lockfile]", commands)
 		}
 	})
 
@@ -52,8 +52,8 @@ func TestDetectInit(t *testing.T) {
 
 		_, commands := detectInit(dir)
 
-		if len(commands) != 1 || commands[0] != "pnpm install" {
-			t.Errorf("commands = %v, want [pnpm install] (first lockfile should win)", commands)
+		if len(commands) != 1 || commands[0] != "pnpm install --frozen-lockfile" {
+			t.Errorf("commands = %v, want [pnpm install --frozen-lockfile] (first lockfile should win)", commands)
 		}
 	})
 

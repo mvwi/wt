@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -24,6 +25,7 @@ When [init] is configured in .wt.toml, runs exactly those steps:
 When no [init] section exists, auto-detects common patterns:
 
   • Copies .env files found in the main worktree
+  • Copies AI config (.claude, .cursorrules, .cursor/rules)
   • Detects package manager from lockfile and runs install
   • Detects Prisma schema and runs prisma generate
 
@@ -80,16 +82,22 @@ func runInitIn(dir string, ctx *cmdContext) error {
 	fmt.Println("Initializing worktree...")
 	fmt.Println()
 
-	// Step 1: Copy files from main worktree
+	// Step 1: Copy files/directories from main worktree
 	for _, file := range copyFiles {
 		src := filepath.Join(ctx.MainWorktree, file)
 		dst := filepath.Join(dir, file)
 		if fileExists(src) && !fileExists(dst) {
 			fmt.Printf("Copying %s from main repo...\n", file)
-			data, err := os.ReadFile(src)
-			if err == nil {
-				if err := os.WriteFile(dst, data, 0644); err != nil {
-					ui.Warn("Failed to write %s: %v", file, err)
+			if isDir(src) {
+				if err := copyDirRecursive(src, dst); err != nil {
+					ui.Warn("Failed to copy %s: %v", file, err)
+				}
+			} else {
+				data, err := os.ReadFile(src)
+				if err == nil {
+					if err := os.WriteFile(dst, data, 0644); err != nil {
+						ui.Warn("Failed to write %s: %v", file, err)
+					}
 				}
 			}
 		}
@@ -120,6 +128,14 @@ func detectInit(mainWorktree string) (copyFiles []string, commands []string) {
 	// Detect .env files
 	envFiles := []string{".env", ".env.local", ".env.development", ".env.test"}
 	for _, f := range envFiles {
+		if fileExists(filepath.Join(mainWorktree, f)) {
+			copyFiles = append(copyFiles, f)
+		}
+	}
+
+	// Detect AI config files/directories
+	aiConfigs := []string{".claude", ".cursorrules", ".cursor/rules"}
+	for _, f := range aiConfigs {
 		if fileExists(filepath.Join(mainWorktree, f)) {
 			copyFiles = append(copyFiles, f)
 		}
@@ -172,4 +188,37 @@ func runShellString(dir, command string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
+}
+
+// copyDirRecursive copies a directory tree from src to dst, preserving permissions.
+func copyDirRecursive(src, dst string) error {
+	return filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(dst, rel)
+
+		if d.IsDir() {
+			info, err := d.Info()
+			if err != nil {
+				return err
+			}
+			return os.MkdirAll(target, info.Mode())
+		}
+
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(target, data, info.Mode())
+	})
 }

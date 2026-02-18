@@ -75,7 +75,7 @@ func runMove(cmd *cobra.Command, args []string) error {
 	}
 
 	// Resolve target worktree
-	targetPath, createdNew, err := resolveOrCreateTarget(ctx, targetName, sourceRoot)
+	targetPath, createdNew, err := resolveOrCreateTarget(ctx, targetName)
 	if err != nil {
 		return err
 	}
@@ -194,7 +194,7 @@ func runMove(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func resolveOrCreateTarget(ctx *cmdContext, name, sourceRoot string) (string, bool, error) {
+func resolveOrCreateTarget(ctx *cmdContext, name string) (string, bool, error) {
 	worktrees, err := git.ListWorktrees()
 	if err != nil {
 		return "", false, err

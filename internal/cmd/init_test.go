@@ -119,6 +119,58 @@ func TestDetectInit(t *testing.T) {
 		}
 	})
 
+	t.Run("detects prisma schema at root", func(t *testing.T) {
+		dir := t.TempDir()
+		touch(t, dir, "pnpm-lock.yaml")
+		mkdir(t, dir, "prisma")
+		touch(t, dir, "prisma/schema.prisma")
+
+		_, commands := detectInit(dir)
+
+		if !contains(commands, "pnpm exec prisma generate") {
+			t.Errorf("commands = %v, want to contain 'pnpm exec prisma generate'", commands)
+		}
+	})
+
+	t.Run("detects prisma schema in nested package", func(t *testing.T) {
+		dir := t.TempDir()
+		touch(t, dir, "pnpm-lock.yaml")
+		mkdir(t, dir, "packages/db/prisma")
+		touch(t, dir, "packages/db/prisma/schema.prisma")
+
+		_, commands := detectInit(dir)
+
+		if !contains(commands, "pnpm exec prisma generate") {
+			t.Errorf("commands = %v, want to contain 'pnpm exec prisma generate'", commands)
+		}
+	})
+
+	t.Run("no prisma without JS package manager", func(t *testing.T) {
+		dir := t.TempDir()
+		touch(t, dir, "go.sum")
+		mkdir(t, dir, "prisma")
+		touch(t, dir, "prisma/schema.prisma")
+
+		_, commands := detectInit(dir)
+
+		if contains(commands, "prisma generate") {
+			t.Errorf("commands = %v, should not contain prisma generate without JS package manager", commands)
+		}
+	})
+
+	t.Run("prisma skips node_modules", func(t *testing.T) {
+		dir := t.TempDir()
+		touch(t, dir, "pnpm-lock.yaml")
+		mkdir(t, dir, "node_modules/.prisma")
+		touch(t, dir, "node_modules/.prisma/schema.prisma")
+
+		_, commands := detectInit(dir)
+
+		if contains(commands, "pnpm exec prisma generate") {
+			t.Errorf("commands = %v, should not detect prisma inside node_modules", commands)
+		}
+	})
+
 	t.Run("absent AI configs not detected", func(t *testing.T) {
 		dir := t.TempDir()
 		touch(t, dir, ".env")

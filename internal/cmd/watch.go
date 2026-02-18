@@ -179,6 +179,11 @@ func checkResolved(ws *github.WatchStatus) *watchResult {
 		return &watchResult{success: false, message: "PR was closed"}
 	}
 
+	// Draft PR — always terminal, but verdict prints all concurrent issues
+	if ws.MergeStateStatus == "DRAFT" {
+		return &watchResult{success: false, message: "PR is a draft " + ui.Dash + " mark as ready first"}
+	}
+
 	// Ready to merge
 	if ws.MergeStateStatus == "CLEAN" {
 		return &watchResult{success: true, message: "Ready to merge"}
@@ -192,11 +197,6 @@ func checkResolved(ws *github.WatchStatus) *watchResult {
 	// Changes requested
 	if ws.ReviewDecision == "CHANGES_REQUESTED" {
 		return &watchResult{success: false, message: "Changes requested"}
-	}
-
-	// Draft PR
-	if ws.MergeStateStatus == "DRAFT" {
-		return &watchResult{success: false, message: "PR is a draft " + ui.Dash + " mark as ready first"}
 	}
 
 	// All CI resolved with failures
@@ -349,6 +349,21 @@ func printWatchVerdict(ws *github.WatchStatus) {
 	// Terminal bell
 	fmt.Print("\a")
 
+	// Draft PRs: show all concurrent issues so the user sees everything to fix
+	if ws.MergeStateStatus == "DRAFT" {
+		if ws.Mergeable == "CONFLICTING" {
+			ui.Error("Merge conflict %s run wt rebase", ui.Dash)
+		}
+		if ws.ReviewDecision == "CHANGES_REQUESTED" {
+			ui.Error("Changes requested")
+		}
+		if cs.Fail > 0 {
+			ui.Error("%d check(s) failed", cs.Fail)
+		}
+		ui.Error("PR is a draft %s mark as ready first", ui.Dash)
+		return
+	}
+
 	switch {
 	case ws.State == "MERGED":
 		ui.Success("Already merged")
@@ -360,8 +375,6 @@ func printWatchVerdict(ws *github.WatchStatus) {
 		ui.Error("Merge conflict %s run wt rebase", ui.Dash)
 	case ws.ReviewDecision == "CHANGES_REQUESTED":
 		ui.Error("Changes requested")
-	case ws.MergeStateStatus == "DRAFT":
-		ui.Error("PR is a draft %s mark as ready first", ui.Dash)
 	case cs.Fail > 0:
 		ui.Error("%d check(s) failed", cs.Fail)
 	case ws.MergeStateStatus == "BLOCKED":

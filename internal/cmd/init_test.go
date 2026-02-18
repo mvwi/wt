@@ -127,8 +127,8 @@ func TestDetectInit(t *testing.T) {
 
 		_, commands := detectInit(dir)
 
-		if !contains(commands, "pnpm exec prisma generate") {
-			t.Errorf("commands = %v, want to contain 'pnpm exec prisma generate'", commands)
+		if !contains(commands, "pnpm exec prisma generate --schema prisma/schema.prisma") {
+			t.Errorf("commands = %v, want to contain 'pnpm exec prisma generate --schema prisma/schema.prisma'", commands)
 		}
 	})
 
@@ -140,8 +140,8 @@ func TestDetectInit(t *testing.T) {
 
 		_, commands := detectInit(dir)
 
-		if !contains(commands, "pnpm exec prisma generate") {
-			t.Errorf("commands = %v, want to contain 'pnpm exec prisma generate'", commands)
+		if !contains(commands, "pnpm exec prisma generate --schema packages/db/prisma/schema.prisma") {
+			t.Errorf("commands = %v, want to contain 'pnpm exec prisma generate --schema packages/db/prisma/schema.prisma'", commands)
 		}
 	})
 

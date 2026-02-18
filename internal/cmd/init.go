@@ -169,8 +169,10 @@ func detectInit(mainWorktree string) (copyFiles []string, commands []string) {
 	}
 
 	// Detect Prisma schema anywhere in the repo (requires a JS package manager)
-	if execRunner != "" && hasPrismaSchema(mainWorktree) {
-		commands = append(commands, execRunner+" prisma generate")
+	if execRunner != "" {
+		if schemaPath := findPrismaSchema(mainWorktree); schemaPath != "" {
+			commands = append(commands, execRunner+" prisma generate --schema "+schemaPath)
+		}
 	}
 
 	return
@@ -217,9 +219,10 @@ func copyDirRecursive(src, dst string) error {
 	})
 }
 
-// hasPrismaSchema walks the tree looking for schema.prisma or a directory
-// containing .prisma files, skipping node_modules and other heavy dirs.
-func hasPrismaSchema(root string) bool {
+// findPrismaSchema walks the tree looking for a .prisma file, skipping
+// node_modules and other heavy dirs. Returns the repo-relative path to
+// the first schema found, or "" if none exists.
+func findPrismaSchema(root string) string {
 	skipDirs := map[string]bool{
 		"node_modules": true,
 		".git":         true,
@@ -227,22 +230,26 @@ func hasPrismaSchema(root string) bool {
 		".next":        true,
 		".turbo":       true,
 	}
-	found := false
+	var result string
 	_ = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil // skip unreadable paths
 		}
-		if found {
+		if result != "" {
 			return fs.SkipAll
 		}
 		if d.IsDir() && skipDirs[d.Name()] {
 			return fs.SkipDir
 		}
 		if !d.IsDir() && filepath.Ext(d.Name()) == ".prisma" {
-			found = true
+			rel, err := filepath.Rel(root, path)
+			if err != nil {
+				return nil
+			}
+			result = rel
 			return fs.SkipAll
 		}
 		return nil
 	})
-	return found
+	return result
 }

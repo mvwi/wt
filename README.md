@@ -249,6 +249,34 @@ A `.wt.toml` in a repo root always wins, but most users won't need one.
 - `wt list --json` outputs machine-readable worktree and PR status
 - `wt init` auto-copies AI config (`.claude`, `.cursorrules`, `.cursor/rules`) to new worktrees
 
+### LLM Instructions
+
+Add the following to your AI tool's instructions file so it knows to use `wt` instead of raw git commands for worktree operations. Copy the block below into your `CLAUDE.md`, `.cursorrules`, `.github/copilot-instructions.md`, or equivalent:
+
+<details open>
+<summary>Copy-paste snippet</summary>
+
+~~~markdown
+## Worktree Management
+
+This project uses `wt` (git worktree manager). Use `wt` commands instead of raw `git worktree` or `git checkout -b` commands.
+
+Key commands:
+- `wt new <name>` — create a new worktree + branch (add `--init` to install deps and copy env files)
+- `wt switch <name>` — switch to another worktree (supports fuzzy matching)
+- `wt list` — show all worktrees with PR, CI, and review status
+- `wt rebase` — rebase current branch onto the base branch
+- `wt submit` — rebase + push to remote
+- `wt close [name]` — clean up a worktree when done
+- `wt prune` — remove worktrees whose PRs were merged or closed
+
+Use `wt submit` instead of `git push` — it rebases onto the base branch first and uses `--force-with-lease` for safety. Use `wt rebase` instead of `git rebase` — it handles fetching and knows the configured base branch. Use `wt new <name> --init` to create fully set up worktrees with dependencies installed.
+
+Run `wt <command> --help` for detailed usage of any command.
+~~~
+
+</details>
+
 ## Dependencies
 
 - **git** (required)

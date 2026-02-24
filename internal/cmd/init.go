@@ -54,6 +54,13 @@ func runInit(cmd *cobra.Command, args []string) error {
 	return runInitIn(cwd, ctx)
 }
 
+// initStep records the outcome of a single initialization step.
+type initStep struct {
+	label  string // e.g. "copy .env" or "pnpm install"
+	status string // "ok", "skip", "fail"
+	detail string // reason for skip/fail, empty on success
+}
+
 func runInitIn(dir string, ctx *cmdContext) error {
 	// Check if we're in the main repo
 	if dir == ctx.MainWorktree || isSubpath(dir, ctx.MainWorktree) {
@@ -82,37 +89,71 @@ func runInitIn(dir string, ctx *cmdContext) error {
 	fmt.Println("Initializing worktree...")
 	fmt.Println()
 
+	var steps []initStep
+
 	// Step 1: Copy files/directories from main worktree
 	for _, file := range copyFiles {
 		src := filepath.Join(ctx.MainWorktree, file)
 		dst := filepath.Join(dir, file)
-		if fileExists(src) && !fileExists(dst) {
-			fmt.Printf("Copying %s from main repo...\n", file)
-			if isDir(src) {
-				if err := copyDirRecursive(src, dst); err != nil {
-					ui.Warn("Failed to copy %s: %v", file, err)
-				}
+
+		if !fileExists(src) {
+			steps = append(steps, initStep{"copy " + file, "skip", "not found in main worktree"})
+			continue
+		}
+		if fileExists(dst) {
+			steps = append(steps, initStep{"copy " + file, "skip", "already exists"})
+			continue
+		}
+
+		if isDir(src) {
+			if err := copyDirRecursive(src, dst); err != nil {
+				steps = append(steps, initStep{"copy " + file, "fail", err.Error()})
 			} else {
-				data, err := os.ReadFile(src)
-				if err == nil {
-					if err := os.WriteFile(dst, data, 0644); err != nil {
-						ui.Warn("Failed to write %s: %v", file, err)
-					}
-				}
+				steps = append(steps, initStep{"copy " + file, "ok", ""})
+			}
+		} else {
+			data, err := os.ReadFile(src)
+			if err != nil {
+				steps = append(steps, initStep{"copy " + file, "fail", err.Error()})
+			} else if err := os.WriteFile(dst, data, 0644); err != nil {
+				steps = append(steps, initStep{"copy " + file, "fail", err.Error()})
+			} else {
+				steps = append(steps, initStep{"copy " + file, "ok", ""})
 			}
 		}
 	}
 
 	// Step 2: Run commands
 	for _, command := range commands {
-		fmt.Printf("Running: %s\n", command)
+		fmt.Printf("  %s %s\n", ui.Dim("$"), command)
 		if err := runShellString(dir, command); err != nil {
-			ui.Warn("Command failed: %v", err)
+			steps = append(steps, initStep{"run " + command, "fail", err.Error()})
+		} else {
+			steps = append(steps, initStep{"run " + command, "ok", ""})
+		}
+		fmt.Println()
+	}
+
+	// Print summary
+	hasFailures := false
+	for _, s := range steps {
+		switch s.status {
+		case "ok":
+			fmt.Printf("  %s  %s\n", ui.Green(ui.Pass), s.label)
+		case "skip":
+			fmt.Printf("  %s  %s %s\n", ui.Dim(ui.Dash), s.label, ui.Dim("("+s.detail+")"))
+		case "fail":
+			fmt.Printf("  %s  %s %s\n", ui.Red(ui.Fail), s.label, ui.Dim("("+s.detail+")"))
+			hasFailures = true
 		}
 	}
 
 	fmt.Println()
-	ui.Success("Worktree initialized!")
+	if hasFailures {
+		ui.Warn("Worktree initialized with errors")
+	} else {
+		ui.Success("Worktree initialized")
+	}
 
 	if !configured {
 		fmt.Println()

@@ -201,7 +201,10 @@ func resolveOrCreateTarget(ctx *cmdContext, name string) (string, bool, error) {
 	}
 
 	// Try to resolve existing worktree
-	target := resolveWorktree(ctx, worktrees, name)
+	target, resolveErr := resolveWorktree(ctx, worktrees, name)
+	if resolveErr != nil {
+		return "", false, resolveErr
+	}
 	if target != "" {
 		return target, false, nil
 	}
@@ -214,7 +217,8 @@ func resolveOrCreateTarget(ctx *cmdContext, name string) (string, bool, error) {
 	fmt.Printf("  Branch: %s\n", branch)
 	fmt.Printf("  Path:   %s\n", wtPath)
 	if !ui.Confirm("Create new worktree?", false) {
-		return "", false, fmt.Errorf("aborted")
+		fmt.Println("Cancelled")
+		return "", false, errSilent
 	}
 	fmt.Println()
 
@@ -225,7 +229,9 @@ func resolveOrCreateTarget(ctx *cmdContext, name string) (string, bool, error) {
 		return "", false, fmt.Errorf("branch already exists: %s\n   Use 'wt new --from %s' first, then 'wt move' to it", branch, branch)
 	}
 
-	_ = git.Fetch(ctx.Config.Remote, ctx.Config.BaseBranch)
+	if err := git.Fetch(ctx.Config.Remote, ctx.Config.BaseBranch); err != nil {
+		ui.Warn("Fetch failed: %v", err)
+	}
 
 	if err := git.AddWorktree(wtPath, branch, ctx.baseRef()); err != nil {
 		return "", false, fmt.Errorf("failed to create worktree: %w", err)

@@ -52,7 +52,11 @@ func runClose(cmd *cobra.Command, args []string) error {
 	var targetPath, targetBranch string
 
 	if len(args) > 0 {
-		targetPath = resolveWorktree(ctx, worktrees, args[0])
+		var resolveErr error
+		targetPath, resolveErr = resolveWorktree(ctx, worktrees, args[0])
+		if resolveErr != nil {
+			return resolveErr
+		}
 		if targetPath == "" {
 			return fmt.Errorf("worktree not found: %s\n   Run wt list to see available worktrees", args[0])
 		}
@@ -98,15 +102,18 @@ func runClose(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Branch: %s\n", targetBranch)
 	fmt.Println()
 
-	// If we're in the worktree being closed, cd out
-	if cwd == targetPath || isSubpath(cwd, targetPath) {
-		ui.PrintCdHint(ctx.MainWorktree)
-		fmt.Printf("Moved to main repo: %s\n", ctx.MainWorktree)
-	}
+	// Check if we need to cd out before removal
+	needsCd := cwd == targetPath || isSubpath(cwd, targetPath)
 
 	// Remove worktree
 	if err := git.RemoveWorktree(targetPath); err != nil {
 		return fmt.Errorf("failed to remove worktree: %w", err)
+	}
+
+	// cd out after successful removal
+	if needsCd {
+		ui.PrintCdHint(ctx.MainWorktree)
+		fmt.Printf("Moved to main repo: %s\n", ctx.MainWorktree)
 	}
 
 	// Delete local branch

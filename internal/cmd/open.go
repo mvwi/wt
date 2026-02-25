@@ -53,7 +53,10 @@ func runOpen(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return err
 		}
-		target := resolveWorktree(ctx, worktrees, args[0])
+		target, resolveErr := resolveWorktree(ctx, worktrees, args[0])
+		if resolveErr != nil {
+			return resolveErr
+		}
 		if target == "" {
 			return fmt.Errorf("worktree not found: %s\n   Run wt list to see available worktrees", args[0])
 		}

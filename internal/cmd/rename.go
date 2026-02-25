@@ -94,7 +94,10 @@ func runRename(cmd *cobra.Command, args []string) error {
 	if !renameLocalOnly {
 		if git.RemoteBranchExists(ctx.Config.Remote + "/" + currentBranch) {
 			hasRemote = true
-			prDetails, _ = github.GetPRDetails(currentBranch)
+			prDetails, err = github.GetPRDetails(currentBranch)
+			if err != nil {
+				ui.Warn("Could not fetch PR details: %v", err)
+			}
 		}
 	}
 
@@ -126,7 +129,7 @@ func runRename(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Println()
-	if !ui.Confirm("Proceed?", true) {
+	if !ui.Confirm("Proceed?", false) {
 		fmt.Println("Cancelled")
 		return nil
 	}

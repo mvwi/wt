@@ -249,11 +249,19 @@ func rebaseContinue() error {
 
 func rebaseAbort() error {
 	inProgress, _ := git.IsRebaseInProgress()
-	if inProgress {
-		_ = git.RebaseAbort()
+	hasState := git.StateFileExists(stateFileName)
+
+	if !inProgress && !hasState {
+		return fmt.Errorf("no rebase in progress\n   Start one with: wt rebase")
 	}
 
-	if git.StateFileExists(stateFileName) {
+	if inProgress {
+		if err := git.RebaseAbort(); err != nil {
+			return fmt.Errorf("failed to abort rebase: %w", err)
+		}
+	}
+
+	if hasState {
 		stashState, _ := git.ReadStateFile(stateFileName)
 		restoreStash(stashState == "stashed")
 		git.RemoveStateFile(stateFileName)

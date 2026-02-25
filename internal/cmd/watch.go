@@ -80,7 +80,10 @@ func runWatch(cmd *cobra.Command, args []string) error {
 			if err != nil {
 				return err
 			}
-			target := resolveWorktree(ctx, worktrees, args[0])
+			target, resolveErr := resolveWorktree(ctx, worktrees, args[0])
+			if resolveErr != nil {
+				return resolveErr
+			}
 			if target == "" {
 				return fmt.Errorf("worktree not found: %s\n   Run wt list to see available worktrees", args[0])
 			}
@@ -105,7 +108,7 @@ func runWatch(cmd *cobra.Command, args []string) error {
 	// Initial fetch to verify PR exists
 	ws, err := github.GetWatchStatus(ref)
 	if err != nil {
-		return fmt.Errorf("no open PR found for %s", ref)
+		return fmt.Errorf("could not fetch PR status for %s: %w", ref, err)
 	}
 
 	// Print header (once)

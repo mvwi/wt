@@ -37,6 +37,10 @@ type staleWorktree struct {
 }
 
 func runPrune(cmd *cobra.Command, args []string) error {
+	if !github.IsAvailable() {
+		return fmt.Errorf("gh CLI is required for prune (brew install gh)")
+	}
+
 	ctx, err := newContext()
 	if err != nil {
 		return err

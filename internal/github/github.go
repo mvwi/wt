@@ -72,6 +72,18 @@ type StatusCheckRun struct {
 	Conclusion string `json:"conclusion"` // SUCCESS, FAILURE, SKIPPED, TIMED_OUT, CANCELLED, ""
 }
 
+// Result classifies a CI check as "pass", "fail", or "pending".
+func (c StatusCheckRun) Result() string {
+	switch {
+	case c.Conclusion == "SUCCESS" || c.Conclusion == "SKIPPED" || c.State == "SUCCESS":
+		return "pass"
+	case c.Conclusion == "FAILURE" || c.Conclusion == "TIMED_OUT" || c.Conclusion == "CANCELLED" || c.State == "FAILURE" || c.State == "ERROR":
+		return "fail"
+	default:
+		return "pending"
+	}
+}
+
 // ReviewSummary aggregates review counts.
 type ReviewSummary struct {
 	Approved int
@@ -141,10 +153,10 @@ func getCISummary(checks []StatusCheckRun) CISummary {
 			continue
 		}
 		s.Total++
-		switch {
-		case c.Conclusion == "SUCCESS" || c.Conclusion == "SKIPPED" || c.State == "SUCCESS":
+		switch c.Result() {
+		case "pass":
 			s.Pass++
-		case c.Conclusion == "FAILURE" || c.Conclusion == "TIMED_OUT" || c.Conclusion == "CANCELLED" || c.State == "FAILURE" || c.State == "ERROR":
+		case "fail":
 			s.Fail++
 		default:
 			s.Pending++
@@ -302,7 +314,7 @@ func (ws *WatchStatus) GetCISummary() CISummary {
 func (ws *WatchStatus) FailedCheckNames() []string {
 	var names []string
 	for _, c := range ws.StatusChecks {
-		if c.Conclusion == "FAILURE" || c.Conclusion == "TIMED_OUT" || c.Conclusion == "CANCELLED" || c.State == "FAILURE" || c.State == "ERROR" {
+		if c.Result() == "fail" {
 			names = append(names, c.Name)
 		}
 	}
@@ -316,10 +328,10 @@ func (ws *WatchStatus) ChecksByStatus() (pass, fail, pending []StatusCheckRun) {
 		if c.Name == "" {
 			continue
 		}
-		switch {
-		case c.Conclusion == "SUCCESS" || c.Conclusion == "SKIPPED" || c.State == "SUCCESS":
+		switch c.Result() {
+		case "pass":
 			pass = append(pass, c)
-		case c.Conclusion == "FAILURE" || c.Conclusion == "TIMED_OUT" || c.Conclusion == "CANCELLED" || c.State == "FAILURE" || c.State == "ERROR":
+		case "fail":
 			fail = append(fail, c)
 		default:
 			pending = append(pending, c)

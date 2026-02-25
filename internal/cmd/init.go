@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/mvwi/wt/internal/ui"
 	"github.com/spf13/cobra"
@@ -212,7 +213,7 @@ func detectInit(mainWorktree string) (copyFiles []string, commands []string) {
 	// Detect Prisma schema anywhere in the repo (requires a JS package manager)
 	if execRunner != "" {
 		if schemaPath := findPrismaSchema(mainWorktree); schemaPath != "" {
-			commands = append(commands, execRunner+" prisma generate --schema "+schemaPath)
+			commands = append(commands, execRunner+" prisma generate --schema "+shellQuoteInit(schemaPath))
 		}
 	}
 
@@ -258,6 +259,14 @@ func copyDirRecursive(src, dst string) error {
 		}
 		return os.WriteFile(target, data, info.Mode())
 	})
+}
+
+// shellQuoteInit wraps a string in single quotes for safe shell interpolation.
+func shellQuoteInit(s string) string {
+	if !strings.ContainsAny(s, " \t\n'\"\\$`|&;<>(){}[]!*?~") {
+		return s
+	}
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
 // findPrismaSchema walks the tree looking for a .prisma file, skipping

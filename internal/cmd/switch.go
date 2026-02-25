@@ -144,8 +144,10 @@ func switchInteractive(ctx *cmdContext, worktrees []git.Worktree, cwd string) er
 }
 
 func switchByName(ctx *cmdContext, worktrees []git.Worktree, cwd, name string) error {
-	target := resolveWorktree(ctx, worktrees, name)
-
+	target, err := resolveWorktree(ctx, worktrees, name)
+	if err != nil {
+		return err
+	}
 	if target == "" {
 		return fmt.Errorf("worktree not found: %s\n   Run wt list to see available worktrees", name)
 	}
@@ -157,23 +159,25 @@ func switchByName(ctx *cmdContext, worktrees []git.Worktree, cwd, name string) e
 }
 
 // resolveWorktree finds a worktree path by name using the resolution chain.
-func resolveWorktree(ctx *cmdContext, worktrees []git.Worktree, name string) string {
+// Returns ("", nil) when no match is found, or ("", error) when the match is
+// ambiguous (error message already printed; returns errSilent).
+func resolveWorktree(ctx *cmdContext, worktrees []git.Worktree, name string) (string, error) {
 	// 1. Exact match with configured prefix
 	exact := ctx.worktreePath(name)
 	if isDir(exact) {
-		return exact
+		return exact, nil
 	}
 
 	// 2. Main repo match (base branch name, "main", "master", or repo name)
 	if name == ctx.RepoName || ctx.isBaseBranch(name) {
-		return ctx.MainWorktree
+		return ctx.MainWorktree, nil
 	}
 
 	// 3. Suffix match
 	for _, wt := range worktrees {
 		base := filepath.Base(wt.Path)
 		if strings.HasSuffix(base, "-"+name) || strings.HasSuffix(base, "/"+name) {
-			return wt.Path
+			return wt.Path, nil
 		}
 	}
 
@@ -189,7 +193,7 @@ func resolveWorktree(ctx *cmdContext, worktrees []git.Worktree, name string) str
 	if len(fuzzyMatches) == 1 {
 		short := ctx.shortName(fuzzyMatches[0].Path)
 		ui.DimF("Fuzzy matched: %s → %s\n", name, short)
-		return fuzzyMatches[0].Path
+		return fuzzyMatches[0].Path, nil
 	}
 	if len(fuzzyMatches) > 1 {
 		fmt.Printf("Multiple matches for '%s':\n\n", name)
@@ -198,10 +202,10 @@ func resolveWorktree(ctx *cmdContext, worktrees []git.Worktree, name string) str
 		}
 		fmt.Println()
 		fmt.Println("Be more specific, or use 'wt switch' for interactive picker")
-		return ""
+		return "", errSilent
 	}
 
-	return ""
+	return "", nil
 }
 
 func showSwitchSummary(path string, ctx *cmdContext) {

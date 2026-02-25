@@ -1,6 +1,7 @@
 package git
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 )
@@ -55,7 +56,7 @@ func MainWorktree() (string, error) {
 		return "", err
 	}
 	if len(wts) == 0 {
-		return "", nil
+		return "", fmt.Errorf("no worktrees found (not a git repository?)")
 	}
 	return wts[0].Path, nil
 }

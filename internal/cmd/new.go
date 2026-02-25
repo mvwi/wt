@@ -65,8 +65,12 @@ func runNew(cmd *cobra.Command, args []string) error {
 func newFromExisting(ctx *cmdContext, name, fromBranch string) error {
 	// Fetch to get latest refs (needed for ResolveBranch to find remote branches)
 	spin := ui.NewSpinner("Fetching latest refs")
-	_ = git.FetchAll(ctx.Config.Remote)
-	spin.Stop()
+	if err := git.FetchAll(ctx.Config.Remote); err != nil {
+		spin.Stop()
+		ui.Warn("Fetch failed: %v", err)
+	} else {
+		spin.Stop()
+	}
 
 	ref, isRemote, err := git.ResolveBranch(fromBranch, ctx.Config.Remote)
 	if err != nil {
@@ -133,8 +137,12 @@ func createWorktreeFromRemote(ctx *cmdContext, name, remoteBranch string, doInit
 
 	// Fetch to get latest refs
 	spin := ui.NewSpinner("Fetching latest refs")
-	_ = git.FetchAll(ctx.Config.Remote)
-	spin.Stop()
+	if err := git.FetchAll(ctx.Config.Remote); err != nil {
+		spin.Stop()
+		ui.Warn("Fetch failed: %v", err)
+	} else {
+		spin.Stop()
+	}
 
 	localBranch := strings.TrimPrefix(remoteBranch, ctx.Config.Remote+"/")
 	remoteRef := ctx.Config.Remote + "/" + localBranch
@@ -183,8 +191,12 @@ func newFromBase(ctx *cmdContext, name string) error {
 
 	// Fetch latest base branch
 	spin := ui.NewSpinner(fmt.Sprintf("Fetching %s", ctx.Config.BaseBranch))
-	_ = git.Fetch(ctx.Config.Remote, ctx.Config.BaseBranch)
-	spin.Stop()
+	if err := git.Fetch(ctx.Config.Remote, ctx.Config.BaseBranch); err != nil {
+		spin.Stop()
+		ui.Warn("Fetch failed: %v", err)
+	} else {
+		spin.Stop()
+	}
 
 	if err := git.AddWorktree(wtPath, branch, ctx.baseRef()); err != nil {
 		return fmt.Errorf("failed to create worktree: %w", err)

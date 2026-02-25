@@ -244,6 +244,9 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
+	if info.IsDir() {
+		return fmt.Errorf("cannot copy directory: %s", src)
+	}
 
 	in, err := os.Open(src)
 	if err != nil {

@@ -47,8 +47,10 @@ func StatusPorcelain() ([]FileChange, error) {
 }
 
 // StatusPorcelainIn returns parsed file changes for a specific directory.
+// Uses -uall to list individual files inside untracked directories,
+// rather than collapsing them into a single directory entry.
 func StatusPorcelainIn(dir string) ([]FileChange, error) {
-	out, err := RunIn(dir, "status", "--porcelain")
+	out, err := RunIn(dir, "status", "--porcelain", "-uall")
 	if err != nil {
 		return nil, err
 	}

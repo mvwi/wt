@@ -59,4 +59,18 @@ func TestParsePorcelainOutput(t *testing.T) {
 			t.Errorf("Path = %q, want %q", got[0].Path, "path/to/my file.go")
 		}
 	})
+
+	t.Run("untracked directory entry has trailing slash", func(t *testing.T) {
+		// Without -uall, git status --porcelain collapses untracked dirs into "?? dir/"
+		// With -uall, individual files are listed instead. This test documents
+		// that the parser handles the collapsed form (which we no longer produce
+		// but should still parse correctly).
+		got := ParsePorcelainOutput("?? new-dir/\n")
+		if len(got) != 1 {
+			t.Fatalf("got %d changes, want 1", len(got))
+		}
+		if got[0].Status != "??" || got[0].Path != "new-dir/" {
+			t.Errorf("got {%q, %q}, want {\"??\", \"new-dir/\"}", got[0].Status, got[0].Path)
+		}
+	})
 }

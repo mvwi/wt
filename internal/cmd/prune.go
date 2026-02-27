@@ -68,6 +68,7 @@ func runPrune(cmd *cobra.Command, args []string) error {
 	}
 
 	var stale []staleWorktree
+	var skippedDirty []staleWorktree
 
 	for _, wt := range worktrees {
 		// Skip main
@@ -87,20 +88,26 @@ func runPrune(cmd *cobra.Command, args []string) error {
 			continue
 		}
 
-		// Skip worktrees with changes
-		if git.HasChangesIn(wt.Path) {
-			continue
-		}
-
 		// Check PR status
 		mergedPR := github.FindPRForBranch(mergedPRs, branch)
 		closedPR := github.FindPRForBranch(closedPRs, branch)
 
+		var reason string
 		if mergedPR != nil {
-			stale = append(stale, staleWorktree{wt.Path, branch, fmt.Sprintf("PR #%d merged", mergedPR.Number)})
+			reason = fmt.Sprintf("PR #%d merged", mergedPR.Number)
 		} else if closedPR != nil {
-			stale = append(stale, staleWorktree{wt.Path, branch, fmt.Sprintf("PR #%d closed", closedPR.Number)})
+			reason = fmt.Sprintf("PR #%d closed", closedPR.Number)
+		} else {
+			continue
 		}
+
+		// Stale but has uncommitted changes — track separately
+		if git.HasChangesIn(wt.Path) {
+			skippedDirty = append(skippedDirty, staleWorktree{wt.Path, branch, reason})
+			continue
+		}
+
+		stale = append(stale, staleWorktree{wt.Path, branch, reason})
 	}
 
 	git.PruneWorktrees()
@@ -113,6 +120,7 @@ func runPrune(cmd *cobra.Command, args []string) error {
 
 	if len(stale) == 0 {
 		ui.Success("No stale worktrees found")
+		printSkippedDirty(skippedDirty)
 		return nil
 	}
 
@@ -162,5 +170,17 @@ func runPrune(cmd *cobra.Command, args []string) error {
 
 	fmt.Println()
 	ui.Success("Removed %d worktree(s)", removedCount)
+	printSkippedDirty(skippedDirty)
 	return nil
+}
+
+func printSkippedDirty(skipped []staleWorktree) {
+	if len(skipped) == 0 {
+		return
+	}
+	fmt.Println()
+	for _, s := range skipped {
+		short := filepath.Base(s.Path)
+		fmt.Printf("  %s %s — %s, skipped (has uncommitted changes)\n", ui.Yellow("!"), short, s.Reason)
+	}
 }

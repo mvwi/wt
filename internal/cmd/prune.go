@@ -93,11 +93,12 @@ func runPrune(cmd *cobra.Command, args []string) error {
 		closedPR := github.FindPRForBranch(closedPRs, branch)
 
 		var reason string
-		if mergedPR != nil {
+		switch {
+		case mergedPR != nil:
 			reason = fmt.Sprintf("PR #%d merged", mergedPR.Number)
-		} else if closedPR != nil {
+		case closedPR != nil:
 			reason = fmt.Sprintf("PR #%d closed", closedPR.Number)
-		} else {
+		default:
 			continue
 		}
 

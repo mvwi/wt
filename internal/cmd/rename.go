@@ -20,7 +20,7 @@ var renameCmd = &cobra.Command{
 
 Renames:
   - Local branch: <old> → <prefix>/<name>
-  - Worktree directory: wt-<repo>-<old> → wt-<repo>-<name>
+  - Worktree directory: wt-<repo>/<old> → wt-<repo>/<name>
   - Remote branch: origin/<old> → origin/<prefix>/<name> (recreates open PRs)`,
 	Args:              cobra.ExactArgs(1),
 	ValidArgsFunction: completeWorktreeNames,

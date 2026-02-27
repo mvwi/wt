@@ -161,11 +161,11 @@ func TestEffectiveWorktreeDir(t *testing.T) {
 		input    string
 		want     string
 	}{
-		{"default pattern", nil, "myrepo", "feat", "wt-myrepo-feat"},
+		{"default pattern", nil, "myrepo", "feat", "wt-myrepo/feat"},
 		{"explicit prefix", strPtr("wt-"), "myrepo", "feat", "wt-feat"},
 		{"explicit empty prefix", strPtr(""), "myrepo", "feat", "feat"},
-		{"empty repo name", nil, "", "feat", "wt--feat"},
-		{"empty worktree name", nil, "myrepo", "", "wt-myrepo-"},
+		{"empty repo name", nil, "", "feat", "wt-/feat"},
+		{"empty worktree name", nil, "myrepo", "", "wt-myrepo"},
 	}
 
 	for _, tt := range tests {

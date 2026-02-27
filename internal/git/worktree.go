@@ -2,6 +2,7 @@ package git
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 )
@@ -73,30 +74,49 @@ func ParentDir() (string, error) {
 
 // AddWorktree creates a new worktree with a new branch from a base ref.
 func AddWorktree(path, branch, baseRef string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
+	}
 	_, err := Run("worktree", "add", "-b", branch, path, baseRef)
 	return err
 }
 
 // AddWorktreeFromExisting creates a worktree checking out an existing branch.
 func AddWorktreeFromExisting(path, branch string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
+	}
 	_, err := Run("worktree", "add", path, branch)
 	return err
 }
 
 // AddWorktreeFromRemote creates a worktree with a local tracking branch from a remote.
 func AddWorktreeFromRemote(path, localBranch, remoteBranch string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
+	}
 	_, err := Run("worktree", "add", "-b", localBranch, path, remoteBranch)
 	return err
 }
 
 // RemoveWorktree removes a worktree (force).
+// After removal, cleans up the parent directory if it's empty.
 func RemoveWorktree(path string) error {
 	_, err := Run("worktree", "remove", path, "--force")
-	return err
+	if err != nil {
+		return err
+	}
+	// Clean up empty parent dir (e.g. wt-repo/ after last worktree removed).
+	// os.Remove only succeeds on empty directories, so this is safe.
+	_ = os.Remove(filepath.Dir(path))
+	return nil
 }
 
 // MoveWorktree moves a worktree to a new path.
 func MoveWorktree(oldPath, newPath string) error {
+	if err := os.MkdirAll(filepath.Dir(newPath), 0755); err != nil {
+		return err
+	}
 	_, err := Run("worktree", "move", oldPath, newPath)
 	return err
 }

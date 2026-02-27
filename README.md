@@ -187,9 +187,9 @@ remote = "origin"
 # Set to "" to disable prefixing entirely.
 branch_prefix = "michael"
 
-# Worktree directory naming: "<prefix><name>".
-# Default: "wt-<repo>-" (e.g., "wt-myapp-sidebar").
-# Set to customize (e.g., "wt-" for shorter names).
+# Worktree directory naming.
+# Default: nested layout "wt-<repo>/<name>" (e.g., "wt-myapp/sidebar").
+# Set to override with flat layout: "<prefix><name>" (e.g., "wt-" → "wt-sidebar").
 worktree_prefix = ""
 
 # Days before a worktree with no open PR is flagged stale in `wt list`.
@@ -234,7 +234,7 @@ A `.wt.toml` in a repo root always wins, but most users won't need one.
 | `base_branch` | `"main"` | Branch used for `wt new`, `wt rebase`, `wt submit` |
 | `remote` | `"origin"` | Remote for fetch/push operations |
 | `branch_prefix` | git username | New branches: `<prefix>/<name>` |
-| `worktree_prefix` | `"wt-<repo>-"` | Directory naming: `<prefix><name>` |
+| `worktree_prefix` | `"wt-<repo>/"` | Directory naming: nested `wt-<repo>/<name>` |
 | `stale_threshold` | `7` | Days before worktree flagged stale in `wt list` |
 | `init.copy_files` | `[]` | Files copied from main worktree if missing |
 | `init.commands` | `[]` | Shell commands run during init |

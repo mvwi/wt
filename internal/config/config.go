@@ -156,11 +156,11 @@ func (c *Config) EffectiveStaleThreshold() int {
 }
 
 // EffectiveWorktreeDir builds the worktree directory name.
-// Default pattern: "wt-<repo>-<name>". If WorktreePrefix is explicitly set
-// (even to ""), uses that value instead of the default pattern.
+// Default pattern: "wt-<repo>/<name>" (nested under a per-project folder).
+// If WorktreePrefix is explicitly set (even to ""), uses flat layout instead.
 func (c *Config) EffectiveWorktreeDir(repoName, name string) string {
 	if c.WorktreePrefix != nil {
 		return *c.WorktreePrefix + name
 	}
-	return "wt-" + repoName + "-" + name
+	return filepath.Join("wt-"+repoName, name)
 }

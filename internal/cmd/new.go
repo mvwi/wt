@@ -2,9 +2,11 @@ package cmd
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/mvwi/wt/internal/git"
+	"github.com/mvwi/wt/internal/github"
 	"github.com/mvwi/wt/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -19,10 +21,11 @@ var newCmd = &cobra.Command{
 By default, creates a branch named "<prefix>/<name>" from the base branch
 (configurable in .wt.toml, defaults to "main").
 
-Use --from to create a worktree from an existing local or remote branch.`,
+Use --from to create a worktree from an existing branch or PR number.`,
 	Example: `  wt new sidebar-card              Create <user>/sidebar-card from base branch
   wt new --from feature/old        Create worktree from existing branch
   wt new fix --from origin/hotfix  Create worktree with custom name from remote
+  wt new --from #123               Create worktree from PR #123's branch
   wt new feature --init            Create + auto-initialize`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runNew,
@@ -34,7 +37,7 @@ var (
 )
 
 func init() {
-	newCmd.Flags().StringVarP(&newFromBranch, "from", "f", "", "base on an existing branch")
+	newCmd.Flags().StringVarP(&newFromBranch, "from", "f", "", "base on an existing branch or PR number")
 	newCmd.Flags().BoolVarP(&newDoInit, "init", "i", false, "run 'wt init' after creating")
 	rootCmd.AddCommand(newCmd)
 }
@@ -63,6 +66,11 @@ func runNew(cmd *cobra.Command, args []string) error {
 }
 
 func newFromExisting(ctx *cmdContext, name, fromBranch string) error {
+	// Check if --from is a PR number (e.g., "#123" or "123")
+	if prNumber, ok := parsePRNumber(fromBranch); ok {
+		return newFromPR(ctx, name, prNumber)
+	}
+
 	// Fetch to get latest refs (needed for ResolveBranch to find remote branches)
 	spin := ui.NewSpinner("Fetching latest refs")
 	if err := git.FetchAll(ctx.Config.Remote); err != nil {
@@ -111,6 +119,39 @@ func newFromExisting(ctx *cmdContext, name, fromBranch string) error {
 	}
 	fmt.Printf("  → wt switch %s && wt init\n", name)
 	return nil
+}
+
+// parsePRNumber checks if s looks like a PR number ("#123" or "123")
+// and returns the parsed number if so.
+func parsePRNumber(s string) (int, bool) {
+	s = strings.TrimPrefix(s, "#")
+	n, err := strconv.Atoi(s)
+	if err != nil || n <= 0 {
+		return 0, false
+	}
+	return n, true
+}
+
+func newFromPR(ctx *cmdContext, name string, number int) error {
+	if !github.IsAvailable() {
+		return fmt.Errorf("gh CLI is required to resolve PR numbers (brew install gh)")
+	}
+
+	spin := ui.NewSpinner(fmt.Sprintf("Fetching PR #%d", number))
+	pr, err := github.GetPRByNumber(number)
+	spin.Stop()
+	if err != nil {
+		return fmt.Errorf("failed to fetch PR #%d: %w", number, err)
+	}
+
+	fmt.Printf("PR #%d: %s\n", pr.Number, pr.Title)
+	fmt.Println()
+
+	if name == "" {
+		name = nameFromBranch(pr.HeadRefName, ctx.Config.Remote)
+	}
+
+	return createWorktreeFromRemote(ctx, name, pr.HeadRefName, newDoInit)
 }
 
 // nameFromBranch derives a short worktree name from a branch ref.

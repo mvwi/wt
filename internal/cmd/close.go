@@ -86,6 +86,15 @@ func runClose(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Safety: unpushed commits
+	if unpushed := git.UnpushedCountIn(targetPath); unpushed > 0 {
+		ui.Warn("Branch has %d unpushed commit(s)", unpushed)
+		if !ui.Confirm("Discard commits and close?", false) {
+			fmt.Println("Cancelled")
+			return nil
+		}
+	}
+
 	// Safety: open PR
 	if github.IsAvailable() && targetBranch != "" {
 		pr, _ := github.GetPRForBranch(targetBranch)

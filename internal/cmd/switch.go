@@ -28,8 +28,9 @@ Use "-" to switch back to the previous worktree.
 Resolution order:
   1. Exact match: wt-<repo>-<name>
   2. Main repo: 'main', base branch name, or repo name
-  3. Suffix match: any worktree ending with -<name>
-  4. Fuzzy match: worktree containing the search term`,
+  3. Branch name: exact match against the git branch
+  4. Suffix match: any worktree ending with -<name>
+  5. Fuzzy match: worktree or branch containing the search term`,
 	Args:              cobra.MaximumNArgs(1),
 	ValidArgsFunction: completeWorktreeNames,
 	RunE:              runSwitch,
@@ -173,7 +174,14 @@ func resolveWorktree(ctx *cmdContext, worktrees []git.Worktree, name string) (st
 		return ctx.MainWorktree, nil
 	}
 
-	// 3. Suffix match
+	// 3. Branch name match (exact match against git branch)
+	for _, wt := range worktrees {
+		if wt.Branch == name {
+			return wt.Path, nil
+		}
+	}
+
+	// 4. Suffix match
 	for _, wt := range worktrees {
 		base := filepath.Base(wt.Path)
 		if strings.HasSuffix(base, "-"+name) || strings.HasSuffix(base, "/"+name) {
@@ -181,11 +189,13 @@ func resolveWorktree(ctx *cmdContext, worktrees []git.Worktree, name string) (st
 		}
 	}
 
-	// 4. Fuzzy match (contains)
+	// 5. Fuzzy match (contains) — checks both short name and branch
 	var fuzzyMatches []git.Worktree
+	nameLower := strings.ToLower(name)
 	for _, wt := range worktrees {
 		short := ctx.shortName(wt.Path)
-		if strings.Contains(strings.ToLower(short), strings.ToLower(name)) {
+		if strings.Contains(strings.ToLower(short), nameLower) ||
+			strings.Contains(strings.ToLower(wt.Branch), nameLower) {
 			fuzzyMatches = append(fuzzyMatches, wt)
 		}
 	}

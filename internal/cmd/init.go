@@ -184,25 +184,8 @@ func detectInit(mainWorktree string) (copyFiles []string, commands []string) {
 	}
 
 	// Detect package manager from lockfile
-	type lockfile struct {
-		file    string
-		command string
-		exec    string // exec runner for post-install codegen (JS only)
-	}
-	lockfiles := []lockfile{
-		{"pnpm-lock.yaml", "pnpm install --frozen-lockfile", "pnpm exec"},
-		{"yarn.lock", "yarn install --frozen-lockfile", "yarn"},
-		{"bun.lockb", "bun install --frozen-lockfile", "bunx"},
-		{"package-lock.json", "npm ci", "npx"},
-		{"go.sum", "go mod download", ""},
-		{"Gemfile.lock", "bundle install", ""},
-		{"Cargo.lock", "cargo fetch", ""},
-		{"requirements.txt", "pip install -r requirements.txt", ""},
-		{"pyproject.toml", "pip install -e .", ""},
-	}
-
 	var execRunner string
-	for _, lf := range lockfiles {
+	for _, lf := range knownLockfiles {
 		if fileExists(filepath.Join(mainWorktree, lf.file)) {
 			commands = append(commands, lf.command)
 			execRunner = lf.exec

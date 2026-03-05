@@ -142,3 +142,34 @@ func StateFileExists(name string) bool {
 	}
 	return fileExists(filepath.Join(gitDir, name))
 }
+
+// DiffNameOnly returns filenames that changed between two refs.
+func DiffNameOnly(ref1, ref2 string) ([]string, error) {
+	return DiffNameOnlyIn("", ref1, ref2)
+}
+
+// DiffNameOnlyIn returns filenames that changed between two refs in a directory.
+func DiffNameOnlyIn(dir, ref1, ref2 string) ([]string, error) {
+	out, err := RunIn(dir, "diff", "--name-only", ref1, ref2)
+	if err != nil {
+		return nil, err
+	}
+	var files []string
+	for _, line := range strings.Split(out, "\n") {
+		f := strings.TrimSpace(line)
+		if f != "" {
+			files = append(files, f)
+		}
+	}
+	return files, nil
+}
+
+// RevParseHead returns the current HEAD commit hash.
+func RevParseHead() (string, error) {
+	return Run("rev-parse", "HEAD")
+}
+
+// RevParseHeadIn returns the HEAD commit hash in a specific directory.
+func RevParseHeadIn(dir string) (string, error) {
+	return RunIn(dir, "rev-parse", "HEAD")
+}

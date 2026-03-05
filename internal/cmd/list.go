@@ -218,14 +218,7 @@ func runListJSON(ctx *cmdContext, cwd string, worktrees []git.Worktree) error {
 		entries = append(entries, entry)
 	}
 
-	var cta []string
-	if hasStale {
-		cta = append(cta, "wt prune")
-	} else if hasBehind {
-		cta = append(cta, "wt rebase --all")
-	}
-
-	data, err := json.MarshalIndent(listJSONOutput{Worktrees: entries, CTA: cta}, "", "  ")
+	data, err := json.MarshalIndent(listJSONOutput{Worktrees: entries, CTA: deriveListCTA(hasStale, hasBehind)}, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -279,14 +272,17 @@ func runListTOON(ctx *cmdContext, cwd string, worktrees []git.Worktree) error {
 		}
 	}
 
-	var cta []string
+	ui.PrintCTA(deriveListCTA(hasStale, hasBehind)...)
+	return nil
+}
+
+// deriveListCTA returns CTA suggestions based on worktree state.
+func deriveListCTA(hasStale, hasBehind bool) []string {
 	if hasStale {
-		cta = append(cta, "wt prune")
-	} else if hasBehind {
-		cta = append(cta, "wt rebase --all")
+		return []string{"wt prune"}
 	}
-	if len(cta) > 0 {
-		fmt.Printf("cta: %s\n", strings.Join(cta, " | "))
+	if hasBehind {
+		return []string{"wt rebase --all"}
 	}
 	return nil
 }

@@ -221,15 +221,16 @@ func resolveWorktree(ctx *cmdContext, worktrees []git.Worktree, name string) (st
 func showSwitchSummary(path string, ctx *cmdContext) {
 	short := ctx.shortName(path)
 	branch, _ := git.CurrentBranchIn(path)
+	isBase := ctx.isBaseBranch(branch)
 
 	fmt.Printf("%s %s", ui.Yellow(ui.Current), short)
 
-	if branch != short && !ctx.isBaseBranch(branch) {
+	if branch != short && !isBase {
 		fmt.Printf("  %s", ui.Dim(branch))
 	}
 
 	isBehind := false
-	if !ctx.isBaseBranch(branch) {
+	if !isBase {
 		ab, err := git.GetAheadBehindIn(path, ctx.baseRef())
 		if err == nil {
 			if ab.Behind > 0 {
@@ -243,7 +244,7 @@ func showSwitchSummary(path string, ctx *cmdContext) {
 
 	fmt.Println()
 
-	if !ctx.isBaseBranch(branch) {
+	if !isBase {
 		if isBehind {
 			ui.PrintCTA("wt rebase", "wt init")
 		} else {

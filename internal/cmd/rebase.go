@@ -309,12 +309,17 @@ func rebaseAll(ctx *cmdContext) error {
 			if err != nil || ab.Behind == 0 {
 				fmt.Printf("%s\n", ui.Green("✓ up to date"))
 				uptodate++
-			} else if err := git.MergeFFIn(wt.Path, remoteRef); err != nil {
-				fmt.Printf("%s\n", ui.Red("✗ fast-forward failed"))
-				failed++
 			} else {
-				fmt.Printf("%s\n", ui.Green(fmt.Sprintf("✓ fast-forwarded (%d commits)", ab.Behind)))
-				rebased++
+				preRef, _ := git.RevParseHeadIn(wt.Path)
+				if err := git.MergeFFIn(wt.Path, remoteRef); err != nil {
+					fmt.Printf("%s\n", ui.Red("✗ fast-forward failed"))
+					failed++
+				} else {
+					msg := fmt.Sprintf("✓ fast-forwarded (%d commits)", ab.Behind)
+					suffix := lockfileChangedSuffix(wt.Path, preRef)
+					fmt.Printf("%s%s\n", ui.Green(msg), suffix)
+					rebased++
+				}
 			}
 			continue
 		}
@@ -335,12 +340,15 @@ func rebaseAll(ctx *cmdContext) error {
 			continue
 		}
 
+		preRef, _ := git.RevParseHeadIn(wt.Path)
 		if err := git.RebaseIn(wt.Path, ctx.baseRef()); err != nil {
 			git.RebaseAbortIn(wt.Path)
 			fmt.Printf("%s\n", ui.Red("✗ conflicts (aborted, rebase manually)"))
 			failed++
 		} else {
-			fmt.Printf("%s\n", ui.Green(fmt.Sprintf("✓ rebased (%d commits from %s)", ab.Behind, ctx.Config.BaseBranch)))
+			msg := fmt.Sprintf("✓ rebased (%d commits from %s)", ab.Behind, ctx.Config.BaseBranch)
+			suffix := lockfileChangedSuffix(wt.Path, preRef)
+			fmt.Printf("%s%s\n", ui.Green(msg), suffix)
 			rebased++
 		}
 	}
@@ -369,6 +377,28 @@ func restoreStash(didStash bool) {
 			ui.Warn("Failed to restore stash — run 'git stash pop' manually")
 		}
 	}
+}
+
+// lockfileChangedSuffix checks if a lockfile changed in a worktree between
+// preRef and HEAD. Returns a warning suffix string, or "" if unchanged.
+func lockfileChangedSuffix(dir, preRef string) string {
+	if preRef == "" {
+		return ""
+	}
+	lockfile, _ := detectInstallCommand(dir)
+	if lockfile == "" {
+		return ""
+	}
+	changed, err := git.DiffNameOnlyIn(dir, preRef, "HEAD")
+	if err != nil {
+		return ""
+	}
+	for _, f := range changed {
+		if f == lockfile {
+			return ui.Yellow(" — lockfile changed, run wt init")
+		}
+	}
+	return ""
 }
 
 // autoInstallIfNeeded checks if a lockfile changed between preRef and HEAD,

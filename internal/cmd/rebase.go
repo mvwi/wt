@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/mvwi/wt/internal/git"
 	"github.com/mvwi/wt/internal/ui"
@@ -86,6 +87,8 @@ func rebaseFeatureBranch(ctx *cmdContext, branch string) error {
 		return fmt.Errorf("rebase already in progress\n   Resolve conflicts and run: wt rebase --continue\n   Or abort with: wt rebase --abort")
 	}
 
+	preRef, _ := git.RevParseHead()
+
 	fmt.Printf("Syncing branch: %s\n\n", branch)
 
 	// Stash uncommitted changes
@@ -167,12 +170,15 @@ func rebaseFeatureBranch(ctx *cmdContext, branch string) error {
 
 	restoreStash(didStash)
 	git.RemoveStateFile(stateFileName)
+	autoInstallIfNeeded(ctx, preRef)
 	fmt.Println()
 	ui.Success("Synced with %s", ctx.Config.BaseBranch)
 	return nil
 }
 
 func rebaseBaseBranch(ctx *cmdContext, branch string) error {
+	preRef, _ := git.RevParseHead()
+
 	fmt.Printf("Syncing %s (fast-forward only)...\n\n", branch)
 
 	didStash := false
@@ -219,6 +225,7 @@ func rebaseBaseBranch(ctx *cmdContext, branch string) error {
 	}
 
 	restoreStash(didStash)
+	autoInstallIfNeeded(ctx, preRef)
 	fmt.Println()
 	ui.Success("%s synced!", branch)
 	return nil
@@ -361,5 +368,48 @@ func restoreStash(didStash bool) {
 		if err := git.StashPop(); err != nil {
 			ui.Warn("Failed to restore stash — run 'git stash pop' manually")
 		}
+	}
+}
+
+// autoInstallIfNeeded checks if a lockfile changed between preRef and HEAD,
+// and if so, runs the detected install command. Warns on failure but never
+// returns an error (the rebase already succeeded).
+func autoInstallIfNeeded(ctx *cmdContext, preRef string) {
+	if !ctx.Config.EffectiveAutoInstall() {
+		return
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		return
+	}
+
+	lockfile, command := detectInstallCommand(cwd)
+	if lockfile == "" {
+		return
+	}
+
+	changed, err := git.DiffNameOnly(preRef, "HEAD")
+	if err != nil {
+		return
+	}
+
+	lockfileChanged := false
+	for _, f := range changed {
+		if f == lockfile {
+			lockfileChanged = true
+			break
+		}
+	}
+	if !lockfileChanged {
+		return
+	}
+
+	fmt.Println()
+	fmt.Printf("Lockfile changed (%s) — running install...\n", lockfile)
+	fmt.Printf("  %s %s\n", ui.Dim("$"), command)
+	if err := runShellString(cwd, command); err != nil {
+		fmt.Println()
+		ui.Warn("Install failed — run manually: %s", command)
 	}
 }

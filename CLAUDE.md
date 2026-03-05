@@ -14,6 +14,7 @@ internal/
     root.go                  Root command, version flag
     new.go                   Create worktree + branch
     init.go                  Initialize worktree (copy files, run commands)
+    install.go               Shared lockfile detection + install command helpers
     list.go                  Show worktrees + PR/review/CI status
     switch.go                Switch worktree (fzf picker or fuzzy match)
     rebase.go                Rebase onto base branch (--all, --continue, --abort)
@@ -54,6 +55,9 @@ Every command starts with `ctx, err := newContext()`. This reads `.wt.toml` once
 
 ### Shell cd via `WT_CD_FILE` side-channel
 The Go binary can't change the parent shell's directory. The shell wrapper from `wt init-shell` creates a temp file and passes its path via `WT_CD_FILE`. Commands that need to cd (switch, close, rename) call `ui.PrintCdHint(path)` which writes the target path to that file. After the binary exits, the wrapper reads it and runs `cd`. Stdout is never redirected, so colors, prompts, piping, and real-time output all work naturally.
+
+### Auto-install after rebase
+When `wt rebase` detects that a lockfile changed (pnpm-lock.yaml, yarn.lock, etc.), it automatically runs the corresponding install command. This is on by default and can be disabled with `auto_install = false` in `.wt.toml`. The lockfile detection is shared with `wt init` via `detectInstallCommand()` in `install.go`. For `wt rebase --all`, no install runs — worktrees with lockfile changes get an annotation instead.
 
 ### Git operations: shell out, don't use go-git
 We call the `git` CLI via `exec.Command`. go-git has poor worktree support and divergent behavior. The `git.Run()` / `git.RunIn()` helpers capture output; `git.RunPassthrough()` streams to terminal for interactive commands (rebase, push). `git.RunSilent()` discards output.
@@ -97,6 +101,7 @@ go vet ./...      # Static analysis
 - Git operations go through `internal/git/`, not raw `exec.Command`
 - GitHub operations go through `internal/github/`, always check `IsAvailable()` first
 - Interactive prompts use `ui.Confirm(message, defaultYes)` — defaultYes=true for safe operations (Y/n), false for destructive (y/N)
+- Auto-install uses `detectInstallCommand()` from `install.go` — update `knownLockfiles` there when adding new package managers
 
 ## Maintaining Documentation
 

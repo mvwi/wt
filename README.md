@@ -151,7 +151,7 @@ eval "$(wt completion zsh)"
 | `wt init` | | Initialize worktree (auto-detects or uses config) |
 | `wt list` | `ls` | Show all worktrees with PR status |
 | `wt switch [name]` | `sw`, `cd`, `checkout`, `co` | Switch to a worktree (fzf picker if no args, `-` for previous) |
-| `wt rebase` | | Rebase current branch onto base branch |
+| `wt rebase` | | Rebase current branch onto base branch (auto-installs deps if lockfile changed) |
 | `wt submit` | | Rebase + push to remote |
 | `wt move <name>` | `mv`, `teleport`, `tp` | Move uncommitted changes to another worktree |
 | `wt close [name]` | `rm` | Close and clean up a worktree |
@@ -196,6 +196,10 @@ worktree_prefix = ""
 # Default: 7
 stale_threshold = 14
 
+# Auto-run install command after rebase when lockfile changes.
+# Default: true
+auto_install = false
+
 [init]
 # Files to copy from the main worktree (if missing in the new worktree).
 # Without [init], auto-detected: .env, .env.local, .env.development, .env.test
@@ -236,6 +240,7 @@ A `.wt.toml` in a repo root always wins, but most users won't need one.
 | `branch_prefix` | git username | New branches: `<prefix>/<name>` |
 | `worktree_prefix` | `"wt-<repo>/"` | Directory naming: nested `wt-<repo>/<name>` |
 | `stale_threshold` | `7` | Days before worktree flagged stale in `wt list` |
+| `auto_install` | `true` | Run install after rebase when lockfile changes |
 | `init.copy_files` | `[]` | Files copied from main worktree if missing |
 | `init.commands` | `[]` | Shell commands run during init |
 

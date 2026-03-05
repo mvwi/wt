@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"slices"
 
 	"github.com/mvwi/wt/internal/git"
 	"github.com/mvwi/wt/internal/ui"
@@ -393,10 +394,8 @@ func lockfileChangedSuffix(dir, preRef string) string {
 	if err != nil {
 		return ""
 	}
-	for _, f := range changed {
-		if f == lockfile {
-			return ui.Yellow(" — lockfile changed, run wt init")
-		}
+	if slices.Contains(changed, lockfile) {
+		return ui.Yellow(" — lockfile changed, run wt init")
 	}
 	return ""
 }
@@ -424,14 +423,7 @@ func autoInstallIfNeeded(ctx *cmdContext, preRef string) {
 		return
 	}
 
-	lockfileChanged := false
-	for _, f := range changed {
-		if f == lockfile {
-			lockfileChanged = true
-			break
-		}
-	}
-	if !lockfileChanged {
+	if !slices.Contains(changed, lockfile) {
 		return
 	}
 

@@ -22,6 +22,9 @@ coverage.html
 # Config
 .wt.toml
 
+# Plans / design docs (local only)
+docs/
+
 # CI artifacts
 git-cliff/
 

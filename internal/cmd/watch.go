@@ -118,6 +118,7 @@ func runWatch(cmd *cobra.Command, args []string) error {
 	if res := checkResolved(ws); res != nil {
 		renderWatchTable(ws)
 		printWatchVerdict(ws)
+		printWatchCTA(ws)
 		if res.success {
 			return nil
 		}
@@ -157,6 +158,7 @@ func runWatch(cmd *cobra.Command, args []string) error {
 			if res := checkResolved(ws); res != nil {
 				renderWatchTable(ws)
 				printWatchVerdict(ws)
+				printWatchCTA(ws)
 				sendNotification(ws)
 				if res.success {
 					return nil
@@ -382,6 +384,18 @@ func printWatchVerdict(ws *github.WatchStatus) {
 		ui.Error("%d check(s) failed", cs.Fail)
 	case ws.MergeStateStatus == "BLOCKED":
 		ui.Error("Blocked by branch protection")
+	}
+}
+
+// printWatchCTA emits agent call-to-action hints based on the terminal PR state.
+func printWatchCTA(ws *github.WatchStatus) {
+	switch {
+	case ws.State == "MERGED", ws.State == "CLOSED":
+		ui.PrintCTA("wt close")
+	case ws.MergeStateStatus == "CLEAN":
+		ui.PrintCTA("wt open")
+	case ws.Mergeable == "CONFLICTING":
+		ui.PrintCTA("wt rebase")
 	}
 }
 

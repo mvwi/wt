@@ -228,11 +228,13 @@ func showSwitchSummary(path string, ctx *cmdContext) {
 		fmt.Printf("  %s", ui.Dim(branch))
 	}
 
+	isBehind := false
 	if !ctx.isBaseBranch(branch) {
 		ab, err := git.GetAheadBehindIn(path, ctx.baseRef())
 		if err == nil {
 			if ab.Behind > 0 {
 				fmt.Printf("  %s", ui.Yellow(fmt.Sprintf("⚠ %d behind", ab.Behind)))
+				isBehind = true
 			} else if ab.Ahead > 0 {
 				fmt.Printf("  %s", ui.Green(ui.Pass))
 			}
@@ -240,4 +242,12 @@ func showSwitchSummary(path string, ctx *cmdContext) {
 	}
 
 	fmt.Println()
+
+	if !ctx.isBaseBranch(branch) {
+		if isBehind {
+			ui.PrintCTA("wt rebase", "wt init")
+		} else {
+			ui.PrintCTA("wt init")
+		}
+	}
 }

@@ -29,7 +29,8 @@ Use --json for machine-readable output (all data in one pass).`,
 }
 
 func init() {
-	listCmd.Flags().Bool("json", false, "Output as JSON")
+	listCmd.Flags().String("output", "", "Output format: json, toon")
+	listCmd.Flags().Bool("json", false, "Output as JSON (deprecated: use --output json)")
 	rootCmd.AddCommand(listCmd)
 }
 
@@ -45,6 +46,11 @@ type worktreeInfo struct {
 }
 
 // JSON output structs
+
+type listJSONOutput struct {
+	Worktrees []listJSONEntry `json:"worktrees"`
+	CTA       []string        `json:"cta,omitempty"`
+}
 
 type listJSONReview struct {
 	Approved int `json:"approved"`
@@ -80,7 +86,11 @@ type listJSONEntry struct {
 }
 
 func runList(cmd *cobra.Command, args []string) error {
-	jsonOutput, _ := cmd.Flags().GetBool("json")
+	outputFormat, _ := cmd.Flags().GetString("output")
+	jsonFlag, _ := cmd.Flags().GetBool("json")
+	if jsonFlag && outputFormat == "" {
+		outputFormat = "json"
+	}
 
 	ctx, err := newContext()
 	if err != nil {
@@ -97,8 +107,11 @@ func runList(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if jsonOutput {
+	switch outputFormat {
+	case "json":
 		return runListJSON(ctx, cwd, worktrees)
+	case "toon":
+		return runListTOON(ctx, cwd, worktrees)
 	}
 
 	if len(worktrees) == 0 {
@@ -175,6 +188,8 @@ func runListJSON(ctx *cmdContext, cwd string, worktrees []git.Worktree) error {
 	}
 
 	entries := make([]listJSONEntry, 0, len(infos))
+	hasBehind := false
+	hasStale := false
 	for _, info := range infos {
 		isBase := ctx.isBaseBranch(info.Branch)
 
@@ -192,16 +207,87 @@ func runListJSON(ctx *cmdContext, cwd string, worktrees []git.Worktree) error {
 
 		if !isBase {
 			entry.PR = findPRJSON(info.Branch, openPRs, mergedPRs, closedPRs)
+			if info.Behind > 0 {
+				hasBehind = true
+			}
+			if entry.PR != nil && (entry.PR.State == "merged" || entry.PR.State == "closed") {
+				hasStale = true
+			}
 		}
 
 		entries = append(entries, entry)
 	}
 
-	data, err := json.MarshalIndent(entries, "", "  ")
+	var cta []string
+	if hasStale {
+		cta = append(cta, "wt prune")
+	} else if hasBehind {
+		cta = append(cta, "wt rebase --all")
+	}
+
+	data, err := json.MarshalIndent(listJSONOutput{Worktrees: entries, CTA: cta}, "", "  ")
 	if err != nil {
 		return err
 	}
 	fmt.Println(string(data))
+	return nil
+}
+
+func runListTOON(ctx *cmdContext, cwd string, worktrees []git.Worktree) error {
+	infos, _ := collectWorktreeInfos(ctx, cwd, worktrees)
+
+	var openPRs, mergedPRs, closedPRs []github.PR
+	if github.IsAvailable() {
+		openPRs, mergedPRs, closedPRs, _ = fetchPRData()
+	}
+
+	hasBehind := false
+	hasStale := false
+
+	fmt.Println("worktrees:")
+	for _, info := range infos {
+		isBase := ctx.isBaseBranch(info.Branch)
+		fmt.Printf("- name: %s\n", info.ShortName)
+		fmt.Printf("  path: %s\n", info.Path)
+		fmt.Printf("  branch: %s\n", info.Branch)
+		fmt.Printf("  current: %v\n", info.IsCurrent)
+		if isBase {
+			fmt.Printf("  base_branch: true\n")
+		}
+		if info.Age != "" {
+			fmt.Printf("  age: %s\n", info.Age)
+		}
+		fmt.Printf("  dirty: %d\n", info.DirtyCount)
+		fmt.Printf("  behind: %d\n", info.Behind)
+		fmt.Printf("  ahead: %d\n", info.Ahead)
+		if info.Behind > 0 {
+			hasBehind = true
+		}
+		if !isBase {
+			pr := findPRJSON(info.Branch, openPRs, mergedPRs, closedPRs)
+			if pr != nil {
+				fmt.Printf("  pr.number: %d\n", pr.Number)
+				fmt.Printf("  pr.state: %s\n", pr.State)
+				if pr.State == "open" {
+					fmt.Printf("  pr.review: %d✓ %d✗ %d●\n", pr.Review.Approved, pr.Review.Changes, pr.Review.Pending)
+					fmt.Printf("  pr.ci: %d✓ %d✗ %d● / %d\n", pr.CI.Pass, pr.CI.Fail, pr.CI.Pending, pr.CI.Total)
+				}
+				if pr.State == "merged" || pr.State == "closed" {
+					hasStale = true
+				}
+			}
+		}
+	}
+
+	var cta []string
+	if hasStale {
+		cta = append(cta, "wt prune")
+	} else if hasBehind {
+		cta = append(cta, "wt rebase --all")
+	}
+	if len(cta) > 0 {
+		fmt.Printf("cta: %s\n", strings.Join(cta, " | "))
+	}
 	return nil
 }
 

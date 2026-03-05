@@ -245,8 +245,10 @@ A `.wt.toml` in a repo root always wins, but most users won't need one.
 
 `wt` works well with AI coding agents (Claude Code, Cursor, Aider, etc.) — agents with shell access can run `wt` commands directly.
 
-- Run `wt --help` or `wt <command> --help` for full usage
-- `wt list --json` outputs machine-readable worktree and PR status
+- Run `wt --help` or `wt <command> --help` for full usage (self-documenting, no separate skill file needed)
+- `wt list --output toon` outputs token-efficient worktree and PR status (~50% fewer tokens than JSON)
+- `wt list --output json` outputs machine-readable worktree and PR status with a `cta` field
+- Commands emit `cta: cmd1 | cmd2` on stdout when piped (non-TTY), telling agents what to run next
 - `wt init` auto-copies AI config (`.claude`, `.cursorrules`, `.cursor/rules`) to new worktrees
 
 ### LLM Instructions

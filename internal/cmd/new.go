@@ -118,6 +118,7 @@ func newFromExisting(ctx *cmdContext, name, fromBranch string) error {
 		return runInitIn(wtPath, ctx)
 	}
 	fmt.Printf("  → wt switch %s && wt init\n", name)
+	ui.PrintCTA("wt switch "+name, "wt init")
 	return nil
 }
 
@@ -210,6 +211,7 @@ func createWorktreeFromRemote(ctx *cmdContext, name, remoteBranch string, doInit
 		return runInitIn(wtPath, ctx)
 	}
 	fmt.Printf("  → wt switch %s && wt init\n", name)
+	ui.PrintCTA("wt switch "+name, "wt init")
 	return nil
 }
 
@@ -251,5 +253,6 @@ func newFromBase(ctx *cmdContext, name string) error {
 		return runInitIn(wtPath, ctx)
 	}
 	fmt.Printf("  → wt switch %s && wt init\n", name)
+	ui.PrintCTA("wt switch "+name, "wt init")
 	return nil
 }

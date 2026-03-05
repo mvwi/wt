@@ -172,6 +172,7 @@ func runPrune(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 	ui.Success("Removed %d worktree(s)", removedCount)
 	printSkippedDirty(skippedDirty)
+	ui.PrintCTA("wt list")
 	return nil
 }
 

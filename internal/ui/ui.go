@@ -139,3 +139,13 @@ func Header(text string) {
 	fmt.Println()
 	DimF("  %s\n", text)
 }
+
+// PrintCTA prints machine-readable call-to-action suggestions for agent consumers.
+// Only emits output when stdout is not a TTY — human terminal output is unaffected.
+// Format: "cta: cmd1 | cmd2"
+func PrintCTA(cmds ...string) {
+	if len(cmds) == 0 || IsTTY() {
+		return
+	}
+	fmt.Printf("cta: %s\n", strings.Join(cmds, " | "))
+}

@@ -136,5 +136,6 @@ func runClose(cmd *cobra.Command, args []string) error {
 
 	fmt.Println()
 	ui.Success("Closed worktree")
+	ui.PrintCTA("wt list")
 	return nil
 }

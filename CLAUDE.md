@@ -92,6 +92,7 @@ go vet ./...      # Static analysis
 - Commands should call `newContext()` first, then use `ctx.*` helpers
 - User-facing errors: return `fmt.Errorf(...)` — Cobra prints them
 - User-facing output: use `ui.Success()`, `ui.Error()`, `ui.Warn()`, `fmt.Println()`
+- Agent call-to-action hints: use `ui.PrintCTA("wt next-cmd", ...)` — emits `cta: cmd1 | cmd2` only when stdout is non-TTY; no-ops in human terminal sessions
 - Don't hardcode "staging", "main", or "origin" — use `ctx.Config.BaseBranch`, `ctx.Config.Remote`
 - Git operations go through `internal/git/`, not raw `exec.Command`
 - GitHub operations go through `internal/github/`, always check `IsAvailable()` first

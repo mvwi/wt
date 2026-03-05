@@ -161,6 +161,7 @@ func rebaseFeatureBranch(ctx *cmdContext, branch string) error {
 		fmt.Printf("  3. Continue sync: %s\n", ui.Cyan("wt rebase --continue"))
 		fmt.Println()
 		fmt.Printf("Or abort: %s\n", ui.Yellow("wt rebase --abort"))
+		ui.PrintCTA("wt rebase --continue", "wt rebase --abort")
 		return nil // Don't return error — user needs to resolve
 	}
 

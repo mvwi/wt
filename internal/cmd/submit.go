@@ -103,11 +103,15 @@ func runSubmit(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 	ui.Success("Submitted!")
 
-	if github.IsAvailable() && ui.IsTTY() {
+	if github.IsAvailable() {
 		fmt.Println()
-		if ui.Confirm("Watch PR status?", true) {
-			fmt.Println()
-			return runWatch(cmd, nil)
+		if ui.IsTTY() {
+			if ui.Confirm("Watch PR status?", true) {
+				fmt.Println()
+				return runWatch(cmd, nil)
+			}
+		} else {
+			ui.PrintCTA("wt watch")
 		}
 	}
 

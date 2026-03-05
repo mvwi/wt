@@ -32,6 +32,11 @@ type Config struct {
 	// is considered stale in `wt list`. Default: 7.
 	StaleThreshold int `toml:"stale_threshold"`
 
+	// AutoInstall controls whether `wt rebase` runs the package manager
+	// install command when the lockfile changes. Default: true.
+	// Pointer to distinguish "not set" (nil → true) from "explicitly false".
+	AutoInstall *bool `toml:"auto_install"`
+
 	// Init configures the `wt init` command behavior.
 	Init InitConfig `toml:"init"`
 }
@@ -114,6 +119,9 @@ func mergeConfig(dst, src *Config) {
 	if src.StaleThreshold > 0 {
 		dst.StaleThreshold = src.StaleThreshold
 	}
+	if src.AutoInstall != nil {
+		dst.AutoInstall = src.AutoInstall
+	}
 	if len(src.Init.CopyFiles) > 0 {
 		dst.Init.CopyFiles = src.Init.CopyFiles
 	}
@@ -153,6 +161,14 @@ func (c *Config) EffectiveStaleThreshold() int {
 		return c.StaleThreshold
 	}
 	return 7
+}
+
+// EffectiveAutoInstall returns whether auto-install is enabled (default: true).
+func (c *Config) EffectiveAutoInstall() bool {
+	if c.AutoInstall != nil {
+		return *c.AutoInstall
+	}
+	return true
 }
 
 // EffectiveWorktreeDir builds the worktree directory name.

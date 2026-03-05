@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -410,6 +411,46 @@ func GetWatchStatus(branch string) (*WatchStatus, error) {
 		return nil, err
 	}
 	return &ws, nil
+}
+
+// repoSettings holds the merge method settings for a repository.
+type repoSettings struct {
+	AllowSquashMerge bool `json:"allow_squash_merge"`
+	AllowMergeCommit bool `json:"allow_merge_commit"`
+	AllowRebaseMerge bool `json:"allow_rebase_merge"`
+}
+
+// GetDefaultMergeMethod returns the preferred merge method for the repo.
+// Picks the first enabled method in order: squash → merge → rebase.
+func GetDefaultMergeMethod() (string, error) {
+	slug, err := RepoSlug()
+	if err != nil {
+		return "", err
+	}
+	out, err := runGH("api", "repos/"+slug)
+	if err != nil {
+		return "", err
+	}
+	var s repoSettings
+	if err := json.Unmarshal([]byte(out), &s); err != nil {
+		return "", err
+	}
+	switch {
+	case s.AllowSquashMerge:
+		return "squash", nil
+	case s.AllowMergeCommit:
+		return "merge", nil
+	case s.AllowRebaseMerge:
+		return "rebase", nil
+	default:
+		return "merge", nil
+	}
+}
+
+// MergePR merges a pull request using the given method (squash, merge, rebase).
+func MergePR(prNumber int, method string) error {
+	_, err := runGH("pr", "merge", strconv.Itoa(prNumber), "--"+method)
+	return err
 }
 
 // CreatePR creates a new pull request and returns the PR URL.

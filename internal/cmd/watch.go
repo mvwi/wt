@@ -35,7 +35,10 @@ Requires the GitHub CLI (gh) to be installed.`,
 	RunE:              runWatch,
 }
 
+var watchMergeFlag bool
+
 func init() {
+	watchCmd.Flags().BoolVar(&watchMergeFlag, "merge", false, "merge PR automatically when ready")
 	rootCmd.AddCommand(watchCmd)
 }
 
@@ -111,6 +114,17 @@ func runWatch(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("could not fetch PR status for %s: %w", ref, err)
 	}
 
+	// Resolve merge method once up front (2 gh calls — no need to repeat per poll)
+	mergeMethod := ""
+	if watchMergeFlag {
+		m, err := github.GetDefaultMergeMethod()
+		if err != nil {
+			ui.Warn("Could not determine merge method, defaulting to merge: %v", err)
+			m = "merge"
+		}
+		mergeMethod = m
+	}
+
 	// Print header (once)
 	printWatchHeader(ws)
 
@@ -118,6 +132,9 @@ func runWatch(cmd *cobra.Command, args []string) error {
 	if res := checkResolved(ws); res != nil {
 		renderWatchTable(ws)
 		printWatchVerdict(ws)
+		if err := mergeIfRequested(ws, mergeMethod); err != nil {
+			return err
+		}
 		printWatchCTA(ws)
 		if res.success {
 			return nil
@@ -158,6 +175,9 @@ func runWatch(cmd *cobra.Command, args []string) error {
 			if res := checkResolved(ws); res != nil {
 				renderWatchTable(ws)
 				printWatchVerdict(ws)
+				if err := mergeIfRequested(ws, mergeMethod); err != nil {
+					return err
+				}
 				printWatchCTA(ws)
 				sendNotification(ws)
 				if res.success {
@@ -387,12 +407,28 @@ func printWatchVerdict(ws *github.WatchStatus) {
 	}
 }
 
+// mergeIfRequested merges the PR when --merge is set and the PR is CLEAN.
+// method is the merge strategy resolved once before the poll loop.
+func mergeIfRequested(ws *github.WatchStatus, method string) error {
+	if !watchMergeFlag || ws.MergeStateStatus != "CLEAN" {
+		return nil
+	}
+	fmt.Printf("\nMerging PR #%d (%s)...\n", ws.Number, method)
+	if err := github.MergePR(ws.Number, method); err != nil {
+		return fmt.Errorf("merge failed: %w", err)
+	}
+	fmt.Println()
+	ui.Success("Merged PR #%d", ws.Number)
+	ui.PrintCTA("wt close")
+	return nil
+}
+
 // printWatchCTA emits agent call-to-action hints based on the terminal PR state.
 func printWatchCTA(ws *github.WatchStatus) {
 	switch {
 	case ws.State == "MERGED", ws.State == "CLOSED":
 		ui.PrintCTA("wt close")
-	case ws.MergeStateStatus == "CLEAN":
+	case ws.MergeStateStatus == "CLEAN" && !watchMergeFlag:
 		ui.PrintCTA("wt open")
 	case ws.Mergeable == "CONFLICTING":
 		ui.PrintCTA("wt rebase")

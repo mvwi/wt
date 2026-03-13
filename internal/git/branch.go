@@ -109,11 +109,6 @@ func Upstream() string {
 	return out
 }
 
-// SetUpstream sets the upstream tracking branch.
-func SetUpstream(remote, branch string) error {
-	return RunSilent("branch", "--set-upstream-to="+remote+"/"+branch)
-}
-
 // LastCommitDaysAgo returns the number of days since the last commit in a directory.
 // Returns -1 if the age cannot be determined.
 func LastCommitDaysAgo(dir string) int {

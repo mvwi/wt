@@ -61,6 +61,11 @@ func runPrune(cmd *cobra.Command, args []string) error {
 	go func() { defer wg.Done(); closedPRs, closedErr = github.ListPRs("closed") }()
 	wg.Wait()
 
+	if mergedErr != nil && closedErr != nil {
+		spin.Stop()
+		return fmt.Errorf("could not fetch PR data: %v", mergedErr)
+	}
+
 	worktrees, err := git.ListWorktrees()
 	if err != nil {
 		spin.Stop()

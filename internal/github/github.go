@@ -122,7 +122,7 @@ func getReviewSummary(requests []ReviewRequest, reviews []Review) ReviewSummary 
 	seen := make(map[string]bool)
 	for _, r := range reviews {
 		login := r.Author.Login
-		if login == "" {
+		if login == "" || r.State == "COMMENTED" {
 			continue
 		}
 		seen[login] = true

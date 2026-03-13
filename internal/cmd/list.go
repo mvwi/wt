@@ -30,7 +30,8 @@ Use --json for machine-readable output (all data in one pass).`,
 
 func init() {
 	listCmd.Flags().String("output", "", "Output format: json, toon")
-	listCmd.Flags().Bool("json", false, "Output as JSON (deprecated: use --output json)")
+	listCmd.Flags().Bool("json", false, "Output as JSON")
+	_ = listCmd.Flags().MarkDeprecated("json", "use --output json instead")
 	rootCmd.AddCommand(listCmd)
 }
 

@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"os/exec"
 	"strconv"
+	"strings"
 
 	"github.com/mvwi/wt/internal/git"
 	"github.com/mvwi/wt/internal/github"
+	"github.com/mvwi/wt/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -71,7 +73,11 @@ func runOpen(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to check for PR: %w", err)
 	}
 	if pr == nil {
-		return fmt.Errorf("no open PR for branch: %s\n   Run wt submit to push and create one", branch)
+		return fmt.Errorf("no PR found for branch: %s\n   Run wt submit to push and create one", branch)
+	}
+
+	if pr.State != "OPEN" {
+		ui.Warn("PR #%d is %s", pr.Number, strings.ToLower(pr.State))
 	}
 
 	return exec.Command("gh", "pr", "view", strconv.Itoa(pr.Number), "--web").Run()

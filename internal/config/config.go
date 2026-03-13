@@ -73,7 +73,8 @@ func Load(dir, repoName string) (*Config, error) {
 
 	// Layer 1+2: global defaults + per-repo overrides
 	if globalPath, err := globalConfigPath(); err == nil {
-		if data, err := os.ReadFile(globalPath); err == nil {
+		data, readErr := os.ReadFile(globalPath)
+		if readErr == nil {
 			var gf globalFile
 			if err := toml.Unmarshal(data, &gf); err != nil {
 				return nil, fmt.Errorf("global config (%s): %w", globalPath, err)
@@ -86,6 +87,8 @@ func Load(dir, repoName string) (*Config, error) {
 					mergeConfig(cfg, &repoCfg)
 				}
 			}
+		} else if !os.IsNotExist(readErr) {
+			return nil, fmt.Errorf("global config (%s): %w", globalPath, readErr)
 		}
 	}
 

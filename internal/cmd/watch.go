@@ -463,6 +463,7 @@ func sendNotification(ws *github.WatchStatus) {
 		}
 	}
 
-	script := fmt.Sprintf(`display notification %q with title %q`, message, title)
-	_ = exec.Command("osascript", "-e", script).Run()
+	_ = exec.Command("osascript", "-e",
+		"on run {t, m}\ndisplay notification m with title t\nend run",
+		title, message).Run()
 }

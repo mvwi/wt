@@ -39,7 +39,6 @@ const (
 	PushUp     = "⬆"
 	Dash       = "—"
 	NoReview   = "○"
-	ErrorMark  = "✗"
 )
 
 // Truncate shortens a string to max runes, adding "…" if truncated.
@@ -56,7 +55,12 @@ func Truncate(s string, max int) string {
 
 // Confirm prompts the user with a y/n question.
 // defaultYes: if true, pressing Enter means yes (Y/n); if false, means no (y/N).
+// When stdin is not a terminal, returns defaultYes without prompting.
 func Confirm(message string, defaultYes bool) bool {
+	if !IsTTY() {
+		return defaultYes
+	}
+
 	hint := "y/N"
 	if defaultYes {
 		hint = "Y/n"
@@ -97,9 +101,9 @@ func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
-// Error prints an error message with ✗ prefix.
+// Error prints an error message with ✗ prefix to stderr.
 func Error(format string, args ...any) {
-	fmt.Printf(Red("✗")+" "+format+"\n", args...)
+	fmt.Fprintf(os.Stderr, Red("✗")+" "+format+"\n", args...)
 }
 
 // Success prints a success message with ✓ prefix.
@@ -107,9 +111,9 @@ func Success(format string, args ...any) {
 	fmt.Printf(Green("✓")+" "+format+"\n", args...)
 }
 
-// Warn prints a warning message.
+// Warn prints a warning message to stderr.
 func Warn(format string, args ...any) {
-	fmt.Printf(Yellow("⚠")+"  "+format+"\n", args...)
+	fmt.Fprintf(os.Stderr, Yellow("⚠")+"  "+format+"\n", args...)
 }
 
 // Info prints a regular message.

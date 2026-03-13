@@ -71,11 +71,12 @@ const bashWrapper = `# wt shell integration (bash)
 #   eval "$(wt init-shell bash)"
 
 wt() {
-    local cdfile
+    local cdfile _wt_prev_trap
     cdfile=$(mktemp -t wt-cd.XXXXXXXX) || {
         command wt "$@"
         return $?
     }
+    _wt_prev_trap=$(trap -p EXIT 2>/dev/null)
     trap 'rm -f "$cdfile"' EXIT
     WT_CD_FILE="$cdfile" command wt "$@"
     local exit_code=$?
@@ -83,7 +84,11 @@ wt() {
         cd "$(cat "$cdfile")" || true
     fi
     rm -f "$cdfile"
-    trap - EXIT
+    if [ -n "$_wt_prev_trap" ]; then
+        eval "$_wt_prev_trap"
+    else
+        trap - EXIT
+    fi
     return $exit_code
 }
 
@@ -95,11 +100,12 @@ const zshWrapper = `# wt shell integration (zsh)
 #   eval "$(wt init-shell zsh)"
 
 wt() {
-    local cdfile
+    local cdfile _wt_prev_trap
     cdfile=$(mktemp -t wt-cd.XXXXXXXX) || {
         command wt "$@"
         return $?
     }
+    _wt_prev_trap=$(trap -p EXIT 2>/dev/null)
     trap 'rm -f "$cdfile"' EXIT
     WT_CD_FILE="$cdfile" command wt "$@"
     local exit_code=$?
@@ -107,7 +113,11 @@ wt() {
         cd "$(cat "$cdfile")" || true
     fi
     rm -f "$cdfile"
-    trap - EXIT
+    if [ -n "$_wt_prev_trap" ]; then
+        eval "$_wt_prev_trap"
+    else
+        trap - EXIT
+    fi
     return $exit_code
 }
 

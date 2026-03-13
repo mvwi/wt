@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"strings"
 
 	"github.com/mvwi/wt/internal/git"
 	"github.com/mvwi/wt/internal/ui"
@@ -58,6 +59,10 @@ func runRebaseWith(opts rebaseOpts) error {
 		return err
 	}
 
+	if opts.all && (opts.continueRebase || opts.abort) {
+		return fmt.Errorf("--all cannot be combined with --continue or --abort")
+	}
+
 	if opts.all {
 		return rebaseAll(ctx)
 	}
@@ -68,7 +73,7 @@ func runRebaseWith(opts rebaseOpts) error {
 	}
 
 	if opts.continueRebase {
-		return rebaseContinue()
+		return rebaseContinue(ctx)
 	}
 	if opts.abort {
 		return rebaseAbort()
@@ -102,12 +107,12 @@ func rebaseFeatureBranch(ctx *cmdContext, branch string) error {
 		didStash = true
 	}
 
-	// Save state for --continue
+	// Save state for --continue (format: "stash_state:pre_ref")
 	stashState := "no"
 	if didStash {
 		stashState = "stashed"
 	}
-	_ = git.SaveStateFile(stateFileName, stashState)
+	_ = git.SaveStateFile(stateFileName, stashState+":"+preRef)
 
 	// Fetch base branch
 	spin := ui.NewSpinner(fmt.Sprintf("Fetching %s", ctx.baseRef()))
@@ -232,7 +237,7 @@ func rebaseBaseBranch(ctx *cmdContext, branch string) error {
 	return nil
 }
 
-func rebaseContinue() error {
+func rebaseContinue(ctx *cmdContext) error {
 	if !git.StateFileExists(stateFileName) {
 		return fmt.Errorf("no rebase in progress\n   Start one with: wt rebase")
 	}
@@ -248,9 +253,14 @@ func rebaseContinue() error {
 		}
 	}
 
-	stashState, _ := git.ReadStateFile(stateFileName)
-	restoreStash(stashState == "stashed")
+	didStash, preRef := parseRebaseState()
+	restoreStash(didStash)
 	git.RemoveStateFile(stateFileName)
+
+	if preRef != "" {
+		autoInstallIfNeeded(ctx, preRef)
+	}
+
 	fmt.Println()
 	ui.Success("Synced with base branch")
 	return nil
@@ -271,8 +281,8 @@ func rebaseAbort() error {
 	}
 
 	if hasState {
-		stashState, _ := git.ReadStateFile(stateFileName)
-		restoreStash(stashState == "stashed")
+		didStash, _ := parseRebaseState()
+		restoreStash(didStash)
 		git.RemoveStateFile(stateFileName)
 	}
 
@@ -369,6 +379,19 @@ func rebaseAll(ctx *cmdContext) error {
 		fmt.Printf("  %s\n", ui.Red(fmt.Sprintf("✗ %d failed (conflicts)", failed)))
 	}
 	return nil
+}
+
+// parseRebaseState reads the state file and returns whether changes were stashed
+// and the pre-rebase HEAD ref. Format: "stash_state:pre_ref" (e.g., "stashed:abc123").
+// Backwards-compatible with old format that had no colon.
+func parseRebaseState() (didStash bool, preRef string) {
+	state, _ := git.ReadStateFile(stateFileName)
+	parts := strings.SplitN(state, ":", 2)
+	didStash = parts[0] == "stashed"
+	if len(parts) == 2 {
+		preRef = parts[1]
+	}
+	return
 }
 
 func restoreStash(didStash bool) {

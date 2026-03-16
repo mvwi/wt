@@ -56,6 +56,7 @@ func Truncate(s string, max int) string {
 // Confirm prompts the user with a y/n question.
 // defaultYes: if true, pressing Enter means yes (Y/n); if false, means no (y/N).
 // When stdin is not a terminal, returns defaultYes without prompting.
+// Unrecognized input re-prompts until a valid answer is given.
 func Confirm(message string, defaultYes bool) bool {
 	if !IsTTY() {
 		return defaultYes
@@ -66,18 +67,26 @@ func Confirm(message string, defaultYes bool) bool {
 		hint = "Y/n"
 	}
 
-	fmt.Printf("%s [%s] ", message, hint)
 	reader := bufio.NewReader(os.Stdin)
-	input, err := reader.ReadString('\n')
-	if err != nil {
-		return defaultYes
-	}
-	input = strings.TrimSpace(strings.ToLower(input))
+	for {
+		fmt.Printf("%s [%s] ", message, hint)
+		input, err := reader.ReadString('\n')
+		if err != nil {
+			return defaultYes
+		}
+		input = strings.TrimSpace(strings.ToLower(input))
 
-	if input == "" {
-		return defaultYes
+		switch input {
+		case "":
+			return defaultYes
+		case "y", "yes":
+			return true
+		case "n", "no":
+			return false
+		default:
+			fmt.Println("Please answer y or n.")
+		}
 	}
-	return input == "y" || input == "yes"
 }
 
 // PrintCdHint tells the shell wrapper to cd into the given path.

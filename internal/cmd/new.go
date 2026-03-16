@@ -117,8 +117,7 @@ func newFromExisting(ctx *cmdContext, name, fromBranch string) error {
 	if newDoInit {
 		return runInitIn(wtPath, ctx)
 	}
-	fmt.Printf("  → wt switch %s && wt init\n", name)
-	ui.PrintCTA("wt switch "+name, "wt init")
+	printSwitchHint(name)
 	return nil
 }
 
@@ -210,9 +209,25 @@ func createWorktreeFromRemote(ctx *cmdContext, name, remoteBranch string, doInit
 	if doInit {
 		return runInitIn(wtPath, ctx)
 	}
-	fmt.Printf("  → wt switch %s && wt init\n", name)
-	ui.PrintCTA("wt switch "+name, "wt init")
+	printSwitchHint(name)
 	return nil
+}
+
+// printSwitchHint prints the next-step command and offers to copy it to the clipboard.
+func printSwitchHint(name string) {
+	switchCmd := fmt.Sprintf("wt switch %s && wt init", name)
+	fmt.Printf("  → %s\n", switchCmd)
+	ui.PrintCTA("wt switch "+name, "wt init")
+
+	if ui.IsTTY() && ui.ClipboardAvailable() {
+		if ui.Confirm("Copy to clipboard?", true) {
+			if err := ui.CopyToClipboard(switchCmd); err != nil {
+				ui.Warn("Failed to copy: %v", err)
+			} else {
+				ui.Success("Copied to clipboard")
+			}
+		}
+	}
 }
 
 func newFromBase(ctx *cmdContext, name string) error {
@@ -252,7 +267,6 @@ func newFromBase(ctx *cmdContext, name string) error {
 	if newDoInit {
 		return runInitIn(wtPath, ctx)
 	}
-	fmt.Printf("  → wt switch %s && wt init\n", name)
-	ui.PrintCTA("wt switch "+name, "wt init")
+	printSwitchHint(name)
 	return nil
 }

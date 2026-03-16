@@ -53,6 +53,56 @@ func TestReviewSummaryReRequestedSupersedes(t *testing.T) {
 	}
 }
 
+func TestReviewSummaryDeduplicatesRequests(t *testing.T) {
+	// Duplicate entries in ReviewRequests (team + individual request for same user)
+	pr := &PR{
+		ReviewRequests: []ReviewRequest{
+			{Login: "alice"},
+			{Login: "bob"},
+			{Login: "alice"}, // duplicate
+		},
+	}
+
+	s := pr.GetReviewSummary()
+
+	if s.Pending != 2 {
+		t.Errorf("Pending = %d, want 2 (alice should be counted once)", s.Pending)
+	}
+}
+
+func TestReviewItemsDeduplicatesRequests(t *testing.T) {
+	// Duplicate entries in ReviewRequests (team + individual request for same user)
+	ws := &WatchStatus{
+		ReviewRequests: []ReviewRequest{
+			{Login: "alice"},
+			{Login: "bob"},
+			{Login: "alice"}, // duplicate
+		},
+		LatestReviews: []Review{
+			review("charlie", "APPROVED"),
+		},
+	}
+
+	items := ws.ReviewItems()
+
+	count := make(map[string]int)
+	for _, item := range items {
+		count[item.Login]++
+	}
+	if count["alice"] != 1 {
+		t.Errorf("alice appears %d times, want 1", count["alice"])
+	}
+	if count["bob"] != 1 {
+		t.Errorf("bob appears %d times, want 1", count["bob"])
+	}
+	if count["charlie"] != 1 {
+		t.Errorf("charlie appears %d times, want 1", count["charlie"])
+	}
+	if len(items) != 3 {
+		t.Errorf("len(items) = %d, want 3", len(items))
+	}
+}
+
 func TestPRGetCISummary(t *testing.T) {
 	pr := &PR{
 		StatusChecks: []StatusCheckRun{

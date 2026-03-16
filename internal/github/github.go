@@ -115,7 +115,9 @@ func (pr *PR) GetCISummary() CISummary {
 func getReviewSummary(requests []ReviewRequest, reviews []Review) ReviewSummary {
 	reRequested := make(map[string]bool)
 	for _, rr := range requests {
-		reRequested[rr.Login] = true
+		if rr.Login != "" {
+			reRequested[rr.Login] = true
+		}
 	}
 
 	var s ReviewSummary
@@ -138,7 +140,8 @@ func getReviewSummary(requests []ReviewRequest, reviews []Review) ReviewSummary 
 		}
 	}
 	for _, rr := range requests {
-		if !seen[rr.Login] {
+		if rr.Login != "" && !seen[rr.Login] {
+			seen[rr.Login] = true
 			s.Pending++
 		}
 	}
@@ -388,6 +391,7 @@ func (ws *WatchStatus) ReviewItems() []ReviewItem {
 	// Add reviewers who were requested but haven't reviewed yet
 	for _, rr := range ws.ReviewRequests {
 		if rr.Login != "" && !seen[rr.Login] {
+			seen[rr.Login] = true
 			items = append(items, ReviewItem{Login: rr.Login, State: "pending"})
 		}
 	}

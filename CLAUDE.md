@@ -23,6 +23,7 @@ internal/
     close.go                 Close + clean up worktree
     prune.go                 Remove stale worktrees (merged/closed PRs)
     rename.go                Rename branch + directory + remote
+    pull.go                  Pull a remote branch into a new worktree
     pr.go                    Checkout a GitHub PR into a worktree
     open.go                  Open PR in browser
     watch.go                 Poll PR until mergeable or blocked

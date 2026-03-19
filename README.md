@@ -157,6 +157,7 @@ eval "$(wt completion zsh)"
 | `wt close [name]` | `rm` | Close and clean up a worktree |
 | `wt rename <name>` | `rn` | Rename worktree, branch, and remote |
 | `wt prune` | | Clean up stale worktrees (merged/closed PRs) |
+| `wt pull <branch> [name]` | | Pull a remote branch into a new worktree |
 | `wt pr <number>` | | Checkout a PR into a worktree |
 | `wt open [name]` | | Open PR in browser |
 | `wt watch [branch or PR]` | | Watch PR until mergeable or blocked |

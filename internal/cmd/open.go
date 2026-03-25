@@ -22,6 +22,8 @@ Without arguments, opens the PR for the current branch.
 With a name, resolves the worktree and opens its PR.
 
 Requires the GitHub CLI (gh) to be installed.`,
+	Example: `  wt open                  Open PR for current branch
+  wt open sidebar           Open PR for "sidebar" worktree`,
 	Args:              cobra.MaximumNArgs(1),
 	ValidArgsFunction: completeWorktreeNames,
 	RunE:              runOpen,

@@ -31,6 +31,10 @@ Resolution order:
   3. Branch name: exact match against the git branch
   4. Suffix match: any worktree ending with -<name>
   5. Fuzzy match: worktree or branch containing the search term`,
+	Example: `  wt switch               Interactive picker (requires fzf)
+  wt switch sidebar        Switch to "sidebar" worktree (fuzzy match)
+  wt switch -              Switch back to previous worktree
+  wt switch main           Switch to main repository`,
 	Args:              cobra.MaximumNArgs(1),
 	ValidArgsFunction: completeWorktreeNames,
 	RunE:              runSwitch,

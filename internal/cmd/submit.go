@@ -17,6 +17,9 @@ var submitCmd = &cobra.Command{
 
 Uses --force-with-lease for safety (fails if remote has unexpected commits).
 Cannot submit the base branch (use git push directly).`,
+	Example: `  wt submit               Rebase + push current branch
+  wt submit --continue     Resume after resolving rebase conflicts
+  wt submit --abort        Abort rebase and cancel push`,
 	RunE: runSubmit,
 }
 

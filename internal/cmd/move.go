@@ -21,6 +21,9 @@ var moveCmd = &cobra.Command{
 
 If the target worktree doesn't exist, offers to create a new one from the base branch.
 Checks for conflicting changes in the destination before overwriting.`,
+	Example: `  wt move sidebar          Move changes to existing "sidebar" worktree
+  wt move new-feature      Move changes (creates worktree if needed)
+  wt move sidebar --yes    Move without confirmation prompts`,
 	Args:              cobra.ExactArgs(1),
 	ValidArgsFunction: completeWorktreeNames,
 	RunE:              runMove,

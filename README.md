@@ -165,6 +165,21 @@ eval "$(wt completion zsh)"
 
 Run `wt <command> --help` for detailed usage of any command.
 
+### Global flags
+
+| Flag | Description |
+|------|-------------|
+| `--yes`, `-y` | Skip all confirmation prompts (useful for scripts and agents) |
+
+### Notable command flags
+
+| Flag | Commands | Description |
+|------|----------|-------------|
+| `--dry-run` | `prune` | Preview what would be removed without removing anything |
+| `--all` | `rebase` | Rebase all worktrees at once |
+| `--merge` | `watch` | Auto-merge PR when ready |
+| `--output json` | `list` | Machine-readable JSON output |
+
 ## Configuration
 
 All fields are optional. Config is layered: **defaults -> global -> repo**, each layer only overrides what it sets.

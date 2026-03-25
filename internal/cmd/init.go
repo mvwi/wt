@@ -35,6 +35,8 @@ Example config (overrides auto-detection):
   [init]
   copy_files = [".env", ".env.local"]
   commands = ["pnpm install", "npx prisma generate"]`,
+	Example: `  wt init                  Initialize current worktree
+  wt new feature --init    Create worktree + initialize in one step`,
 	RunE: runInit,
 }
 

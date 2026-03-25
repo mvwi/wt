@@ -30,6 +30,10 @@ Exits successfully when the PR is ready to merge. Exits with an error on
 merge conflicts, CI failures, or changes requested.
 
 Requires the GitHub CLI (gh) to be installed.`,
+	Example: `  wt watch                 Watch PR for current branch
+  wt watch sidebar         Watch PR for "sidebar" worktree
+  wt watch 42              Watch PR #42
+  wt watch --merge          Watch and auto-merge when ready`,
 	Args:              cobra.MaximumNArgs(1),
 	ValidArgsFunction: completeWorktreeNames,
 	RunE:              runWatch,

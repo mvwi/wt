@@ -21,6 +21,10 @@ For feature branches: stash → fetch → rebase → restore stash.
 For base/main branches: fast-forward merge only.
 
 Use --all to rebase all worktrees at once.`,
+	Example: `  wt rebase               Rebase current branch onto base branch
+  wt rebase --all          Rebase all worktrees at once
+  wt rebase --continue     Resume after resolving conflicts
+  wt rebase --abort        Abort rebase and restore state`,
 	RunE: runRebase,
 }
 

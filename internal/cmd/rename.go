@@ -22,6 +22,9 @@ Renames:
   - Local branch: <old> → <prefix>/<name>
   - Worktree directory: wt-<repo>/<old> → wt-<repo>/<name>
   - Remote branch: origin/<old> → origin/<prefix>/<name> (recreates open PRs)`,
+	Example: `  wt rename sidebar-v2     Rename branch, directory, and remote
+  wt rename fix --local    Rename locally only (skip remote)
+  wt rename fix --yes      Rename without confirmation prompt`,
 	Args:              cobra.ExactArgs(1),
 	ValidArgsFunction: completeWorktreeNames,
 	RunE:              runRename,

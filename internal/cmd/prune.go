@@ -23,10 +23,16 @@ Skips:
   - Current worktree
   - Worktrees with uncommitted changes
   - Base/main branches`,
+	Example: `  wt prune                 Interactively remove stale worktrees
+  wt prune --dry-run       Show what would be removed
+  wt prune --yes           Remove all stale worktrees without prompts`,
 	RunE: runPrune,
 }
 
+var pruneDryRun bool
+
 func init() {
+	pruneCmd.Flags().BoolVar(&pruneDryRun, "dry-run", false, "show what would be removed without removing anything")
 	rootCmd.AddCommand(pruneCmd)
 }
 
@@ -131,6 +137,19 @@ func runPrune(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("Found %d stale worktree(s):\n\n", len(stale))
+
+	// Dry-run: list what would be removed and exit
+	if pruneDryRun {
+		for _, s := range stale {
+			short := filepath.Base(s.Path)
+			fmt.Printf("  %s  %s\n", ui.Yellow(short), s.Reason)
+			fmt.Printf("     %s\n", ui.Dim(s.Branch))
+		}
+		printSkippedDirty(skippedDirty)
+		fmt.Println()
+		fmt.Println("No changes made (--dry-run)")
+		return nil
+	}
 
 	// Phase 1: collect decisions
 	var toRemove []int

@@ -41,6 +41,10 @@ const (
 	NoReview   = "○"
 )
 
+// YesFlag is set by the root command's --yes persistent flag.
+// When true, Confirm() skips the interactive prompt and returns true.
+var YesFlag bool
+
 // Truncate shortens a string to max runes, adding "…" if truncated.
 func Truncate(s string, max int) string {
 	runes := []rune(s)
@@ -58,6 +62,9 @@ func Truncate(s string, max int) string {
 // When stdin is not a terminal, returns defaultYes without prompting.
 // Unrecognized input re-prompts until a valid answer is given.
 func Confirm(message string, defaultYes bool) bool {
+	if YesFlag {
+		return true
+	}
 	if !IsTTY() {
 		return defaultYes
 	}
@@ -142,7 +149,7 @@ func ClearLines(n int) {
 	if !IsTTY() {
 		return
 	}
-	for i := 0; i < n; i++ {
+	for range n {
 		fmt.Print("\033[A\033[K")
 	}
 }

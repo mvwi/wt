@@ -84,6 +84,7 @@ func Execute() {
 func init() {
 	rootCmd.SetVersionTemplate("wt version {{.Version}}\n")
 	rootCmd.CompletionOptions.HiddenDefaultCmd = true
+	rootCmd.PersistentFlags().BoolVarP(&ui.YesFlag, "yes", "y", false, "skip confirmation prompts (answer yes to all)")
 
 	rootCmd.AddGroup(
 		&cobra.Group{ID: groupWorkflow, Title: "Workflow:"},

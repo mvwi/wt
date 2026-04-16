@@ -55,13 +55,22 @@ func runClose(cmd *cobra.Command, args []string) error {
 	var targetPath, targetBranch string
 
 	if len(args) > 0 {
-		var resolveErr error
-		targetPath, resolveErr = resolveWorktree(ctx, worktrees, args[0])
+		var (
+			fuzzy      bool
+			resolveErr error
+		)
+		targetPath, fuzzy, resolveErr = resolveWorktree(ctx, worktrees, args[0])
 		if resolveErr != nil {
 			return resolveErr
 		}
 		if targetPath == "" {
 			return fmt.Errorf("worktree not found: %s\n   Run wt list to see available worktrees", args[0])
+		}
+		if fuzzy {
+			if !ui.Confirm(fmt.Sprintf("Close %s?", ctx.shortName(targetPath)), false) {
+				fmt.Println("Cancelled")
+				return nil
+			}
 		}
 	} else {
 		// Close current worktree

@@ -204,11 +204,17 @@ func resolveOrCreateTarget(ctx *cmdContext, name string) (string, bool, error) {
 	}
 
 	// Try to resolve existing worktree
-	target, resolveErr := resolveWorktree(ctx, worktrees, name)
+	target, fuzzy, resolveErr := resolveWorktree(ctx, worktrees, name)
 	if resolveErr != nil {
 		return "", false, resolveErr
 	}
 	if target != "" {
+		if fuzzy {
+			if !ui.Confirm(fmt.Sprintf("Move changes into %s?", ctx.shortName(target)), false) {
+				fmt.Println("Cancelled")
+				return "", false, errSilent
+			}
+		}
 		return target, false, nil
 	}
 

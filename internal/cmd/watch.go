@@ -87,7 +87,7 @@ func runWatch(cmd *cobra.Command, args []string) error {
 			if err != nil {
 				return err
 			}
-			target, resolveErr := resolveWorktree(ctx, worktrees, args[0])
+			target, _, resolveErr := resolveWorktree(ctx, worktrees, args[0])
 			if resolveErr != nil {
 				return resolveErr
 			}

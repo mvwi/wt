@@ -149,7 +149,7 @@ func switchInteractive(ctx *cmdContext, worktrees []git.Worktree, cwd string) er
 }
 
 func switchByName(ctx *cmdContext, worktrees []git.Worktree, cwd, name string) error {
-	target, err := resolveWorktree(ctx, worktrees, name)
+	target, _, err := resolveWorktree(ctx, worktrees, name)
 	if err != nil {
 		return err
 	}
@@ -164,24 +164,27 @@ func switchByName(ctx *cmdContext, worktrees []git.Worktree, cwd, name string) e
 }
 
 // resolveWorktree finds a worktree path by name using the resolution chain.
-// Returns ("", nil) when no match is found, or ("", error) when the match is
-// ambiguous (error message already printed; returns errSilent).
-func resolveWorktree(ctx *cmdContext, worktrees []git.Worktree, name string) (string, error) {
+// Returns (path, fuzzy, nil) on success — fuzzy=true when the match came from
+// the substring-contains step (step 5), meaning the caller should confirm
+// before destructive actions. Returns ("", false, nil) when no match is found,
+// or ("", false, error) when the match is ambiguous (error message already
+// printed; returns errSilent).
+func resolveWorktree(ctx *cmdContext, worktrees []git.Worktree, name string) (string, bool, error) {
 	// 1. Exact match with configured prefix
 	exact := ctx.worktreePath(name)
 	if isDir(exact) {
-		return exact, nil
+		return exact, false, nil
 	}
 
 	// 2. Main repo match (base branch name, "main", "master", or repo name)
 	if name == ctx.RepoName || ctx.isBaseBranch(name) {
-		return ctx.MainWorktree, nil
+		return ctx.MainWorktree, false, nil
 	}
 
 	// 3. Branch name match (exact match against git branch)
 	for _, wt := range worktrees {
 		if wt.Branch == name {
-			return wt.Path, nil
+			return wt.Path, false, nil
 		}
 	}
 
@@ -189,7 +192,7 @@ func resolveWorktree(ctx *cmdContext, worktrees []git.Worktree, name string) (st
 	for _, wt := range worktrees {
 		base := filepath.Base(wt.Path)
 		if strings.HasSuffix(base, "-"+name) || strings.HasSuffix(base, "/"+name) {
-			return wt.Path, nil
+			return wt.Path, false, nil
 		}
 	}
 
@@ -207,7 +210,7 @@ func resolveWorktree(ctx *cmdContext, worktrees []git.Worktree, name string) (st
 	if len(fuzzyMatches) == 1 {
 		short := ctx.shortName(fuzzyMatches[0].Path)
 		ui.DimF("Fuzzy matched: %s → %s\n", name, short)
-		return fuzzyMatches[0].Path, nil
+		return fuzzyMatches[0].Path, true, nil
 	}
 	if len(fuzzyMatches) > 1 {
 		fmt.Printf("Multiple matches for '%s':\n\n", name)
@@ -216,10 +219,10 @@ func resolveWorktree(ctx *cmdContext, worktrees []git.Worktree, name string) (st
 		}
 		fmt.Println()
 		fmt.Println("Be more specific, or use 'wt switch' for interactive picker")
-		return "", errSilent
+		return "", false, errSilent
 	}
 
-	return "", nil
+	return "", false, nil
 }
 
 func showSwitchSummary(path string, ctx *cmdContext) {

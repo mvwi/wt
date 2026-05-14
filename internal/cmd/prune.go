@@ -8,6 +8,7 @@ import (
 
 	"github.com/mvwi/wt/internal/git"
 	"github.com/mvwi/wt/internal/github"
+	"github.com/mvwi/wt/internal/tui"
 	"github.com/mvwi/wt/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -152,20 +153,13 @@ func runPrune(cmd *cobra.Command, args []string) error {
 	}
 
 	// Phase 1: collect decisions
-	var toRemove []int
-
-	for i, s := range stale {
-		short := filepath.Base(s.Path)
-		fmt.Printf("%s\n", ui.Yellow(short))
-		fmt.Printf("  └─ %s\n", s.Branch)
-		fmt.Printf("  └─ %s\n", s.Reason)
-		if ui.Confirm("  Remove?", false) {
-			toRemove = append(toRemove, i)
-			fmt.Println("  → queued")
-		} else {
-			fmt.Println("  → skipped")
-		}
-		fmt.Println()
+	toRemove, cancelled, err := selectPruneTargets(stale)
+	if err != nil {
+		return err
+	}
+	if cancelled {
+		fmt.Println("Cancelled")
+		return nil
 	}
 
 	// Phase 2: execute removals
@@ -198,6 +192,37 @@ func runPrune(cmd *cobra.Command, args []string) error {
 	printSkippedDirty(skippedDirty)
 	ui.PrintCTA("wt list")
 	return nil
+}
+
+// selectPruneTargets returns the indices of stale worktrees the user wants to remove.
+//
+//   - With --yes: all stale worktrees.
+//   - With a TTY: interactive multi-select via the TUI picker.
+//   - Without a TTY and no --yes: nothing selected (preserves existing
+//     non-interactive behavior, where each Confirm() returned false).
+func selectPruneTargets(stale []staleWorktree) (indices []int, cancelled bool, err error) {
+	if ui.YesFlag {
+		all := make([]int, len(stale))
+		for i := range stale {
+			all[i] = i
+		}
+		return all, false, nil
+	}
+
+	if !ui.IsTTY() {
+		return nil, false, nil
+	}
+
+	items := make([]tui.PruneItem, len(stale))
+	for i, s := range stale {
+		items[i] = tui.PruneItem{Path: s.Path, Branch: s.Branch, Reason: s.Reason}
+	}
+
+	result, err := tui.RunPrunePicker(items)
+	if err != nil {
+		return nil, false, err
+	}
+	return result.Selected, result.Cancelled, nil
 }
 
 func printSkippedDirty(skipped []staleWorktree) {

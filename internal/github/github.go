@@ -192,6 +192,36 @@ func ListPRs(state string) ([]PR, error) {
 	return prs, nil
 }
 
+// PRDetail is the rich PR info used by the dashboard detail panel.
+// Fetched on demand — kept separate from the lighter `PR` returned by ListPRs.
+type PRDetail struct {
+	Number int    `json:"number"`
+	Title  string `json:"title"`
+	Body   string `json:"body"`
+	Author struct {
+		Login string `json:"login"`
+	} `json:"author"`
+	StatusChecks []StatusCheckRun `json:"statusCheckRollup"`
+}
+
+// GetPRDetail fetches title/body/author and named CI checks for one PR in a
+// single gh call. Returns (nil, nil) when gh isn't installed.
+func GetPRDetail(number int) (*PRDetail, error) {
+	if !IsAvailable() {
+		return nil, nil
+	}
+	out, err := runGH("pr", "view", strconv.Itoa(number),
+		"--json", "number,title,body,author,statusCheckRollup")
+	if err != nil {
+		return nil, err
+	}
+	var d PRDetail
+	if err := json.Unmarshal([]byte(out), &d); err != nil {
+		return nil, err
+	}
+	return &d, nil
+}
+
 // FindPRForBranch returns the first PR matching the branch name and state.
 func FindPRForBranch(prs []PR, branch string) *PR {
 	for i := range prs {

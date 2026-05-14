@@ -1,0 +1,1 @@
+the "    updated 0s ago" line in the dashboard view feels a little wierd since it just sits at 0 until the next update happens. is there a way we can make it dynamic so it counts per second?

@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.6.1",
+  "checkpoint_id": "64897b73e9fa",
+  "strategy": "manual-commit",
+  "branch": "feat/tui",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "internal/cmd/root.go",
+    "internal/git/detail.go",
+    "internal/github/github.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/64/897b73e9fa/0/metadata.json",
+      "transcript": "/64/897b73e9fa/0/full.jsonl",
+      "content_hash": "/64/897b73e9fa/0/content_hash.txt",
+      "prompt": "/64/897b73e9fa/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 481,
+    "cache_creation_tokens": 1086929,
+    "cache_read_tokens": 61538712,
+    "output_tokens": 357308,
+    "api_call_count": 335
+  }
+}

@@ -1,0 +1,143 @@
+I'm considering making a tui version of this using BubbleTea so that it's a bit more interactive/alive feeling. explore the command set that we have and the visuals they produce and give me a balanced evaluation of whether this is worth doing or not
+
+---
+
+prune, list, and watch are the key ones that would be helpful to have I think. any others you might recommend?
+
+---
+
+okay lets try it out. make a new branch and start small, then we can add features as we go
+
+---
+
+did you set it up to be a different persistent dashboard or does it only run when I run one of the other commands? how do I evaluate this vs. what we had before?
+
+---
+
+build the wt list one too then
+
+---
+
+how can I test this against a different repo with more worktrees? pass a path?
+
+---
+
+so adding a -C flag would let me pass in an arbitrary dir to run it against?
+
+---
+
+sure
+
+---
+
+i feel like we should add a command on the dashboard to prune a branch if it has already been merged
+
+this should be non-blocking so that I can kick off a few prunes at once if I want whiel still navigating between branches. also, what about an extended info panel that changes as I scroll between the worktrees listed? maybe showing files changed, commit history on that branch, etc.
+
+---
+
+1. bottom
+2. lets try all of these, we can prune down if needed
+3. okay, would this handle status changing too? as ci processes for instance
+
+---
+
+i think the detail panel could use more color/organization. the commit messages are the really important part, the hashes don't really do much. maybe we slim it down to be just the key human information and then you can do a button press to get more detail on that commit if needed? how can I drill in more? how can I move the cursor from the worktree list to the commits on that worktree? open to ideas but these are the limitations as I seen them atm
+
+---
+
+the enter for git show just flashes the terminal input for a second then opens back up the dashboard tui
+
+---
+
+do we have to make it run the actual git command? it kicks us out of the tui. can we show it in a third panel below?
+
+---
+
+i think enter/esc should zoom in and out of the panels. so fi you want to exit out entirely you hit esc a few times. i find myself hitting enter to zoom in to the next down panel and it closes the app. we could use 's' instead of enter for switching to that wt
+
+---
+
+the color on the conversational commit messages is helpful, look for other places/ways we can bring in color to the displays to help make them easier for people to scan/parse
+
+---
+
+1. drop manual refresh
+2. how does it know which branch to rebase onto? what if there are worktrees created from different branches?
+3. abort on conflict works
+
+---
+
+is there a way we can detect the width of the terminal and ajust the output so that it wraps/fits in the avialable space?
+
+---
+
+lets do it the robust way
+
+---
+
+here's a sample output. I'm wondering if there's anything we can do about the PR name not wrapping and also wondering what the ## Summary line is doing there. should that display the full pr description? ideas?
+
+
+  WORKTREES
+  ─────────────────────────────────────────────────────────────────────────────────────────────
+    Name                          Branch                  Age  Dirty Sync     Status
+    ● platform                      staging                      —    —        —
+      biome-cleanup                 michael/biome-cleanup   2h   —    ⇣3⇡1     #2830 merged
+      make-my-events-link           michael/make-my-events… 23h  —    ⇣7⇡3     #2825 merged
+      remove-neynar                 michael/remove-neynar   21h  —    ⇣5⇡1     #2828 merged
+  ▸   template-adjustments          michael/template-adjus… 3m   —    ⇡3       #2831 ✗ ci
+      un-hardcode-spotlight-events  michael/un-hardcode-sp… 23h  —    ⇣6⇡2     #2826 merged
+      vuln-fix                      michael/vuln-fix        13m  —    ⇡1       #2832 ◐ ci
+  ─────────────────────────────────────────────────────────────────────────────────────────────
+  template-adjustments  · michael/template-adjustments  · PR #2831  feat(digest): article excer
+
+  ## Summary
+
+  CHANGES   3 commits ahead, +87 −68 across 2 files
+
+  COMMITS
+      chore: merge staging into michael/template-adjustments                                3m
+      fix:   align weekday formatting with UTC scheduling                                   2h
+      feat:  article excerpts, frequency-aware hero, linkable sections                      2h
+
+  FILES     M apps/platform/app/api/inngest/_functions/feed-email/digest-cron.ts  +1 more
+  CI        ✓ Secret Detection (Gitleaks) · ✓ Check Skip QA · +4 more
+  ─────────────────────────────────────────────────────────────────────────────────────────────
+  ↑↓ move · enter commits · s switch · r rebase · R rebase all · p prune · q quit  updated 0s a
+
+---
+
+do we have a way of knowing how tall the terminal window is? so we could use the space dynamically to show pr descriptions? or should we just cap at 6 lines?
+
+---
+
+okay what about capping at 6 but scaling down if it's a short window? or do we just mak epeople make it taller
+
+---
+
+the CHANGES header isn't picking up commits behind, should it? should it also include stuff like dirty files, last edit time, etc?
+
+---
+
+ok
+
+---
+
+should we replace prune with close? (single wt action vs. all wts)
+
+---
+
+b
+
+---
+
+lets disable other commands like rebase while an operation like closing the wt is active
+
+---
+
+i think we need a visual indication that options are disabled while another option is in progress. what about turning the disabled actions in the bottom bar gray?
+
+---
+
+the footer is coming through white righ tnow

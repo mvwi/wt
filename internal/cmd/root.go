@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/mvwi/wt/internal/git"
@@ -16,6 +17,10 @@ import (
 // errSilent is returned when the error has already been printed and
 // Execute should exit non-zero without printing anything extra.
 var errSilent = errors.New("")
+
+// cwdOverride is set by the persistent -C/--directory flag and applied
+// in PersistentPreRunE before any subcommand reads cwd.
+var cwdOverride string
 
 // Version is set at build time via -ldflags.
 var Version = "dev"
@@ -85,12 +90,33 @@ func init() {
 	rootCmd.SetVersionTemplate("wt version {{.Version}}\n")
 	rootCmd.CompletionOptions.HiddenDefaultCmd = true
 	rootCmd.PersistentFlags().BoolVarP(&ui.YesFlag, "yes", "y", false, "skip confirmation prompts (answer yes to all)")
+	rootCmd.PersistentFlags().StringVarP(&cwdOverride, "directory", "C", "", "run as if started in the given directory (like `git -C`)")
+	_ = rootCmd.MarkPersistentFlagDirname("directory")
+
+	rootCmd.PersistentPreRunE = applyCwdOverride
 
 	rootCmd.AddGroup(
 		&cobra.Group{ID: groupWorkflow, Title: "Workflow:"},
 		&cobra.Group{ID: groupSync, Title: "Sync:"},
 		&cobra.Group{ID: groupManage, Title: "Manage:"},
 	)
+}
+
+// applyCwdOverride chdir's into the path passed via -C/--directory before any
+// subcommand runs. All commands read cwd via os.Getwd() and run git from there,
+// so a single chdir at startup propagates transparently to every command.
+func applyCwdOverride(_ *cobra.Command, _ []string) error {
+	if cwdOverride == "" {
+		return nil
+	}
+	abs, err := filepath.Abs(cwdOverride)
+	if err != nil {
+		return fmt.Errorf("invalid directory %q: %w", cwdOverride, err)
+	}
+	if err := os.Chdir(abs); err != nil {
+		return fmt.Errorf("cannot change to %s: %w", abs, err)
+	}
+	return nil
 }
 
 // isShellInitCommand returns true for commands that run during shell startup

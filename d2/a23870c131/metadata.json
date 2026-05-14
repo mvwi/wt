@@ -1,0 +1,25 @@
+{
+  "cli_version": "0.6.1",
+  "checkpoint_id": "d2a23870c131",
+  "strategy": "manual-commit",
+  "branch": "feat/tui",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "internal/cmd/prune.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/d2/a23870c131/0/metadata.json",
+      "transcript": "/d2/a23870c131/0/full.jsonl",
+      "content_hash": "/d2/a23870c131/0/content_hash.txt",
+      "prompt": "/d2/a23870c131/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 482,
+    "cache_creation_tokens": 1087267,
+    "cache_read_tokens": 61722013,
+    "output_tokens": 357504,
+    "api_call_count": 336
+  }
+}

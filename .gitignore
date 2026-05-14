@@ -31,3 +31,10 @@ git-cliff/
 # OS
 .DS_Store
 Thumbs.db
+
+# Claude Code runtime (keep shared settings.json)
+.claude/*
+!.claude/settings.json
+
+# entire CLI runtime
+.entire/

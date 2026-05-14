@@ -280,6 +280,18 @@ func tickCmd() tea.Cmd {
 	return tea.Tick(refreshInterval, func(t time.Time) tea.Msg { return tickMsg(t) })
 }
 
+// statusTickMsg fires every second to drive the "updated Ns ago" counter in
+// the footer. It does no work other than triggering a re-render — BubbleTea
+// calls View() after each Update returns, so just rescheduling is enough for
+// the elapsed-time display to advance.
+type statusTickMsg time.Time
+
+const statusTickInterval = time.Second
+
+func statusTickCmd() tea.Cmd {
+	return tea.Tick(statusTickInterval, func(t time.Time) tea.Msg { return statusTickMsg(t) })
+}
+
 func refreshCmd(gather func() ([]DashItem, error)) tea.Cmd {
 	return func() tea.Msg {
 		items, err := gather()
@@ -316,7 +328,7 @@ func dashRebaseCmd(rebase func(path, branch string) (int, error), path, branch s
 }
 
 func (m dashModel) Init() tea.Cmd {
-	return tea.Batch(tickCmd(), m.dispatchDetail(false))
+	return tea.Batch(tickCmd(), statusTickCmd(), m.dispatchDetail(false))
 }
 
 // dispatchDetail returns a Cmd that fetches detail for the focused row.
@@ -408,6 +420,11 @@ func (m dashModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.refreshing = true
 		return m, tea.Batch(refreshCmd(m.gather), tickCmd())
+
+	case statusTickMsg:
+		// Reschedule only — View() will re-render the "updated Ns ago"
+		// counter using the current time.Since(m.lastRefresh).
+		return m, statusTickCmd()
 
 	case refreshedMsg:
 		m.refreshing = false

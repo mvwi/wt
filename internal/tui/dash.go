@@ -212,10 +212,13 @@ const (
 )
 
 // dashRebaseState tracks an in-flight or recently-completed rebase for one row.
+// For base-branch rows the operation is a fast-forward from the remote rather
+// than a rebase; isBase controls the rendered label ("syncing" vs "rebasing").
 type dashRebaseState struct {
 	phase   string // "running", "done", "failed"
-	commits int    // number of commits rebased on success
+	commits int    // number of commits rebased (or fast-forwarded) on success
 	errMsg  string
+	isBase  bool
 }
 
 type dashDetailCache struct {
@@ -671,9 +674,10 @@ func (m dashModel) handleConfirmKey(key string) (tea.Model, tea.Cmd) {
 	}
 }
 
-// startRebase queues an async rebase for the highlighted worktree. No-ops
-// when the row isn't a valid rebase target (base branch, already rebasing,
-// no rebase callback).
+// startRebase queues an async sync for the highlighted worktree. For feature
+// branches this is a rebase onto the base branch; for the base-branch row it's
+// a fast-forward from the remote. No-ops when the row is busy or there's no
+// rebase callback.
 func (m dashModel) startRebase() (tea.Model, tea.Cmd) {
 	if m.rebase == nil {
 		return m, nil
@@ -682,13 +686,10 @@ func (m dashModel) startRebase() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	it := m.items[m.cursor]
-	if it.IsBase {
-		return m, nil
-	}
 	if m.rowBusy(it.Path) {
 		return m, nil
 	}
-	m.rebases[it.Path] = &dashRebaseState{phase: "running"}
+	m.rebases[it.Path] = &dashRebaseState{phase: "running", isBase: it.IsBase}
 	return m, dashRebaseCmd(m.rebase, it.Path, it.Branch)
 }
 
@@ -1265,15 +1266,23 @@ func footerKeys(m dashModel) string {
 		}
 		busy := rowExists && m.rowBusy(cur.Path)
 
-		canR := rowExists && !cur.IsBase && !busy
+		canR := rowExists && !busy
 		canRAll := m.countRebaseTargets() > 0
 		canC := rowExists && canClose(cur) && !busy
+
+		// Base-branch rows fast-forward from the remote rather than rebase;
+		// surface that distinction in the footer hint so the action label
+		// matches what `r` actually does for the focused row.
+		rLabel := "rebase"
+		if rowExists && cur.IsBase {
+			rLabel = "fast-forward"
+		}
 
 		entries = []footerEntry{
 			{"↑↓", "move", true},
 			{"enter", "commits", true},
 			{"s", "switch", rowExists},
-			{"r", "rebase", canR},
+			{"r", rLabel, canR},
 			{"R", "rebase all", canRAll},
 			{"c", "close", canC},
 			{"q", "quit", true},
@@ -1851,16 +1860,24 @@ func buildChecksLine(checks []DashCheck, maxWidth int) string {
 
 // renderRebaseCell renders the ephemeral rebase state that replaces the
 // [pr][review][ci] columns while a rebase is in flight or recently completed.
+// Base-branch rows use "syncing"/"synced" wording since the operation is a
+// fast-forward from the remote, not a rebase.
 func renderRebaseCell(r *dashRebaseState, width int) string {
+	running := "rebasing…"
+	doneLabel := "rebased"
+	if r.isBase {
+		running = "syncing…"
+		doneLabel = "fast-forwarded"
+	}
 	var s string
 	switch r.phase {
 	case "running":
-		s = dStyleYellow.Render("rebasing…")
+		s = dStyleYellow.Render(running)
 	case "done":
 		if r.commits == 0 {
 			s = dStyleGreen.Render("✓ up to date")
 		} else {
-			s = dStyleGreen.Render(fmt.Sprintf("✓ rebased (%d)", r.commits))
+			s = dStyleGreen.Render(fmt.Sprintf("✓ %s (%d)", doneLabel, r.commits))
 		}
 	case "failed":
 		msg := r.errMsg

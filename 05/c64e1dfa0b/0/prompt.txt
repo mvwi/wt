@@ -1,0 +1,5 @@
+when I have wt dash open and the staging branch (trunk branch) selected why can't I run rebase? maybe this is the wrong action to show here but I should ahve some way of syncing it with the origin branch
+
+---
+
+ok, but maybe update the hint to fast forward if the trunk branch is selected

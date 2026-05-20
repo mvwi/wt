@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // LogEntry is one commit summary used by the dashboard detail panel.
@@ -21,7 +22,7 @@ func LogOnelineIn(dir, base string, n int) ([]LogEntry, error) {
 	}
 	out, err := RunIn(dir, "log",
 		fmt.Sprintf("-%d", n),
-		"--format=%h\t%s\t%cr",
+		"--format=%h\t%s\t%ct",
 		base+"..HEAD",
 	)
 	if err != nil {
@@ -37,10 +38,14 @@ func LogOnelineIn(dir, base string, n int) ([]LogEntry, error) {
 		if len(parts) < 3 {
 			continue
 		}
+		age := ""
+		if ts, err := strconv.ParseInt(parts[2], 10, 64); err == nil {
+			age = formatRelativeAge(time.Since(time.Unix(ts, 0)))
+		}
 		entries = append(entries, LogEntry{
 			Hash:    parts[0],
 			Subject: parts[1],
-			Age:     shortenAge(parts[2]),
+			Age:     age,
 		})
 	}
 	return entries, nil

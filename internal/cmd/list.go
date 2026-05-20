@@ -154,7 +154,7 @@ func collectWorktreeInfos(ctx *cmdContext, cwd string, worktrees []git.Worktree)
 		}
 
 		if !ctx.isBaseBranch(branch) {
-			info.Age = git.LastCommitAge(wt.Path)
+			info.Age = git.WorktreeAge(wt.Path)
 			ab, err := git.GetAheadBehindIn(wt.Path, ctx.baseRef())
 			if err == nil {
 				info.Behind = ab.Behind
@@ -378,7 +378,7 @@ func runListTerminal(ctx *cmdContext, cwd string, worktrees []git.Worktree) erro
 			closedPR := github.FindPRForBranch(closedPRs, info.Branch)
 
 			// Check staleness: old commit + no open PR
-			daysAgo := git.LastCommitDaysAgo(info.Path)
+			daysAgo := git.WorktreeAgeDays(info.Path)
 			isStale := daysAgo >= staleThreshold && openPR == nil
 
 			// Dim the entire row if stale

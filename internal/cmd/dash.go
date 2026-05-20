@@ -313,7 +313,7 @@ func gatherDashItems(ctx *cmdContext, cwd string) ([]tui.DashItem, error) {
 			mergedPR := github.FindPRForBranch(mergedPRs, info.Branch)
 			closedPR := github.FindPRForBranch(closedPRs, info.Branch)
 
-			daysAgo := git.LastCommitDaysAgo(info.Path)
+			daysAgo := git.WorktreeAgeDays(info.Path)
 			item.StaleDimmed = daysAgo >= staleThreshold && openPR == nil
 
 			// Unpushed commits are the canonical data-loss signal for close —

@@ -1,0 +1,9 @@
+the 'age' column on both wt list and wt dash isn't quite right. I just created a new wt and it's showing up as 21 hours old. look into it?
+
+---
+
+any downside to doing this? new fiels that need to be stored or something?
+
+---
+
+ok

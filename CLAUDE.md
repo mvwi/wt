@@ -94,6 +94,7 @@ go vet ./...      # Static analysis
 ## Conventions
 
 - One Cobra command per file in `internal/cmd/`
+- New commands need a help icon in `commandIcons` (`root.go`); help styling lives in `usageTemplate` there. Pick emoji without a variation selector so columns stay aligned
 - Commands should call `newContext()` first, then use `ctx.*` helpers
 - User-facing errors: return `fmt.Errorf(...)` — Cobra prints them
 - User-facing output: use `ui.Success()`, `ui.Error()`, `ui.Warn()`, `fmt.Println()`

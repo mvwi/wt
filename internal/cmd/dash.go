@@ -23,7 +23,7 @@ Renders the same data as 'wt list' but refreshes periodically and supports
 keyboard navigation. Press enter on a row to switch to that worktree.
 
 For one-shot or scripted output, use 'wt list' instead.`,
-	Example: `  wt dash               Open the live dashboard`,
+	Example: `  wt dash   Open the live dashboard`,
 	RunE:    runDash,
 }
 

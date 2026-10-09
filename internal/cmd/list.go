@@ -24,10 +24,10 @@ Output is in two phases:
   1. Worktree names and branches (instant)
   2. PR status table with reviews and CI (requires GitHub API)
 
-Use --json for machine-readable output (all data in one pass).`,
+Use --output json for machine-readable output (all data in one pass).`,
 	Example: `  wt list                 Show all worktrees with status
-  wt list --output json    Machine-readable JSON output
-  wt list --output toon    Flat YAML-like output for agents`,
+  wt list --output json   Machine-readable JSON output
+  wt list --output toon   Flat YAML-like output for agents`,
 	RunE: runList,
 }
 

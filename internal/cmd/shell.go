@@ -7,7 +7,7 @@ import (
 )
 
 var shellCmd = &cobra.Command{
-	Use:   "init-shell <fish|bash|zsh>",
+	Use:   "init-shell <shell>",
 	Short: "Print shell integration wrapper",
 	Long: `Print a shell wrapper function that enables 'cd' integration.
 

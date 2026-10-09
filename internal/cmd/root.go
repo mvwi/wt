@@ -28,12 +28,12 @@ var Version = "dev"
 var rootCmd = &cobra.Command{
 	Use:   "wt",
 	Short: "Git worktree manager",
-	Long: `wt - Git Worktree Manager
+	Long: ui.Bold("wt") + ` — git worktree manager
 
 A streamlined workflow for managing git worktrees. Create feature branches,
 sync with your base branch, track PR status, and clean up when done.
 
-Typical workflow:
+` + ui.Bold("TYPICAL WORKFLOW") + `
   wt new feature        Create worktree + branch
   wt init               Initialize worktree (see .wt.toml)
   ...work on feature...
@@ -41,14 +41,14 @@ Typical workflow:
   ...merge PR...
   wt prune              Clean up merged worktrees
 
-Configuration:
+` + ui.Bold("CONFIGURATION") + `
   Global:    ~/.config/wt/config.toml
   Per-repo:  .wt.toml in repo root`,
-	SilenceUsage:              true,
-	SilenceErrors:             true,
+	SilenceUsage:               true,
+	SilenceErrors:              true,
 	SuggestionsMinimumDistance: 2,
-	Version:                   Version,
-	RunE:                      runStatus,
+	Version:                    Version,
+	RunE:                       runStatus,
 }
 
 // Command group IDs
@@ -90,17 +90,102 @@ func init() {
 	rootCmd.SetVersionTemplate("wt version {{.Version}}\n")
 	rootCmd.CompletionOptions.HiddenDefaultCmd = true
 	rootCmd.PersistentFlags().BoolVarP(&ui.YesFlag, "yes", "y", false, "skip confirmation prompts (answer yes to all)")
-	rootCmd.PersistentFlags().StringVarP(&cwdOverride, "directory", "C", "", "run as if started in the given directory (like `git -C`)")
+	rootCmd.PersistentFlags().StringVarP(&cwdOverride, "directory", "C", "", "run as if started in the given directory (like git -C)")
 	_ = rootCmd.MarkPersistentFlagDirname("directory")
 
 	rootCmd.PersistentPreRunE = applyCwdOverride
 
 	rootCmd.AddGroup(
-		&cobra.Group{ID: groupWorkflow, Title: "Workflow:"},
-		&cobra.Group{ID: groupSync, Title: "Sync:"},
-		&cobra.Group{ID: groupManage, Title: "Manage:"},
+		&cobra.Group{ID: groupWorkflow, Title: "WORKFLOW"},
+		&cobra.Group{ID: groupSync, Title: "SYNC"},
+		&cobra.Group{ID: groupManage, Title: "MANAGE"},
 	)
+
+	cobra.AddTemplateFunc("bold", ui.Bold)
+	cobra.AddTemplateFunc("cyan", ui.Cyan)
+	cobra.AddTemplateFunc("icon", icon)
+	cobra.AddTemplateFunc("helpLine", helpLine)
+	rootCmd.SetHelpTemplate(helpTemplate)
+	rootCmd.SetUsageTemplate(usageTemplate)
 }
+
+// commandIcons decorates the command list in help output. Avoid emoji that
+// need a variation selector (e.g. ✏️): terminals disagree on their width.
+var commandIcons = map[string]string{
+	"new":        "🌱",
+	"init":       "🧰",
+	"list":       "📋",
+	"dash":       "📊",
+	"switch":     "🔁",
+	"open":       "🌐",
+	"pr":         "🔀",
+	"pull":       "📥",
+	"rebase":     "🔃",
+	"submit":     "🚀",
+	"watch":      "👀",
+	"close":      "🚪",
+	"move":       "🚚",
+	"prune":      "🧹",
+	"rename":     "📝",
+	"completion": "🧩",
+	"init-shell": "🐚",
+	"feedback":   "💬",
+}
+
+// helpLine renders one command row: full usage (with args), icon, summary.
+func helpLine(c *cobra.Command) string {
+	pad := 0
+	for _, sib := range c.Parent().Commands() {
+		if sib.IsAvailableCommand() {
+			pad = max(pad, len(sib.Parent().CommandPath()+" "+sib.Use))
+		}
+	}
+	return fmt.Sprintf("%-*s  %s %s", pad, c.Parent().CommandPath()+" "+c.Use, icon(c), c.Short)
+}
+
+func icon(c *cobra.Command) string {
+	if i := commandIcons[c.Name()]; i != "" {
+		return i
+	}
+	return "  "
+}
+
+// helpTemplate opens subcommand help with the command line and its icon,
+// as wrangler does, so usageTemplate skips USAGE for them.
+const helpTemplate = `{{if .HasParent}}{{bold .UseLine}}
+
+{{icon .}} {{.Short}}{{with .Long}}
+
+{{. | trimTrailingWhitespaces}}{{end}}{{else}}{{.Long | trimTrailingWhitespaces}}{{end}}
+
+{{.UsageString}}`
+
+// usageTemplate is cobra's default, restyled after wrangler's help:
+// bold uppercase headers, full command lines with icons, a short footer.
+const usageTemplate = `{{if not .HasParent}}{{bold "USAGE"}}
+  {{.UseLine}}
+  {{.CommandPath}} [command]
+
+{{end}}{{if gt (len .Aliases) 0}}{{bold "ALIASES"}}
+  {{.NameAndAliases}}
+
+{{end}}{{if .HasExample}}{{bold "EXAMPLES"}}
+{{.Example}}
+
+{{end}}{{if .HasAvailableSubCommands}}{{$cmds := .Commands}}{{range $group := .Groups}}{{bold .Title}}{{range $cmds}}{{if (and (eq .GroupID $group.ID) .IsAvailableCommand)}}
+  {{helpLine .}}{{end}}{{end}}
+
+{{end}}{{if not .AllChildCommandsHaveGroup}}{{bold "OTHER"}}{{range $cmds}}{{if (and (eq .GroupID "") .IsAvailableCommand)}}
+  {{helpLine .}}{{end}}{{end}}
+
+{{end}}{{end}}{{if .HasAvailableLocalFlags}}{{bold "FLAGS"}}
+{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableInheritedFlags}}
+
+{{bold "GLOBAL FLAGS"}}
+{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableSubCommands}}
+
+Run {{cyan "wt <command> -h"}} for command help. Report bugs with {{cyan "wt feedback"}}.{{end}}
+`
 
 // applyCwdOverride chdir's into the path passed via -C/--directory before any
 // subcommand runs. All commands read cwd via os.Getwd() and run git from there,

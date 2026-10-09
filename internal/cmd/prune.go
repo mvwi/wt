@@ -24,9 +24,9 @@ Skips:
   - Current worktree
   - Worktrees with uncommitted changes
   - Base/main branches`,
-	Example: `  wt prune                 Interactively remove stale worktrees
-  wt prune --dry-run       Show what would be removed
-  wt prune --yes           Remove all stale worktrees without prompts`,
+	Example: `  wt prune             Interactively remove stale worktrees
+  wt prune --dry-run   Show what would be removed
+  wt prune --yes       Remove all stale worktrees without prompts`,
 	RunE: runPrune,
 }
 

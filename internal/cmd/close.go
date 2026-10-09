@@ -24,7 +24,7 @@ Safety checks:
   - Warns if worktree has uncommitted changes
   - Warns if PR is still open
   - Cannot close the main repository worktree`,
-	Example: `  wt close                Close current worktree
+	Example: `  wt close                 Close current worktree
   wt close sidebar         Close the "sidebar" worktree
   wt close sidebar --yes   Close without confirmation prompts`,
 	Args:              cobra.MaximumNArgs(1),

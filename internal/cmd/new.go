@@ -22,11 +22,11 @@ By default, creates a branch named "<prefix>/<name>" from the base branch
 (configurable in .wt.toml, defaults to "main").
 
 Use --from to create a worktree from an existing branch or PR number.`,
-	Example: `  wt new sidebar-card              Create <user>/sidebar-card from base branch
-  wt new --from feature/old        Create worktree from existing branch
-  wt new fix --from origin/hotfix  Create worktree with custom name from remote
-  wt new --from #123               Create worktree from PR #123's branch
-  wt new feature --init            Create + auto-initialize`,
+	Example: `  wt new sidebar-card               Create <user>/sidebar-card from base branch
+  wt new --from feature/old         Create worktree from existing branch
+  wt new fix --from origin/hotfix   Create worktree with custom name from remote
+  wt new --from #123                Create worktree from PR #123's branch
+  wt new feature --init             Create + auto-initialize`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runNew,
 }

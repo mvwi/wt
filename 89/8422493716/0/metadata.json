@@ -38,6 +38,40 @@
     "output_tokens": 16843,
     "api_call_count": 17
   },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "claude-skill-toolu_01NcTLuPo6BX4h2zKrrCYj4T",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "wt-release"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "97a9abddffa7",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 214,
+        "end": 215,
+        "entry_ids": [
+          "8014114a-b951-4cb1-b46e-3d18c834e806"
+        ],
+        "tool_use_id": "toolu_01NcTLuPo6BX4h2zKrrCYj4T"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01NcTLuPo6BX4h2zKrrCYj4T"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: wt-release",
+        "default_collapsed": true
+      }
+    }
+  ],
   "session_metrics": {
     "turn_count": 2
   },

@@ -1,0 +1,43 @@
+{
+  "cli_version": "0.11.2",
+  "checkpoint_id": "898422493716",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "CLAUDE.md",
+    "internal/cmd/close.go",
+    "internal/cmd/completion.go",
+    "internal/cmd/dash.go",
+    "internal/cmd/init.go",
+    "internal/cmd/list.go",
+    "internal/cmd/move.go",
+    "internal/cmd/new.go",
+    "internal/cmd/open.go",
+    "internal/cmd/prune.go",
+    "internal/cmd/rebase.go",
+    "internal/cmd/rename.go",
+    "internal/cmd/root.go",
+    "internal/cmd/root_test.go",
+    "internal/cmd/shell.go",
+    "internal/cmd/submit.go",
+    "internal/cmd/switch.go",
+    "internal/cmd/watch.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/89/8422493716/0/metadata.json",
+      "transcript": "/89/8422493716/0/full.jsonl",
+      "compact_transcript": "/89/8422493716/0/transcript.jsonl",
+      "content_hash": "/89/8422493716/0/content_hash.txt",
+      "prompt": "/89/8422493716/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 34,
+    "cache_creation_tokens": 60700,
+    "cache_read_tokens": 1170840,
+    "output_tokens": 16843,
+    "api_call_count": 17
+  }
+}

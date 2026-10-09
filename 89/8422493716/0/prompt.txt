@@ -1,0 +1,5 @@
+check out the wrangler cli from cloudflare, specifically the -h command (npx wrangler -h). I like this UI a lot, can we incoporate some of what it does with color and icons into the wt help docs? see if it's open source too, might be a few other things to borrow
+
+---
+
+what about the per command help screens?

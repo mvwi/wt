@@ -33,10 +33,10 @@ func TestFormatRelativeAge(t *testing.T) {
 
 func TestParseReflogTime(t *testing.T) {
 	tests := []struct {
-		name    string
-		line    string
-		wantTs  int64
-		wantOk  bool
+		name   string
+		line   string
+		wantTs int64
+		wantOk bool
 	}{
 		{
 			name:   "creation entry without reason",

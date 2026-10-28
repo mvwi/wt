@@ -358,16 +358,20 @@ func buildSpinnerMessage(ws *github.WatchStatus) string {
 
 	switch {
 	case ciWaiting && reviewWaiting:
-		return ui.Dim("Waiting for checks and review...")
+		return ui.Dim("Waiting for checks and review…")
 	case ciWaiting:
 		if cs.Total > 0 {
-			return ui.Dim(fmt.Sprintf("Waiting for %d check(s)...", cs.Pending))
+			noun := "checks"
+			if cs.Pending == 1 {
+				noun = "check"
+			}
+			return ui.Dim(fmt.Sprintf("Waiting for %d %s…", cs.Pending, noun))
 		}
-		return ui.Dim("Waiting for status...")
+		return ui.Dim("Waiting for status…")
 	case reviewWaiting:
-		return ui.Dim("Waiting for review...")
+		return ui.Dim("Waiting for review…")
 	default:
-		return ui.Dim("Waiting for status...")
+		return ui.Dim("Waiting for status…")
 	}
 }
 

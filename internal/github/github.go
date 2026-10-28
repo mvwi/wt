@@ -324,7 +324,7 @@ func GetPRDetails(branch string) (*PRDetails, error) {
 type WatchStatus struct {
 	Number           int              `json:"number"`
 	Title            string           `json:"title"`
-	State            string           `json:"state"`            // OPEN, CLOSED, MERGED
+	State            string           `json:"state"` // OPEN, CLOSED, MERGED
 	HeadRefName      string           `json:"headRefName"`
 	MergeStateStatus string           `json:"mergeStateStatus"` // CLEAN, BLOCKED, BEHIND, DRAFT, DIRTY, UNKNOWN
 	Mergeable        string           `json:"mergeable"`        // MERGEABLE, CONFLICTING, UNKNOWN

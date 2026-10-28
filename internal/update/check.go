@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	releasesURL = "https://api.github.com/repos/mvwi/wt/releases/latest"
+	releasesURL   = "https://api.github.com/repos/mvwi/wt/releases/latest"
 	checkInterval = 24 * time.Hour
 	httpTimeout   = 3 * time.Second
 )

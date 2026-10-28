@@ -104,7 +104,7 @@ func rebaseFeatureBranch(ctx *cmdContext, branch string) error {
 	// Stash uncommitted changes
 	didStash := false
 	if git.HasChanges() {
-		fmt.Println("Stashing uncommitted changes...")
+		fmt.Println("Stashing uncommitted changes…")
 		if err := git.StashPush("wt rebase: auto-stash"); err != nil {
 			return fmt.Errorf("failed to stash changes: %w", err)
 		}
@@ -202,7 +202,7 @@ func rebaseBaseBranch(ctx *cmdContext, branch string) error {
 			return nil
 		}
 		fmt.Println()
-		fmt.Println("Stashing changes...")
+		fmt.Println("Stashing changes…")
 		if err := git.StashPush("wt rebase: auto-stash on " + branch); err != nil {
 			return fmt.Errorf("failed to stash: %w", err)
 		}
@@ -248,7 +248,7 @@ func rebaseContinue(ctx *cmdContext) error {
 
 	inProgress, _ := git.IsRebaseInProgress()
 	if inProgress {
-		fmt.Println("Continuing rebase...")
+		fmt.Println("Continuing rebase…")
 		if err := git.RebaseContinue(); err != nil {
 			fmt.Println()
 			ui.Warn("Still have conflicts. Resolve them and run:")
@@ -300,7 +300,7 @@ func rebaseAll(ctx *cmdContext) error {
 		return err
 	}
 
-	fmt.Println("Rebasing all worktrees onto", ctx.Config.BaseBranch+"...")
+	fmt.Println("Rebasing all worktrees onto", ctx.Config.BaseBranch+"…")
 	fmt.Println()
 
 	spin := ui.NewSpinner(fmt.Sprintf("Fetching %s", ctx.baseRef()))
@@ -400,7 +400,7 @@ func parseRebaseState() (didStash bool, preRef string) {
 
 func restoreStash(didStash bool) {
 	if didStash {
-		fmt.Println("Restoring stashed changes...")
+		fmt.Println("Restoring stashed changes…")
 		if err := git.StashPop(); err != nil {
 			ui.Warn("Failed to restore stash — run 'git stash pop' manually")
 		}

@@ -38,7 +38,7 @@ func runFeedback(cmd *cobra.Command, args []string) error {
 		title = args[0]
 	}
 
-	fmt.Println("Opening GitHub issue form...")
+	fmt.Println("Opening GitHub issue form…")
 
 	if github.IsAvailable() {
 		return feedbackViaGH(title)

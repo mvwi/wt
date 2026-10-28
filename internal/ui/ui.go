@@ -30,15 +30,15 @@ var (
 
 // Glyphs used throughout the UI.
 const (
-	Current    = "●"
-	Pending    = "◐"
-	Pass       = "✓"
-	Fail       = "✗"
-	ArrowDown  = "⇣"
-	ArrowUp    = "⇡"
-	PushUp     = "⬆"
-	Dash       = "—"
-	NoReview   = "○"
+	Current   = "●"
+	Pending   = "◐"
+	Pass      = "✓"
+	Fail      = "✗"
+	ArrowDown = "⇣"
+	ArrowUp   = "⇡"
+	PushUp    = "⬆"
+	Dash      = "—"
+	NoReview  = "○"
 )
 
 // YesFlag is set by the root command's --yes persistent flag.
@@ -91,7 +91,7 @@ func Confirm(message string, defaultYes bool) bool {
 		case "n", "no":
 			return false
 		default:
-			fmt.Println("Please answer y or n.")
+			fmt.Println("Answer y or n.")
 		}
 	}
 }

@@ -199,7 +199,7 @@ type dashModel struct {
 	refreshing         bool
 	lastRefresh        time.Time
 	lastErr            error
-	switchTo            string
+	switchTo           string
 }
 
 // confirmKind tracks which confirmation prompt (if any) is intercepting keys.
@@ -1207,11 +1207,9 @@ func renderConfirmPrompt(m dashModel) string {
 			}
 		}
 		n := m.countRebaseTargets()
-		return fmt.Sprintf("%s %s   %s %s",
-			dStyleBold.Render(fmt.Sprintf("Rebase %d worktrees onto %s?", n, base)),
-			dStyleDim.Render("·"),
-			dStyleGreen.Render("[y]es"),
-			dStyleDim.Render("[n]o · any other key cancels"),
+		return fmt.Sprintf("%s   %s",
+			dStyleBold.Render(fmt.Sprintf("Rebase %d worktree%s onto %s?", n, plural(n), base)),
+			confirmKeys,
 		)
 
 	case confirmClose:
@@ -1219,17 +1217,19 @@ func renderConfirmPrompt(m dashModel) string {
 		// in the Dirty/Sync/PR cells, so the prompt is a confirmation of visible
 		// state, not a surprise revelation.
 		risks := strings.Join(m.confirmCloseRisks, ", ")
-		return fmt.Sprintf("%s %s %s %s   %s %s",
+		return fmt.Sprintf("%s %s %s   %s",
 			dStyleBold.Render("Close "+m.confirmCloseName+"?"),
 			dStyleDim.Render("·"),
 			dStyleYellow.Render(risks),
-			dStyleDim.Render("·"),
-			dStyleGreen.Render("[y]es"),
-			dStyleDim.Render("[n]o · any other key cancels"),
+			confirmKeys,
 		)
 	}
 	return ""
 }
+
+// confirmKeys matches the footer's "key label" style. n isn't listed: any
+// key other than y/enter cancels, so naming it adds nothing.
+var confirmKeys = dStyleGreen.Render("y confirm") + dStyleDim.Render(" · any other key cancels")
 
 // footerEntry is one keybinding hint in the footer bar. enabled=false renders
 // dim+strikethrough so the user can see at a glance which keys won't do
@@ -1483,12 +1483,9 @@ func (m dashModel) renderDetail(width, bodyMax int) string {
 	}
 
 	// COMMITS section (with focus-aware cursor)
+	// No focus hint here: the footer already swaps to the commits-pane keys.
 	if len(d.Commits) > 0 {
-		header := "COMMITS"
-		if m.focus == focusCommits {
-			header += dStyleDim.Render("  ▸ j/k navigate · esc back")
-		}
-		fmt.Fprintf(&b, "\n  %s\n", dStyleSection.Render(header))
+		fmt.Fprintf(&b, "\n  %s\n", dStyleSection.Render("COMMITS"))
 		typeWidth := commitTypeWidth(d.Commits)
 		ageWidth := commitAgeWidth(d.Commits)
 		subjectWidth := max(20, width-4-2-typeWidth-1-1-ageWidth)

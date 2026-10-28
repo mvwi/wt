@@ -17,7 +17,7 @@ func TestPRGetReviewSummary(t *testing.T) {
 		LatestReviews: []Review{
 			review("charlie", "APPROVED"),
 			review("dave", "CHANGES_REQUESTED"),
-			review("eve", "COMMENTED"),  // should not count as approved or changes
+			review("eve", "COMMENTED"), // should not count as approved or changes
 			review("frank", "APPROVED"),
 		},
 	}

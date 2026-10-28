@@ -140,7 +140,7 @@ func runRename(cmd *cobra.Command, args []string) error {
 
 	// Step 1: Rename local branch
 	if currentBranch != newBranch {
-		fmt.Println("Renaming branch...")
+		fmt.Println("Renaming branch…")
 		if err := git.RenameBranch(currentBranch, newBranch); err != nil {
 			return fmt.Errorf("failed to rename branch: %w", err)
 		}
@@ -148,11 +148,11 @@ func runRename(cmd *cobra.Command, args []string) error {
 
 	// Step 2: Move worktree directory
 	if cwd != newPath {
-		fmt.Println("Moving worktree...")
+		fmt.Println("Moving worktree…")
 		if err := git.MoveWorktree(cwd, newPath); err != nil {
 			// Rollback branch rename
 			if currentBranch != newBranch {
-				fmt.Println("   Rolling back branch rename...")
+				fmt.Println("   Rolling back branch rename…")
 				if rbErr := git.RenameBranch(newBranch, currentBranch); rbErr != nil {
 					return fmt.Errorf("failed to move worktree: %w (rollback also failed: %v)", err, rbErr)
 				}
@@ -164,7 +164,7 @@ func runRename(cmd *cobra.Command, args []string) error {
 
 	// Step 3: Update remote branch
 	if hasRemote && !renameLocalOnly {
-		fmt.Println("Pushing new branch...")
+		fmt.Println("Pushing new branch…")
 		if err := git.PushSetUpstream(ctx.Config.Remote); err != nil {
 			fmt.Println()
 			ui.Warn("Failed to push new branch")
@@ -172,7 +172,7 @@ func runRename(cmd *cobra.Command, args []string) error {
 			fmt.Println("   To fix manually:")
 			fmt.Printf("   %s\n", ui.Cyan(fmt.Sprintf("git push -u %s HEAD && git push %s --delete %s", ctx.Config.Remote, ctx.Config.Remote, currentBranch)))
 		} else {
-			fmt.Println("Removing old remote branch...")
+			fmt.Println("Removing old remote branch…")
 			if err := git.DeleteRemoteBranch(ctx.Config.Remote, currentBranch); err != nil {
 				ui.Warn("Failed to delete old remote branch: " + currentBranch)
 				fmt.Printf("   Delete manually: %s\n", ui.Cyan(fmt.Sprintf("git push %s --delete %s", ctx.Config.Remote, currentBranch)))
@@ -180,7 +180,7 @@ func runRename(cmd *cobra.Command, args []string) error {
 
 			// Recreate PR if one existed
 			if prDetails != nil {
-				fmt.Println("Recreating PR...")
+				fmt.Println("Recreating PR…")
 				labels := make([]string, len(prDetails.Labels))
 				for i, l := range prDetails.Labels {
 					labels[i] = l.Name

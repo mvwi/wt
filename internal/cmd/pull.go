@@ -71,7 +71,7 @@ func runPull(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("worktree already exists: %s\n   Use wt switch %s to switch to it", wtPath, name)
 	}
 
-	fmt.Println("Creating worktree from existing branch...")
+	fmt.Println("Creating worktree from existing branch…")
 	fmt.Printf("  Directory: %s\n", wtPath)
 	fmt.Printf("  Branch: %s\n", ref)
 	fmt.Println()

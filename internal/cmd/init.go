@@ -89,7 +89,7 @@ func runInitIn(dir string, ctx *cmdContext) error {
 		}
 	}
 
-	fmt.Println("Initializing worktree...")
+	fmt.Println("Initializing worktree…")
 	fmt.Println()
 
 	var steps []initStep

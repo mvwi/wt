@@ -43,8 +43,13 @@ type Config struct {
 	// Init configures the `wt init` command behavior.
 	Init InitConfig `toml:"init"`
 
-	// Hooks are shell commands run at points in a worktree's life.
+	// Hooks are shell commands run at points in a worktree's life. Only the
+	// global config may set them; see RepoHooksIgnored.
 	Hooks HooksConfig `toml:"hooks"`
+
+	// RepoHooksIgnored is set when .wt.toml has [hooks]. Hooks run without being
+	// asked for, so a repo you clone must not be able to set them.
+	RepoHooksIgnored bool `toml:"-"`
 }
 
 // HooksConfig lists shell commands per lifecycle event. Configure under [hooks].
@@ -91,7 +96,7 @@ type InitConfig struct {
 //  1. Hardcoded defaults (base_branch="main", remote="origin")
 //  2. Global defaults (~/.config/wt/config.toml top-level fields)
 //  3. Global per-repo ([repos.<repoName>] section)
-//  4. Repo-local (.wt.toml in the main worktree root)
+//  4. Repo-local (.wt.toml in the main worktree root), except [hooks]
 //
 // Each layer only overrides fields it explicitly sets.
 func Load(dir, repoName string) (*Config, error) {
@@ -127,6 +132,10 @@ func Load(dir, repoName string) (*Config, error) {
 		var repoCfg Config
 		if err := toml.Unmarshal(data, &repoCfg); err != nil {
 			return nil, fmt.Errorf("repo config (%s): %w", repoPath, err)
+		}
+		if h := repoCfg.Hooks; len(h.PostNew)+len(h.PreClose)+len(h.PostClose) > 0 {
+			cfg.RepoHooksIgnored = true
+			repoCfg.Hooks = HooksConfig{}
 		}
 		mergeConfig(cfg, &repoCfg)
 	}

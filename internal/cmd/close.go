@@ -136,6 +136,7 @@ func runClose(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	warnRepoHooks(ctx)
 	// Read the env now: the index file goes away with the worktree.
 	var hookEnv []string
 	if len(ctx.Config.Hooks.PreClose)+len(ctx.Config.Hooks.PostClose) > 0 {

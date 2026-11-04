@@ -38,7 +38,8 @@ func runGH(args ...string) (string, error) {
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("gh %s: %s", strings.Join(args, " "), strings.TrimSpace(stderr.String()))
+		// Name only the subcommand ("gh pr list"); the full flag list buries the reason.
+		return "", fmt.Errorf("gh %s: %s", strings.Join(args[:min(2, len(args))], " "), strings.TrimSpace(stderr.String()))
 	}
 	return strings.TrimSpace(stdout.String()), nil
 }
@@ -170,7 +171,9 @@ func getCISummary(checks []StatusCheckRun) CISummary {
 }
 
 // ListPRs fetches PRs in a given state with full review/CI data.
-func ListPRs(state string) ([]PR, error) {
+// When heads are given, it fetches only PRs whose head branch matches one of
+// them, which is far faster on busy repos than listing the latest 50.
+func ListPRs(state string, heads ...string) ([]PR, error) {
 	if !IsAvailable() {
 		return nil, nil
 	}
@@ -179,17 +182,60 @@ func ListPRs(state string) ([]PR, error) {
 	if state == "open" {
 		fields = "number,headRefName,reviewRequests,latestReviews,statusCheckRollup"
 	}
+	args := []string{"pr", "list", "--state", state, "--json", fields}
 
-	out, err := runGH("pr", "list", "--state", state, "--json", fields, "--limit", "50")
+	if len(heads) == 0 {
+		return listPRs(append(args, "--limit", "50")...)
+	}
+	var all []PR
+	for _, q := range headQueries(heads) {
+		// shortcut: head: is a prefix match on GitHub, so a short branch name can
+		// pull in extra PRs and crowd out the limit; callers match exactly.
+		prs, err := listPRs(append(args, "--limit", "100", "--search", q)...)
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, prs...)
+	}
+	return all, nil
+}
+
+func listPRs(args ...string) ([]PR, error) {
+	out, err := runGH(args...)
 	if err != nil {
 		return nil, err
 	}
-
 	var prs []PR
 	if err := json.Unmarshal([]byte(out), &prs); err != nil {
 		return nil, err
 	}
 	return prs, nil
+}
+
+// maxHeadQuery keeps each search under GitHub's 256-character query limit,
+// with room for the repo and state qualifiers gh adds.
+const maxHeadQuery = 180
+
+// headQueries packs "head:<branch>" terms, which GitHub ORs together, into
+// search strings no longer than maxHeadQuery.
+func headQueries(heads []string) []string {
+	var queries []string
+	cur := ""
+	for _, h := range heads {
+		term := "head:" + h
+		if cur != "" && len(cur)+1+len(term) > maxHeadQuery {
+			queries = append(queries, cur)
+			cur = ""
+		}
+		if cur != "" {
+			cur += " "
+		}
+		cur += term
+	}
+	if cur != "" {
+		queries = append(queries, cur)
+	}
+	return queries
 }
 
 // PRDetail is the rich PR info used by the dashboard detail panel.
@@ -254,10 +300,15 @@ func GetPRForBranch(branch string) (*PR, error) {
 
 // PRInfo holds lightweight PR metadata for checkout.
 type PRInfo struct {
-	Number      int    `json:"number"`
-	Title       string `json:"title"`
-	HeadRefName string `json:"headRefName"`
-	State       string `json:"state"`
+	Number              int    `json:"number"`
+	Title               string `json:"title"`
+	HeadRefName         string `json:"headRefName"`
+	State               string `json:"state"`
+	IsCrossRepository   bool   `json:"isCrossRepository"` // head branch lives on a fork
+	MaintainerCanModify bool   `json:"maintainerCanModify"`
+	HeadRepository      struct {
+		NameWithOwner string `json:"nameWithOwner"`
+	} `json:"headRepository"`
 }
 
 // GetPRByNumber fetches PR metadata by number.
@@ -265,7 +316,8 @@ func GetPRByNumber(number int) (*PRInfo, error) {
 	if !IsAvailable() {
 		return nil, fmt.Errorf("gh not installed")
 	}
-	out, err := runGH("pr", "view", fmt.Sprintf("%d", number), "--json", "number,title,headRefName,state")
+	out, err := runGH("pr", "view", strconv.Itoa(number), "--json",
+		"number,title,headRefName,state,isCrossRepository,maintainerCanModify,headRepository")
 	if err != nil {
 		return nil, err
 	}

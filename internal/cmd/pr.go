@@ -55,10 +55,8 @@ func runPR(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("PR #%d is %s", number, pr.State)
 	}
 
-	name := nameFromBranch(pr.HeadRefName, ctx.Config.Remote)
-
 	fmt.Printf("PR #%d: %s\n", pr.Number, pr.Title)
 	fmt.Println()
 
-	return createWorktreeFromRemote(ctx, name, pr.HeadRefName, prDoInit)
+	return checkoutPR(ctx, "", pr, prDoInit)
 }

@@ -1,0 +1,37 @@
+okay commit/merge/release 2.0 works
+
+---
+
+can we skip the macos runner?
+
+---
+
+i may be out of minutes?
+
+---
+
+<task-notification>
+<task-id>bnqkhtg9c</task-id>
+<tool-use-id>toolu_01XV9yi5TtwLojZ4rFA7uQ2P</tool-use-id>
+<output-file>/private/tmp/claude-501/-Users-michaelwilliams-Dev-wt/10a8e376-1259-4304-8272-99cc91e0bb9b/tasks/bnqkhtg9c.output</output-file>
+<status>completed</status>
+<summary>Background command "Watch release workflow" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>bjwod84gb</task-id>
+<tool-use-id>toolu_01NwuW5iQAV4CBDVGbaZers3</tool-use-id>
+<output-file>/private/tmp/claude-501/-Users-michaelwilliams-Dev-wt/10a8e376-1259-4304-8272-99cc91e0bb9b/tasks/bjwod84gb.output</output-file>
+<status>completed</status>
+<summary>Background command "Wait for CI on main HEAD" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+okay you can do whatever cleanup you need
+
+---
+
+you can delete the tester notes too

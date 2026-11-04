@@ -1,0 +1,89 @@
+{
+  "cli_version": "0.11.4",
+  "checkpoint_id": "e58c0a4103fc",
+  "session_id": "10a8e376-1259-4304-8272-99cc91e0bb9b",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-04T16:29:59.095183Z",
+  "branch": "ci/macos-main-only",
+  "checkpoints_count": 7,
+  "save_step_count": 2,
+  "files_touched": [
+    ".github/workflows/ci.yml"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-5-5",
+  "turn_id": "6fb7779ebb7a",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 362,
+    "cache_creation_tokens": 249258,
+    "cache_read_tokens": 33203964,
+    "output_tokens": 92086,
+    "api_call_count": 159,
+    "subagent_tokens": {
+      "input_tokens": 0,
+      "cache_creation_tokens": 0,
+      "cache_read_tokens": 0,
+      "output_tokens": 0,
+      "api_call_count": 0
+    }
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "claude-skill-toolu_01W4hkdwf47NeA9V4PzmRnYd",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "wt-release"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "6fb7779ebb7a",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 1312,
+        "end": 1313,
+        "entry_ids": [
+          "980aef8f-de9f-47d9-8194-a4b9096f45de"
+        ],
+        "tool_use_id": "toolu_01W4hkdwf47NeA9V4PzmRnYd"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01W4hkdwf47NeA9V4PzmRnYd"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: wt-release",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 30
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-11-04T16:29:58.969882Z",
+    "agent_lines": 3,
+    "agent_removed": 3,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 3,
+    "total_lines_changed": 6,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 3,
+      "agent_lines_removed": 3
+    }
+  ]
+}

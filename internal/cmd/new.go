@@ -153,6 +153,27 @@ func newFromPR(ctx *cmdContext, name string, number int) error {
 	fmt.Printf("PR #%d: %s\n", pr.Number, pr.Title)
 	fmt.Println()
 
+	return checkoutPR(ctx, name, pr, newDoInit)
+}
+
+// prBranch returns the local branch for a PR. A fork PR's head branch does not
+// exist on our remote, so it gets its own pr/<N>-<head> name to avoid clashing
+// with local branches.
+func prBranch(pr *github.PRInfo) string {
+	if pr.IsCrossRepository {
+		return fmt.Sprintf("pr/%d-%s", pr.Number, pr.HeadRefName)
+	}
+	return pr.HeadRefName
+}
+
+// checkoutPR fetches a PR's head and creates a worktree for it. Used by both
+// `wt pr` and `wt new --from <number>`.
+func checkoutPR(ctx *cmdContext, name string, pr *github.PRInfo, doInit bool) error {
+	branch := prBranch(pr)
+	if path := worktreeForBranch(branch); path != "" {
+		short := ctx.shortName(path)
+		return fmt.Errorf("PR #%d is already checked out as %s\n   Run wt switch %s", pr.Number, short, short)
+	}
 	if name == "" {
 		name = nameFromBranch(pr.HeadRefName, ctx.Config.Remote)
 	}
@@ -160,7 +181,46 @@ func newFromPR(ctx *cmdContext, name string, number int) error {
 		return err
 	}
 
-	return createWorktreeFromRemote(ctx, name, pr.HeadRefName, newDoInit)
+	// Fork PRs: GitHub mirrors every PR head at pull/<N>/head on the base repo.
+	ref := pr.HeadRefName
+	if pr.IsCrossRepository {
+		ref = fmt.Sprintf("pull/%d/head:%s", pr.Number, branch)
+	}
+	spin := ui.NewSpinner(fmt.Sprintf("Fetching PR #%d", pr.Number))
+	err := git.Fetch(ctx.Config.Remote, ref)
+	spin.Stop()
+	if err != nil {
+		ui.Warn("Fetch failed: %v", err)
+	}
+
+	if pr.IsCrossRepository {
+		ui.Warn("PR #%d comes from the fork %s. Pushes from %s go nowhere until you add that fork as a remote.",
+			pr.Number, pr.HeadRepository.NameWithOwner, branch)
+		if pr.MaintainerCanModify {
+			owner, _, _ := strings.Cut(pr.HeadRepository.NameWithOwner, "/")
+			fmt.Printf("   The author allows edits: git remote add %s https://github.com/%s.git\n",
+				owner, pr.HeadRepository.NameWithOwner)
+			fmt.Printf("   then: git push %s HEAD:%s\n", owner, pr.HeadRefName)
+		}
+		fmt.Println()
+	}
+
+	return createWorktreeFromRemote(ctx, name, branch, doInit)
+}
+
+// worktreeForBranch returns the path of the worktree that has branch checked
+// out, or "" if none does.
+func worktreeForBranch(branch string) string {
+	wts, err := git.ListWorktrees()
+	if err != nil {
+		return ""
+	}
+	for _, wt := range wts {
+		if wt.Branch == branch {
+			return wt.Path
+		}
+	}
+	return ""
 }
 
 // nameFromBranch derives a short worktree name from a branch ref.
@@ -176,22 +236,14 @@ func nameFromBranch(ref, remote string) string {
 }
 
 // createWorktreeFromRemote handles the common flow for checking out a remote
-// branch into a new worktree: check if it already exists, fetch, create, and
-// optionally run init. Used by both `wt new --from` and `wt pr`.
+// branch into a new worktree: check if it already exists, create, and
+// optionally run init. Callers fetch first. Used by `wt new --from`, `wt pull`
+// and `wt pr`.
 func createWorktreeFromRemote(ctx *cmdContext, name, remoteBranch string, doInit bool) error {
 	wtPath := ctx.worktreePath(name)
 
 	if isDir(wtPath) {
 		return fmt.Errorf("worktree already exists: %s\n   Use wt switch %s to switch to it", wtPath, name)
-	}
-
-	// Fetch to get latest refs
-	spin := ui.NewSpinner("Fetching latest refs")
-	if err := git.FetchAll(ctx.Config.Remote); err != nil {
-		spin.Stop()
-		ui.Warn("Fetch failed: %v", err)
-	} else {
-		spin.Stop()
 	}
 
 	localBranch := strings.TrimPrefix(remoteBranch, ctx.Config.Remote+"/")
@@ -202,10 +254,11 @@ func createWorktreeFromRemote(ctx *cmdContext, name, remoteBranch string, doInit
 	fmt.Printf("  Branch: %s\n", localBranch)
 	fmt.Println()
 
-	err := git.AddWorktreeFromRemote(wtPath, localBranch, remoteRef)
-	if err != nil {
-		// Branch might already exist locally
+	var err error
+	if git.BranchExists(localBranch) {
 		err = git.AddWorktreeFromExisting(wtPath, localBranch)
+	} else {
+		err = git.AddWorktreeFromRemote(wtPath, localBranch, remoteRef)
 	}
 	if err != nil {
 		return fmt.Errorf("failed to create worktree: %w", err)

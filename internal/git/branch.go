@@ -117,14 +117,10 @@ func Upstream() string {
 	return out
 }
 
-// WorktreeAge returns a short relative age (e.g. "2h", "3d") for the most
-// recent activity in the worktree — max(creation time, last commit time).
-// Returns "" if neither can be determined.
-//
-// Using max(...) keeps brand-new worktrees from inheriting the age of their
-// base branch's tip, while still surfacing recent commits as freshness.
-func WorktreeAge(dir string) string {
-	t, ok := worktreeActivity(dir)
+// LastCommitAge returns a short relative age (e.g. "2h", "3d") of the commit
+// checked out in the worktree, or "" if it can't be read.
+func LastCommitAge(dir string) string {
+	t, ok := lastCommitTime(dir)
 	if !ok {
 		return ""
 	}
@@ -142,6 +138,8 @@ func WorktreeAgeDays(dir string) int {
 }
 
 // worktreeActivity returns the most recent of (worktree creation, last commit).
+// Using max(...) keeps brand-new worktrees from looking stale because their
+// base branch's tip is old.
 func worktreeActivity(dir string) (time.Time, bool) {
 	created, hasCreated := worktreeCreationTime(dir)
 	committed, hasCommit := lastCommitTime(dir)

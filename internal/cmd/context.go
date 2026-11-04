@@ -88,11 +88,15 @@ func (c *cmdContext) baseRef() string {
 	return c.Config.Remote + "/" + c.Config.BaseBranch
 }
 
-// shortName strips the configured worktree prefix from a path to produce a display name.
+// shortName returns a worktree's path relative to the worktrees dir, so a
+// "feat/foo" worktree shows as "feat/foo", not "foo". Paths outside the
+// worktrees dir fall back to their base name.
 func (c *cmdContext) shortName(path string) string {
-	base := filepath.Base(path)
 	prefix := c.Config.EffectiveWorktreeDir(c.RepoName, "")
-	return strings.TrimPrefix(base, prefix)
+	if rel, err := filepath.Rel(c.ParentDir, path); err == nil && rel != "." && !strings.HasPrefix(rel, "..") {
+		return strings.TrimPrefix(strings.TrimPrefix(filepath.ToSlash(rel), filepath.ToSlash(prefix)), "/")
+	}
+	return strings.TrimPrefix(filepath.Base(path), prefix)
 }
 
 // isBaseBranch returns true if the branch is the configured base branch or a common default.

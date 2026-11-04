@@ -52,3 +52,23 @@ func TestTruncate(t *testing.T) {
 		})
 	}
 }
+
+func TestCISummary(t *testing.T) {
+	tests := []struct {
+		name                       string
+		pass, fail, pending, total int
+		want                       string
+	}{
+		{"no checks", 0, 0, 0, 0, ""},
+		{"all pass", 36, 0, 0, 36, "✓ 36"},
+		{"some fail", 33, 2, 1, 36, "✗ 2/36"},
+		{"some pending", 33, 0, 3, 36, "◐ 3/36"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := CISummary(tt.pass, tt.fail, tt.pending, tt.total); got != tt.want {
+				t.Errorf("CISummary() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

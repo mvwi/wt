@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.11.4",
+  "checkpoint_id": "a4cc1ff0ec88",
+  "strategy": "manual-commit",
+  "branch": "fix/ux-polish",
+  "checkpoints_count": 2,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/a4/cc1ff0ec88/0/metadata.json",
+      "transcript": "/a4/cc1ff0ec88/0/full.jsonl",
+      "compact_transcript": "/a4/cc1ff0ec88/0/transcript.jsonl",
+      "content_hash": "/a4/cc1ff0ec88/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 0,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "output_tokens": 0,
+    "api_call_count": 0
+  }
+}

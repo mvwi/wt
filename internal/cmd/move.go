@@ -5,7 +5,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/mvwi/wt/internal/git"
 	"github.com/mvwi/wt/internal/ui"
@@ -176,20 +175,9 @@ func runMove(cmd *cobra.Command, args []string) error {
 	// Summary
 	fmt.Println()
 	if errors == 0 {
-		ui.Success("Moved to %s", targetShort)
+		ui.Success("Moved %d change(s) to %s", copied+deleted, targetShort)
 	} else {
 		ui.Warn("Done with %d error(s) — source worktree not cleaned up", errors)
-	}
-
-	var parts []string
-	if copied > 0 {
-		parts = append(parts, fmt.Sprintf("%d copied", copied))
-	}
-	if deleted > 0 {
-		parts = append(parts, fmt.Sprintf("%d deleted", deleted))
-	}
-	if len(parts) > 0 {
-		fmt.Printf("  %s\n", strings.Join(parts, ", "))
 	}
 
 	fmt.Println()

@@ -1,6 +1,7 @@
 package github
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -161,5 +162,32 @@ func TestPRGetCISummary(t *testing.T) {
 	}
 	if s.Pending != 1 { // state=PENDING
 		t.Errorf("Pending = %d, want 1", s.Pending)
+	}
+}
+
+func TestChecksUnmarshal(t *testing.T) {
+	// A job listed twice (push + pull_request), a commit status with only a
+	// context, and a nameless summary entry.
+	data := `[
+		{"name":"build","conclusion":"SUCCESS"},
+		{"name":"build","conclusion":"FAILURE"},
+		{"context":"codecov/patch","state":"FAILURE"},
+		{"state":"SUCCESS"}
+	]`
+	var cs Checks
+	if err := json.Unmarshal([]byte(data), &cs); err != nil {
+		t.Fatal(err)
+	}
+	if len(cs) != 2 {
+		t.Fatalf("got %d checks, want 2: %+v", len(cs), cs)
+	}
+	if cs[0].Name != "build" || cs[0].Result() != "fail" {
+		t.Errorf("duplicate should keep the worst result: %+v", cs[0])
+	}
+	if cs[1].Name != "codecov/patch" || cs[1].Result() != "fail" {
+		t.Errorf("status context should become the name: %+v", cs[1])
+	}
+	if s := getCISummary(cs); s.Total != 2 || s.Fail != 2 {
+		t.Errorf("summary = %+v", s)
 	}
 }

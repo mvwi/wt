@@ -46,12 +46,12 @@ func runGH(args ...string) (string, error) {
 
 // PR represents a GitHub pull request.
 type PR struct {
-	Number         int              `json:"number"`
-	HeadRefName    string           `json:"headRefName"`
-	State          string           `json:"state"`
-	ReviewRequests []ReviewRequest  `json:"reviewRequests"`
-	LatestReviews  []Review         `json:"latestReviews"`
-	StatusChecks   []StatusCheckRun `json:"statusCheckRollup"`
+	Number         int             `json:"number"`
+	HeadRefName    string          `json:"headRefName"`
+	State          string          `json:"state"`
+	ReviewRequests []ReviewRequest `json:"reviewRequests"`
+	LatestReviews  []Review        `json:"latestReviews"`
+	StatusChecks   Checks          `json:"statusCheckRollup"`
 }
 
 // ReviewRequest represents a pending review request.
@@ -72,6 +72,45 @@ type StatusCheckRun struct {
 	Name       string `json:"name"`
 	State      string `json:"state"`      // SUCCESS, FAILURE, PENDING, etc.
 	Conclusion string `json:"conclusion"` // SUCCESS, FAILURE, SKIPPED, TIMED_OUT, CANCELLED, ""
+}
+
+// Checks is a PR's statusCheckRollup. gh mixes check runs (which have a name)
+// with commit statuses such as codecov (which have a context), and lists a job
+// once per workflow event. Decoding gives every check a name and keeps one
+// entry per name, the worst result winning.
+type Checks []StatusCheckRun
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (cs *Checks) UnmarshalJSON(data []byte) error {
+	var raw []struct {
+		StatusCheckRun
+		Context string `json:"context"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	rank := map[string]int{"pass": 0, "pending": 1, "fail": 2}
+	index := map[string]int{}
+	out := Checks{}
+	for _, r := range raw {
+		c := r.StatusCheckRun
+		if c.Name == "" {
+			c.Name = r.Context
+		}
+		if c.Name == "" {
+			continue
+		}
+		if i, ok := index[c.Name]; ok {
+			if rank[c.Result()] > rank[out[i].Result()] {
+				out[i] = c
+			}
+			continue
+		}
+		index[c.Name] = len(out)
+		out = append(out, c)
+	}
+	*cs = out
+	return nil
 }
 
 // Result classifies a CI check as "pass", "fail", or "pending".
@@ -247,7 +286,7 @@ type PRDetail struct {
 	Author struct {
 		Login string `json:"login"`
 	} `json:"author"`
-	StatusChecks []StatusCheckRun `json:"statusCheckRollup"`
+	StatusChecks Checks `json:"statusCheckRollup"`
 }
 
 // GetPRDetail fetches title/body/author and named CI checks for one PR in a
@@ -374,16 +413,16 @@ func GetPRDetails(branch string) (*PRDetails, error) {
 // WatchStatus holds detailed PR state from `gh pr view`, including fields
 // not available from `gh pr list` (mergeStateStatus, mergeable).
 type WatchStatus struct {
-	Number           int              `json:"number"`
-	Title            string           `json:"title"`
-	State            string           `json:"state"` // OPEN, CLOSED, MERGED
-	HeadRefName      string           `json:"headRefName"`
-	MergeStateStatus string           `json:"mergeStateStatus"` // CLEAN, BLOCKED, BEHIND, DRAFT, DIRTY, UNKNOWN
-	Mergeable        string           `json:"mergeable"`        // MERGEABLE, CONFLICTING, UNKNOWN
-	ReviewDecision   string           `json:"reviewDecision"`   // APPROVED, CHANGES_REQUESTED, REVIEW_REQUIRED, ""
-	ReviewRequests   []ReviewRequest  `json:"reviewRequests"`
-	LatestReviews    []Review         `json:"latestReviews"`
-	StatusChecks     []StatusCheckRun `json:"statusCheckRollup"`
+	Number           int             `json:"number"`
+	Title            string          `json:"title"`
+	State            string          `json:"state"` // OPEN, CLOSED, MERGED
+	HeadRefName      string          `json:"headRefName"`
+	MergeStateStatus string          `json:"mergeStateStatus"` // CLEAN, BLOCKED, BEHIND, DRAFT, DIRTY, UNKNOWN
+	Mergeable        string          `json:"mergeable"`        // MERGEABLE, CONFLICTING, UNKNOWN
+	ReviewDecision   string          `json:"reviewDecision"`   // APPROVED, CHANGES_REQUESTED, REVIEW_REQUIRED, ""
+	ReviewRequests   []ReviewRequest `json:"reviewRequests"`
+	LatestReviews    []Review        `json:"latestReviews"`
+	StatusChecks     Checks          `json:"statusCheckRollup"`
 }
 
 // GetReviewSummary computes review state counts for a WatchStatus.

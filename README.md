@@ -162,24 +162,50 @@ eval "$(wt completion zsh)"
 | `wt pr <number>` | | Checkout a PR into a worktree |
 | `wt open [name]` | | Open PR in browser |
 | `wt watch [branch or PR]` | | Watch PR until mergeable or blocked |
+| `wt edit [name]` | | Open a worktree in your editor |
+| `wt prompt` | | Print a prompt segment for the current worktree (no network) |
+| `wt skill` | | Print a SKILL.md that teaches AI agents to use wt |
 | `wt feedback [message]` | | Open a GitHub issue for feedback |
 
 Run `wt <command> --help` for detailed usage of any command.
+
+Worktrees live next to the repo, in `../wt-<repo>/<name>`. `wt pr` works for PRs from forks too: they check out as `pr/<N>-<branch>`, and wt prints how to push back to the fork.
 
 ### Global flags
 
 | Flag | Description |
 |------|-------------|
-| `--yes`, `-y` | Skip all confirmation prompts (useful for scripts and agents) |
+| `--yes`, `-y` | Skip confirmation prompts (useful for scripts and agents). Never discards work: see `--force` |
+| `-C <dir>` | Run as if started in `<dir>` |
 
 ### Notable command flags
 
 | Flag | Commands | Description |
 |------|----------|-------------|
+| `--force`, `-f` | `close`, `move` | Allow discarding uncommitted changes or unpushed commits. Without it, wt refuses (exit 1) when it can't ask |
+| `--run "<cmd>"` | `new`, `pr`, `pull` | Run a command in the new worktree; wt exits with its code. E.g. `wt new fix-123 -i --run "claude 'fix issue 123'"` |
+| `--edit`, `-e` | `new`, `pr`, `pull` | Open the new worktree in your editor |
+| `--init`, `-i` | `new`, `pr`, `pull` | Run `wt init` after creating |
+| `--output json` | `list`, `new`, `pr`, `pull`, `switch`, `close`, `submit` | Machine-readable output. Only JSON goes to stdout, and wt never prompts |
 | `--dry-run` | `prune` | Preview what would be removed without removing anything |
 | `--all` | `rebase` | Rebase all worktrees at once |
 | `--merge` | `watch` | Auto-merge PR when ready |
-| `--output json` | `list` | Machine-readable JSON output |
+
+`wt edit` picks `$WT_EDITOR`, then `$VISUAL`, then the first of `cursor`, `code`, `zed` on your PATH.
+
+### Prompt segment
+
+`wt prompt` prints something like `login-form ⇡2 ⇣5 #123 ✓` for the current worktree, and nothing in the main checkout. It reads local git refs plus a PR/CI cache that `wt list`, `wt dash` and `wt watch` refresh, so it never touches the network.
+
+Starship (`~/.config/starship.toml`):
+```toml
+[custom.wt]
+command = "wt prompt"
+when = true
+format = "[$output]($style) "
+```
+
+Fish: add `echo -n (wt prompt)` to your `fish_prompt`.
 
 ## Configuration
 
@@ -225,7 +251,35 @@ copy_files = [".env", ".env.local"]
 # Shell commands to run sequentially during init.
 # Without [init], auto-detected from lockfile: pnpm/yarn/npm/go/cargo/bundler
 commands = ["pnpm install", "npx prisma generate"]
+
+# Directories cloned from the main worktree before commands run, using
+# copy-on-write (APFS clonefile, or cp --reflink on Linux). A large
+# node_modules clones in well under a second; install then only fixes the diff.
+# Skipped with a note when the file system can't clone.
+clone_dirs = ["node_modules"]
+
+# Lines written into the worktree's env file (replaced if the key exists).
+# Templates: {index} {port} {name} {branch} {repo}
+env = { PORT = "{port}", COMPOSE_PROJECT_NAME = "{repo}-{name}" }
+env_file = ".env"   # default
 ```
+
+**Hooks** run shell commands at points in a worktree's life. They run without being asked for, so wt reads them only from your global config (`~/.config/wt/config.toml`), never from a repo's `.wt.toml`. Otherwise any repo you clone could run code on `wt new`. wt warns when it skips `[hooks]` in `.wt.toml`.
+
+```toml
+# ~/.config/wt/config.toml
+[hooks]   # all repos
+# Run via sh -c. A failing pre_close stops the close; post_* failures only warn.
+post_new   = ["tmux new-window -d -c \"$WT_PATH\" -n \"$WT_NAME\""]  # cwd: new worktree (new, pr, pull)
+post_close = []                                                      # cwd: main worktree
+
+[repos.myapp.hooks]   # one repo
+pre_close  = ["docker compose down"]                                 # cwd: worktree being closed
+```
+
+**Running worktrees side by side.** Each worktree gets a stable `WT_INDEX` (main is 0, others take the lowest free number; it survives renames and frees up on close). `WT_PORT` is `port_base + WT_INDEX`. Init commands and hooks get `WT_NAME`, `WT_PATH`, `WT_BRANCH`, `WT_MAIN`, `WT_REPO`, `WT_INDEX` and `WT_PORT`, so two dev servers or two docker stacks don't collide.
+
+If a worktree has `.envrc`, `mise.toml`, `.mise.toml` or `.tool-versions`, wt reminds you to run `direnv allow` / `mise trust`. It never runs them for you.
 
 ### Global Config with Per-Repo Overrides
 
@@ -258,8 +312,15 @@ A `.wt.toml` in a repo root always wins, but most users won't need one.
 | `worktree_prefix` | `"wt-<repo>/"` | Directory naming: nested `wt-<repo>/<name>` |
 | `stale_threshold` | `7` | Days before worktree flagged stale in `wt list` |
 | `auto_install` | `true` | Run install after rebase when lockfile changes |
+| `port_base` | `3000` | `WT_PORT = port_base + WT_INDEX` |
 | `init.copy_files` | `[]` | Files copied from main worktree if missing |
 | `init.commands` | `[]` | Shell commands run during init |
+| `init.clone_dirs` | `[]` | Directories cloned copy-on-write from the main worktree |
+| `init.env` | `{}` | Key/template pairs written into `init.env_file` |
+| `init.env_file` | `".env"` | File that `init.env` writes to |
+| `hooks.post_new` | `[]` | Commands run after `new`, `pr`, `pull` (global config only) |
+| `hooks.pre_close` | `[]` | Commands run before `close`; failure aborts |
+| `hooks.post_close` | `[]` | Commands run after `close` |
 
 </details>
 
@@ -267,10 +328,12 @@ A `.wt.toml` in a repo root always wins, but most users won't need one.
 
 `wt` works well with AI coding agents (Claude Code, Cursor, Aider, etc.) — agents with shell access can run `wt` commands directly.
 
-- Run `wt --help` or `wt <command> --help` for full usage (self-documenting, no separate skill file needed)
+- `wt skill` prints a SKILL.md built from the command tree, so it can't go stale. Install it for Claude Code with `mkdir -p ~/.claude/skills/wt && wt skill > ~/.claude/skills/wt/SKILL.md`
+- One agent per worktree: `wt new fix-123 -i --run "claude 'fix issue 123'"`
+- `--output json` on `list`, `new`, `pr`, `pull`, `switch`, `close` and `submit` prints only JSON to stdout and never prompts; a needed confirmation becomes an error
 - `wt list --output toon` outputs token-efficient worktree and PR status (~50% fewer tokens than JSON)
-- `wt list --output json` outputs machine-readable worktree and PR status with a `cta` field
 - Commands emit `cta: cmd1 | cmd2` on stdout when piped (non-TTY), telling agents what to run next
+- `-y` never discards work. `wt close` refuses to drop uncommitted changes or unpushed commits without `--force`, so an agent can't lose work by accident
 - `wt init` auto-copies AI config (`.claude`, `.cursorrules`, `.cursor/rules`) to new worktrees
 
 ### LLM Instructions
@@ -304,7 +367,7 @@ Run `wt <command> --help` for detailed usage of any command.
 ## Dependencies
 
 - **git** (required)
-- **gh** (GitHub CLI, optional): PR status in `wt list`, safety checks in `wt close`, remote rename in `wt rename`
+- **gh** (GitHub CLI, optional): PR status in `wt list`, safety checks in `wt close`, remote rename in `wt rename`. Without it, `wt prune` falls back to branches merged into the base branch (it can't see squash merges)
 - **fzf** (optional): interactive picker in `wt switch`
 
 `wt` checks for new versions once daily and shows a notification when an update is available.

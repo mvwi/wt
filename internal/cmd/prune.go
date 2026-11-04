@@ -113,8 +113,11 @@ func runPrune(cmd *cobra.Command, args []string) error {
 
 	if local {
 		why := "gh is not installed"
-		if ghErr != nil {
-			why = fmt.Sprintf("could not fetch PR data (%v)", ghErr)
+		switch {
+		case ghErr != nil && isNotGitHubRemote(ghErr):
+			why = "the remote isn't on GitHub"
+		case ghErr != nil:
+			why = fmt.Sprintf("could not fetch PR data (%s)", ui.Truncate(ghErr.Error(), 80))
 		}
 		ui.Warn("%s, so only branches merged into %s count as stale.", why, ctx.baseRef())
 		fmt.Println("   Squash-merged branches can't be detected without gh.")

@@ -1,11 +1,13 @@
 package cmd
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
 	"sync"
+	"unicode/utf8"
 
 	"github.com/mvwi/wt/internal/git"
 	"github.com/mvwi/wt/internal/github"
@@ -148,7 +150,7 @@ func collectWorktreeInfos(ctx *cmdContext, cwd string, worktrees []git.Worktree)
 		}
 
 		if !ctx.isBaseBranch(branch) {
-			info.Age = git.WorktreeAge(wt.Path)
+			info.Age = git.LastCommitAge(wt.Path)
 			ab, err := git.GetAheadBehindIn(wt.Path, ctx.baseRef())
 			if err == nil {
 				info.Behind = ab.Behind
@@ -163,8 +165,9 @@ func collectWorktreeInfos(ctx *cmdContext, cwd string, worktrees []git.Worktree)
 	return infos, featureBranches
 }
 
-// fetchPRData fetches open, merged, and closed PRs in parallel.
-func fetchPRData() (openPRs, mergedPRs, closedPRs []github.PR, hasErrors bool) {
+// fetchPRData fetches open, merged, and closed PRs in parallel. err is the
+// first failure, if any; the other lists may still hold data.
+func fetchPRData() (openPRs, mergedPRs, closedPRs []github.PR, err error) {
 	var openErr, mergedErr, closedErr error
 	var wg sync.WaitGroup
 	wg.Add(3)
@@ -172,7 +175,7 @@ func fetchPRData() (openPRs, mergedPRs, closedPRs []github.PR, hasErrors bool) {
 	go func() { defer wg.Done(); mergedPRs, mergedErr = github.ListPRs("merged") }()
 	go func() { defer wg.Done(); closedPRs, closedErr = github.ListPRs("closed") }()
 	wg.Wait()
-	hasErrors = openErr != nil || mergedErr != nil || closedErr != nil
+	err = cmp.Or(openErr, mergedErr, closedErr)
 	return
 }
 
@@ -306,22 +309,27 @@ func findPRJSON(branch string, openPRs, mergedPRs, closedPRs []github.PR) *listJ
 	return nil
 }
 
+// Column caps for the name/branch overview, so long names can't push the
+// rest of the line off screen.
+// shortcut: fixed caps sized for an 80-col terminal; read the real width if
+// people ask for more.
+const (
+	listNameMax   = 32
+	listBranchMax = 40
+	listBranchCol = 28
+)
+
 func runListTerminal(ctx *cmdContext, cwd string, worktrees []git.Worktree) error {
 	infos, featureBranches := collectWorktreeInfos(ctx, cwd, worktrees)
 
 	// Phase 1: Show worktree names immediately
 	ui.Header("WORKTREES")
 
-	// Calculate column width from longest short name
-	nameWidth := 0
+	nameWidth := 8
 	for _, info := range infos {
-		if len(info.ShortName) > nameWidth {
-			nameWidth = len(info.ShortName)
-		}
+		nameWidth = max(nameWidth, utf8.RuneCountInString(info.ShortName))
 	}
-	if nameWidth < 8 {
-		nameWidth = 8
-	}
+	nameWidth = min(nameWidth, listNameMax)
 
 	ui.DimF("  %-*s %s\n", nameWidth+2, "Name", "Branch")
 	ui.DimF("  %s\n", strings.Repeat("─", nameWidth+2+28))
@@ -332,121 +340,172 @@ func runListTerminal(ctx *cmdContext, cwd string, worktrees []git.Worktree) erro
 		} else {
 			fmt.Print("  ")
 		}
-
-		fmt.Printf("%-*s ", nameWidth, info.ShortName)
-
+		fmt.Print(padRight(ui.Truncate(info.ShortName, nameWidth), nameWidth) + " ")
 		if info.Branch != info.ShortName {
-			fmt.Print(ui.Dim(info.Branch))
+			fmt.Print(ui.Dim(ui.Truncate(info.Branch, listBranchMax)))
 		}
-
 		fmt.Println()
 	}
 
-	// Phase 2: PR status for feature branches
-	if len(featureBranches) > 0 && github.IsAvailable() {
+	if len(featureBranches) == 0 {
 		fmt.Println()
+		return nil
+	}
+
+	// Phase 2: status table for feature branches
+	fmt.Println()
+	showPR := github.IsAvailable()
+	var openPRs, mergedPRs, closedPRs []github.PR
+	if showPR {
 		spin := ui.NewSpinner("Loading PR status")
-
-		openPRs, mergedPRs, closedPRs, hasErrors := fetchPRData()
-
+		var err error
+		openPRs, mergedPRs, closedPRs, err = fetchPRData()
 		spin.Stop()
+		switch {
+		case err == nil:
+		case isNotGitHubRemote(err):
+			// Not a GitHub repo: PR columns would only ever be empty.
+			showPR = false
+		default:
+			_, reason, _ := strings.Cut(err.Error(), ": ")
+			ui.DimF("  PR status may be incomplete: %s\n", ui.Truncate(reason, 100))
+			ui.DimF("  Check gh with: gh auth status\n\n")
+		}
+	} else if ui.IsTTY() {
+		ui.DimF("  PR status needs the GitHub CLI (gh): https://cli.github.com\n\n")
+	}
 
-		if hasErrors {
-			ui.Warn("Could not fetch some PR data — status may be incomplete")
+	staleThreshold := ctx.Config.EffectiveStaleThreshold()
+
+	header := fmt.Sprintf("  %-*s %-6s %-6s %-8s", listBranchCol, "Branch", "Commit", "Dirty", "Sync")
+	if showPR {
+		header += fmt.Sprintf(" %-6s %-8s %s", "PR", "Review", "CI")
+	}
+	ui.DimF("%s\n", header)
+	ui.DimF("  %s\n", strings.Repeat("─", utf8.RuneCountInString(header)-2))
+
+	var table strings.Builder
+	hasStale := false
+
+	for _, info := range infos {
+		if ctx.isBaseBranch(info.Branch) {
+			continue
 		}
 
-		staleThreshold := ctx.Config.EffectiveStaleThreshold()
+		var openPR, mergedPR, closedPR *github.PR
+		isStale := false
+		if showPR {
+			openPR = github.FindPRForBranch(openPRs, info.Branch)
+			mergedPR = github.FindPRForBranch(mergedPRs, info.Branch)
+			closedPR = github.FindPRForBranch(closedPRs, info.Branch)
+			// Stale: no recent activity and no open PR. Needs PR data, or
+			// every quiet branch would look stale.
+			isStale = git.WorktreeAgeDays(info.Path) >= staleThreshold && openPR == nil
+		}
 
-		ui.DimF("  %-28s %-4s %-6s %-8s %-6s %-8s %s\n", "Branch", "Age", "Dirty", "Sync", "PR", "Review", "CI")
-		ui.DimF("  %s\n", strings.Repeat("─", 76))
-
-		hasStale := false
-
-		for _, info := range infos {
-			if ctx.isBaseBranch(info.Branch) {
-				continue
+		// Dim the entire row if stale
+		colorize := fmt.Sprintf
+		if isStale {
+			colorize = func(f string, a ...any) string {
+				return ui.Dim(fmt.Sprintf(f, a...))
 			}
+		}
 
-			openPR := github.FindPRForBranch(openPRs, info.Branch)
-			mergedPR := github.FindPRForBranch(mergedPRs, info.Branch)
-			closedPR := github.FindPRForBranch(closedPRs, info.Branch)
+		row := &table
+		fmt.Fprintf(row, "  %s ", colorize("%s", padRight(ui.Truncate(info.Branch, listBranchCol), listBranchCol)))
+		fmt.Fprintf(row, "%s ", colorize("%-6s", info.Age))
 
-			// Check staleness: old commit + no open PR
-			daysAgo := git.WorktreeAgeDays(info.Path)
-			isStale := daysAgo >= staleThreshold && openPR == nil
+		// Dirty
+		switch {
+		case info.DirtyCount == 0:
+			fmt.Fprintf(row, "%s ", ui.Dim(fmt.Sprintf("%-6s", ui.Dash)))
+		case isStale:
+			fmt.Fprintf(row, "%s ", colorize("%-6d", info.DirtyCount))
+		default:
+			fmt.Fprintf(row, "%s ", ui.Yellow(fmt.Sprintf("%-6d", info.DirtyCount)))
+		}
 
-			// Dim the entire row if stale
-			colorize := fmt.Sprintf
-			if isStale {
-				colorize = func(f string, a ...any) string {
-					return ui.Dim(fmt.Sprintf(f, a...))
-				}
-			}
+		// Sync
+		syncStr := padRight(buildSyncStr(info.Behind, info.Ahead), 8)
+		switch {
+		case isStale:
+			fmt.Fprint(row, colorize("%s", syncStr))
+		case info.Behind > 0:
+			fmt.Fprint(row, ui.Yellow(syncStr))
+		default:
+			fmt.Fprint(row, ui.Green(syncStr))
+		}
 
-			branchDisplay := ui.Truncate(info.Branch, 28)
-			fmt.Printf("  %s ", colorize("%-28s", branchDisplay))
-
-			// Age
-			fmt.Printf("%s ", colorize("%-4s", info.Age))
-
-			// Dirty
-			if info.DirtyCount > 0 {
-				if isStale {
-					fmt.Printf("%s ", colorize("%-6d", info.DirtyCount))
-				} else {
-					ui.YellowF("%-6d ", info.DirtyCount)
-				}
-			} else {
-				fmt.Printf("%s ", ui.Dim(fmt.Sprintf("%-6s", ui.Dash)))
-			}
-
-			// Sync
-			syncStr := buildSyncStr(info.Behind, info.Ahead)
-			switch {
-			case isStale:
-				fmt.Printf("%s ", colorize("%-8s", syncStr))
-			case info.Behind > 0:
-				ui.YellowF("%-8s ", syncStr)
-			default:
-				ui.GreenF("%-8s ", syncStr)
-			}
-
-			// PR status
+		if showPR {
+			row.WriteString(" ")
 			switch {
 			case openPR != nil:
-				printOpenPRStatus(openPR, info.Path)
+				row.WriteString(openPRStatus(openPR, info.Path))
 			case mergedPR != nil:
-				ui.BlueF("%-6s ", fmt.Sprintf("#%d", mergedPR.Number))
-				fmt.Printf("%s   %s", ui.Green("merged"), ui.Yellow("stale"))
+				fmt.Fprintf(row, "%s %s   %s", ui.Blue(fmt.Sprintf("%-6s", fmt.Sprintf("#%d", mergedPR.Number))), ui.Green("merged"), ui.Yellow("stale"))
 				hasStale = true
-				fmt.Println()
 			case closedPR != nil:
-				ui.BlueF("%-6s ", fmt.Sprintf("#%d", closedPR.Number))
-				fmt.Printf("%s  %s", ui.Red("closed"), ui.Yellow("stale"))
+				fmt.Fprintf(row, "%s %s  %s", ui.Blue(fmt.Sprintf("%-6s", fmt.Sprintf("#%d", closedPR.Number))), ui.Red("closed"), ui.Yellow("stale"))
 				hasStale = true
-				fmt.Println()
+			case isStale:
+				row.WriteString(ui.Dim(ui.Dash) + " \U0001f4a4") // 💤
 			default:
-				if isStale {
-					fmt.Print(ui.Dim(ui.Dash))
-					fmt.Print(" \U0001f4a4") // 💤
-				} else {
-					fmt.Print(ui.Dim(ui.Dash))
-				}
-				fmt.Println()
+				row.WriteString(ui.Dim(ui.Dash))
 			}
 		}
+		row.WriteString("\n")
+	}
+	fmt.Print(table.String())
 
-		// Legend
+	if legend := listLegend(table.String()); legend != "" {
 		fmt.Println()
-		ui.DimF("  %s pending  %s changes/fail  %s pass\n", ui.Pending, ui.Fail, ui.Pass)
+		ui.DimF("  %s\n", legend)
+	}
 
-		if hasStale {
-			fmt.Printf("  %s\n", ui.Yellow("Tip: run 'wt prune' to clean up stale worktrees"))
-		}
+	if hasStale {
+		fmt.Printf("  %s\n", ui.Yellow("Tip: run 'wt prune' to clean up stale worktrees"))
 	}
 
 	fmt.Println()
 	return nil
+}
+
+// isNotGitHubRemote reports whether gh failed because no remote points at a
+// GitHub host. That is a normal setup, not an error worth a warning.
+func isNotGitHubRemote(err error) bool {
+	return strings.Contains(err.Error(), "known GitHub host")
+}
+
+// padRight pads s with spaces to width runes. Unlike %-*s it counts runes,
+// not bytes, so glyphs and non-ASCII names line up.
+func padRight(s string, width int) string {
+	if n := utf8.RuneCountInString(s); n < width {
+		return s + strings.Repeat(" ", width-n)
+	}
+	return s
+}
+
+// legendEntries lists each glyph the status table can show, in print order.
+var legendEntries = []struct{ glyph, meaning string }{
+	{ui.ArrowDown, "behind base"},
+	{ui.ArrowUp, "ahead of base"},
+	{ui.Pass, "ok"},
+	{ui.Fail, "fail/changes"},
+	{ui.Pending, "pending"},
+	{ui.NoReview, "none yet"},
+	{ui.PushUp, "unpushed"},
+	{"\U0001f4a4", "stale"},
+}
+
+// listLegend explains only the glyphs that appear in the rendered table.
+func listLegend(table string) string {
+	var parts []string
+	for _, e := range legendEntries {
+		if strings.Contains(table, e.glyph) {
+			parts = append(parts, e.glyph+" "+e.meaning)
+		}
+	}
+	return strings.Join(parts, "  ")
 }
 
 func buildSyncStr(behind, ahead int) string {
@@ -463,58 +522,48 @@ func buildSyncStr(behind, ahead int) string {
 	return strings.Join(parts, "")
 }
 
-func printOpenPRStatus(pr *github.PR, wtPath string) {
-	// PR number
-	ui.BlueF("%-6s ", fmt.Sprintf("#%d", pr.Number))
+// openPRStatus renders the PR, Review, and CI cells for an open PR.
+func openPRStatus(pr *github.PR, wtPath string) string {
+	var b strings.Builder
+	b.WriteString(ui.Blue(fmt.Sprintf("%-6s", fmt.Sprintf("#%d", pr.Number))) + " ")
 
-	// Review glyphs
+	// Review glyphs, one per reviewer
 	rs := pr.GetReviewSummary()
-	reviewWidth := 8
-	reviewCount := 0
-
+	reviewCount := rs.Approved + rs.Changes + rs.Pending
 	if rs.Approved > 0 {
-		fmt.Print(ui.Green(strings.Repeat(ui.Pass, rs.Approved)))
-		reviewCount += rs.Approved
+		b.WriteString(ui.Green(strings.Repeat(ui.Pass, rs.Approved)))
 	}
 	if rs.Changes > 0 {
-		fmt.Print(ui.Red(strings.Repeat(ui.Fail, rs.Changes)))
-		reviewCount += rs.Changes
+		b.WriteString(ui.Red(strings.Repeat(ui.Fail, rs.Changes)))
 	}
 	if rs.Pending > 0 {
-		fmt.Print(ui.Blue(strings.Repeat(ui.Pending, rs.Pending)))
-		reviewCount += rs.Pending
+		b.WriteString(ui.Blue(strings.Repeat(ui.Pending, rs.Pending)))
 	}
 	if reviewCount == 0 {
-		fmt.Print(ui.Dim(ui.NoReview))
+		b.WriteString(ui.Dim(ui.NoReview))
 		reviewCount = 1
 	}
-
-	// Pad to fixed width
-	if pad := reviewWidth - reviewCount; pad > 0 {
-		fmt.Printf("%*s", pad, "")
+	if pad := 8 - reviewCount; pad > 0 {
+		b.WriteString(strings.Repeat(" ", pad))
 	}
-	fmt.Print(" ")
+	b.WriteString(" ")
 
-	// CI glyphs
+	// CI: one summary cell, not one glyph per check
 	cs := pr.GetCISummary()
-	if cs.Pass > 0 {
-		fmt.Print(ui.Green(strings.Repeat(ui.Pass, cs.Pass)))
-	}
-	if cs.Fail > 0 {
-		fmt.Print(ui.Red(strings.Repeat(ui.Fail, cs.Fail)))
-	}
-	if cs.Pending > 0 {
-		fmt.Print(ui.Yellow(strings.Repeat(ui.Pending, cs.Pending)))
-	}
-	if cs.Total == 0 {
-		fmt.Print(ui.Dim(ui.NoReview))
-	}
-
-	// Unpushed indicator
-	unpushed := git.UnpushedCountIn(wtPath)
-	if unpushed > 0 {
-		fmt.Printf(" %s", ui.Magenta(fmt.Sprintf("%s%d", ui.PushUp, unpushed)))
+	ci := ui.CISummary(cs.Pass, cs.Fail, cs.Pending, cs.Total)
+	switch {
+	case cs.Total == 0:
+		b.WriteString(ui.Dim(ui.NoReview))
+	case cs.Fail > 0:
+		b.WriteString(ui.Red(ci))
+	case cs.Pending > 0:
+		b.WriteString(ui.Yellow(ci))
+	default:
+		b.WriteString(ui.Green(ci))
 	}
 
-	fmt.Println()
+	if unpushed := git.UnpushedCountIn(wtPath); unpushed > 0 {
+		b.WriteString(" " + ui.Magenta(fmt.Sprintf("%s%d", ui.PushUp, unpushed)))
+	}
+	return b.String()
 }

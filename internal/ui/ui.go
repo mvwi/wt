@@ -217,3 +217,18 @@ func PrintCTA(cmds ...string) {
 	}
 	fmt.Printf("cta: %s\n", strings.Join(cmds, " | "))
 }
+
+// CISummary condenses CI check counts into one short cell: "✗ 2/36" when any
+// fail, "◐ 3/36" when any are pending, otherwise "✓ 36". Returns "" when
+// there are no checks. Callers pick the color.
+func CISummary(pass, fail, pending, total int) string {
+	switch {
+	case total == 0:
+		return ""
+	case fail > 0:
+		return fmt.Sprintf("%s %d/%d", Fail, fail, total)
+	case pending > 0:
+		return fmt.Sprintf("%s %d/%d", Pending, pending, total)
+	}
+	return fmt.Sprintf("%s %d", Pass, pass)
+}

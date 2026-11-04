@@ -15,6 +15,11 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
         go: ["1.26", "stable"]
+        # macOS runners queue for a long time; ubuntu already covers the
+        # minimum Go version, so macOS only runs against stable.
+        exclude:
+          - os: macos-latest
+            go: "1.26"
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7

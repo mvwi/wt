@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"cmp"
 	"fmt"
 	"regexp"
 	"slices"
@@ -9,6 +10,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/mvwi/wt/internal/ui"
 )
 
 // DashItem describes one worktree row in the dashboard.
@@ -203,6 +205,8 @@ type dashModel struct {
 	lastRefresh        time.Time
 	lastErr            error
 	switchTo           string
+	showHelp           bool   // help overlay replaces the screen until the next key
+	flash              string // one-shot footer note, cleared by the next key
 }
 
 // confirmKind tracks which confirmation prompt (if any) is intercepting keys.
@@ -374,6 +378,12 @@ func (m dashModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.confirm != confirmNone {
 			return m.handleConfirmKey(msg.String())
 		}
+		m.flash = ""
+		// Any key closes the help overlay.
+		if m.showHelp {
+			m.showHelp = false
+			return m, nil
+		}
 
 		// Global keys (work in any focus mode)
 		switch msg.String() {
@@ -381,6 +391,9 @@ func (m dashModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case "R":
 			return m.startRebaseAll()
+		case "?", "h":
+			m.showHelp = true
+			return m, nil
 		case "tab":
 			return m.toggleFocus()
 		case "esc":
@@ -584,6 +597,10 @@ func (m dashModel) handleCommitsKey(key string) (tea.Model, tea.Cmd) {
 func (m dashModel) toggleFocus() (tea.Model, tea.Cmd) {
 	if m.focus == focusWorktrees {
 		if len(m.focusedCommits()) == 0 {
+			m.flash = "no commits on this branch yet"
+			if m.cursor >= 0 && m.cursor < len(m.items) && m.detailLoading[m.items[m.cursor].Path] {
+				m.flash = "commits still loading…"
+			}
 			return m, nil
 		}
 		m.focus = focusCommits
@@ -961,7 +978,7 @@ func styleForFilePath(path string) lipgloss.Style {
 const (
 	colBranchMin = 16
 	colBranchMax = 64
-	colAge       = 4
+	colAge       = 6 // fits the "Commit" header
 	colDirty     = 4
 	colSync      = 8
 	colPR        = 6
@@ -1118,6 +1135,10 @@ func (m dashModel) View() tea.View {
 }
 
 func (m dashModel) render() string {
+	if m.showHelp {
+		return renderHelp(m.focus)
+	}
+
 	var b strings.Builder
 	lo := computeLayout(m.items, m.width)
 
@@ -1147,7 +1168,7 @@ func (m dashModel) render() string {
 		header = fmt.Sprintf("    %-*s  %-*s %-*s %-*s %-*s %-*s %-*s %-*s",
 			lo.nameWidth, "Name",
 			lo.branchWidth, "Branch",
-			lo.ageWidth, "Age",
+			lo.ageWidth, "Commit",
 			lo.dirtyWidth, "Dirty",
 			lo.syncWidth, "Sync",
 			lo.prWidth, "PR",
@@ -1158,7 +1179,7 @@ func (m dashModel) render() string {
 		header = fmt.Sprintf("    %-*s  %-*s %-*s %-*s %-*s %-*s",
 			lo.nameWidth, "Name",
 			lo.branchWidth, "Branch",
-			lo.ageWidth, "Age",
+			lo.ageWidth, "Commit",
 			lo.dirtyWidth, "Dirty",
 			lo.syncWidth, "Sync",
 			lo.statusWidth, "Status",
@@ -1197,15 +1218,12 @@ func (m dashModel) render() string {
 		b.WriteString("  " + renderConfirmPrompt(m) + "\n")
 	} else {
 		status := buildStatusLine(m)
-		// footerKeys returns pre-styled output (per-key enabled/disabled
-		// rendering), so don't wrap again with dStyleDim here.
-		keys := footerKeys(m)
-		b.WriteString("  " + keys)
-		if status != "" {
-			pad := max(2, ruleWidth-lipgloss.Width(keys)-lipgloss.Width(status))
-			b.WriteString(strings.Repeat(" ", pad) + status)
+		if m.flash != "" {
+			status = dStyleYellow.Render(m.flash)
 		}
-		b.WriteString("\n")
+		for _, line := range layoutFooter(footerKeys(m), status, ruleWidth) {
+			b.WriteString("  " + line + "\n")
+		}
 	}
 
 	return b.String()
@@ -1252,75 +1270,143 @@ func renderConfirmPrompt(m dashModel) string {
 // key other than y/enter cancels, so naming it adds nothing.
 var confirmKeys = dStyleGreen.Render("y confirm") + dStyleDim.Render(" · any other key cancels")
 
-// footerEntry is one keybinding hint in the footer bar. enabled=false renders
-// dim+strikethrough so the user can see at a glance which keys won't do
-// anything for the currently-focused row.
-type footerEntry struct {
-	keys    string
-	label   string
-	enabled bool
+// dashKey is one row of the dashboard keymap. The help overlay lists every
+// row; the footer shows rows marked footer. Keep in step with Update.
+type dashKey struct {
+	keys   string
+	label  string
+	footer bool
 }
 
-// footerKeys returns the keybinding hint line, already styled. Per-key
-// styling reflects current state: r/R/c get a struck-through disabled look
-// when the cursor row can't accept them (busy with another op, base branch,
-// or current worktree). Navigation and quit keys are always enabled.
-func footerKeys(m dashModel) string {
-	var entries []footerEntry
+var worktreeKeyHelp = []dashKey{
+	{"↑↓/jk", "move", false},
+	{"g/G", "first/last row", false},
+	{"enter", "commits", true},
+	{"tab", "switch pane", false},
+	{"s", "switch", true},
+	{"r", "rebase", true},
+	{"R", "rebase all", true},
+	{"c", "close", true},
+	{"esc", "back, then quit", false},
+	{"?", "help", true},
+	{"q", "quit", true},
+}
 
+var commitKeyHelp = []dashKey{
+	{"↑↓/jk", "move", true},
+	{"g/G", "first/last commit", false},
+	{"esc", "back", true},
+	{"s", "switch", true},
+	{"?", "help", true},
+	{"q", "quit", true},
+}
+
+// glyphHelp explains the table glyphs in the help overlay.
+var glyphHelp = []dashKey{
+	{"●", "current worktree", false},
+	{"Dirty N", "N changed files", false},
+	{"⇣N ⇡N", "commits behind / ahead of base", false},
+	{"✓", "in sync, approved, or checks pass", false},
+	{"✗", "changes requested or checks fail", false},
+	{"◐", "pending", false},
+	{"○", "no reviews or checks yet", false},
+	{"⬆N", "N unpushed commits", false},
+	{"dim row", "stale: quiet, no open PR", false},
+}
+
+// footerKeys returns the footer key hints, one styled string per key.
+// r/R/c get a struck-through look when the cursor row can't take them
+// (busy, base branch, or current worktree).
+func footerKeys(m dashModel) []string {
+	keys := worktreeKeyHelp
+	enabled := map[string]bool{}
+	rLabel := "rebase"
 	if m.focus == focusCommits {
-		// Commits pane has no per-row actions to disable.
-		entries = []footerEntry{
-			{"↑↓", "move", true},
-			{"esc", "back", true},
-			{"s", "switch", true},
-			{"q", "quit", true},
-		}
+		keys = commitKeyHelp
 	} else {
-		// Resolve the current row's state. cursor out of range only happens
-		// when items is empty — treat actions as disabled in that case.
+		// cursor out of range only happens when items is empty — treat
+		// actions as disabled then.
 		var cur DashItem
-		var rowExists bool
-		if m.cursor >= 0 && m.cursor < len(m.items) {
+		rowExists := m.cursor >= 0 && m.cursor < len(m.items)
+		if rowExists {
 			cur = m.items[m.cursor]
-			rowExists = true
 		}
 		busy := rowExists && m.rowBusy(cur.Path)
-
-		canR := rowExists && !busy
-		canRAll := m.countRebaseTargets() > 0
-		canC := rowExists && canClose(cur) && !busy
-
-		// Base-branch rows fast-forward from the remote rather than rebase;
-		// surface that distinction in the footer hint so the action label
-		// matches what `r` actually does for the focused row.
-		rLabel := "rebase"
+		enabled["s"] = rowExists
+		enabled["r"] = rowExists && !busy
+		enabled["R"] = m.countRebaseTargets() > 0
+		enabled["c"] = rowExists && canClose(cur) && !busy
+		// Base-branch rows fast-forward from the remote rather than rebase.
 		if rowExists && cur.IsBase {
 			rLabel = "fast-forward"
 		}
-
-		entries = []footerEntry{
-			{"↑↓", "move", true},
-			{"enter", "commits", true},
-			{"s", "switch", rowExists},
-			{"r", rLabel, canR},
-			{"R", "rebase all", canRAll},
-			{"c", "close", canC},
-			{"q", "quit", true},
-		}
 	}
 
-	sep := dStyleDim.Render(" · ")
 	var parts []string
-	for _, e := range entries {
-		text := e.keys + " " + e.label
-		if e.enabled {
-			parts = append(parts, dStyleDim.Render(text))
-		} else {
+	for _, k := range keys {
+		if !k.footer {
+			continue
+		}
+		label := k.label
+		if k.keys == "r" {
+			label = rLabel
+		}
+		text := k.keys + " " + label
+		if on, ok := enabled[k.keys]; ok && !on {
 			parts = append(parts, dStyleDisabled.Render(text))
+		} else {
+			parts = append(parts, dStyleDim.Render(text))
 		}
 	}
-	return strings.Join(parts, sep)
+	return parts
+}
+
+// layoutFooter wraps the key hints to width and puts status at the right
+// edge of the last line, or on a line of its own when it doesn't fit.
+func layoutFooter(parts []string, status string, width int) []string {
+	sep := dStyleDim.Render(" · ")
+	var lines []string
+	line := ""
+	for _, p := range parts {
+		switch {
+		case line == "":
+			line = p
+		case lipgloss.Width(line)+lipgloss.Width(sep)+lipgloss.Width(p) <= width:
+			line += sep + p
+		default:
+			lines = append(lines, line)
+			line = p
+		}
+	}
+	if status != "" {
+		if pad := width - lipgloss.Width(line) - lipgloss.Width(status); pad >= 2 {
+			line += strings.Repeat(" ", pad) + status
+		} else {
+			lines = append(lines, line)
+			line = status
+		}
+	}
+	return append(lines, line)
+}
+
+// renderHelp draws the help overlay: keys for the focused pane, then what
+// the table glyphs mean.
+func renderHelp(focus focusPane) string {
+	keys := worktreeKeyHelp
+	if focus == focusCommits {
+		keys = commitKeyHelp
+	}
+	var b strings.Builder
+	section := func(title string, rows []dashKey) {
+		b.WriteString("\n  " + dStyleHeader.Render(title) + "\n")
+		for _, k := range rows {
+			fmt.Fprintf(&b, "  %s %s\n", dStyleBold.Render(padAnsi(k.keys, 8)), k.label)
+		}
+	}
+	section("KEYS", keys)
+	section("GLYPHS", glyphHelp)
+	b.WriteString("\n  " + dStyleDim.Render("press any key to close") + "\n")
+	return b.String()
 }
 
 func buildStatusLine(m dashModel) string {
@@ -1909,7 +1995,23 @@ func buildFilesLine(files []DashFileChange, maxWidth int) string {
 	return strings.Join(parts, "  ")
 }
 
+// checkRank orders checks so failures show first, then pending, then
+// passes: a failing check must never hide behind "+N more".
+func checkRank(state string) int {
+	switch state {
+	case "fail":
+		return 0
+	case "pass":
+		return 2
+	}
+	return 1
+}
+
 func buildChecksLine(checks []DashCheck, maxWidth int) string {
+	checks = slices.Clone(checks)
+	slices.SortStableFunc(checks, func(a, b DashCheck) int {
+		return cmp.Compare(checkRank(a.State), checkRank(b.State))
+	})
 	var parts []string
 	used := 0
 	for i, c := range checks {
@@ -2078,17 +2180,14 @@ func buildCIGlyphs(c DashCI, unpushed int) string {
 	if c.Total == 0 {
 		return dStyleDim.Render("○")
 	}
-	var parts []string
-	if c.Pass > 0 {
-		parts = append(parts, dStyleGreen.Render(strings.Repeat("✓", c.Pass)))
+	style := dStyleGreen
+	switch {
+	case c.Fail > 0:
+		style = dStyleRed
+	case c.Pending > 0:
+		style = dStyleYellow
 	}
-	if c.Fail > 0 {
-		parts = append(parts, dStyleRed.Render(strings.Repeat("✗", c.Fail)))
-	}
-	if c.Pending > 0 {
-		parts = append(parts, dStyleYellow.Render(strings.Repeat("◐", c.Pending)))
-	}
-	s := strings.Join(parts, "")
+	s := style.Render(ui.CISummary(c.Pass, c.Fail, c.Pending, c.Total))
 	if unpushed > 0 {
 		s += " " + dStyleMagenta.Render(fmt.Sprintf("⬆%d", unpushed))
 	}

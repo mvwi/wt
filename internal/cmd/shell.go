@@ -100,23 +100,18 @@ const zshWrapper = `# wt shell integration (zsh)
 #   eval "$(wt init-shell zsh)"
 
 wt() {
-    local cdfile _wt_prev_trap
+    local cdfile
     cdfile=$(mktemp -t wt-cd.XXXXXXXX) || {
         command wt "$@"
         return $?
     }
-    _wt_prev_trap=$(trap -p EXIT 2>/dev/null)
-    trap 'rm -f "$cdfile"' EXIT
+    # In zsh, an EXIT trap set inside a function fires when the function
+    # returns and leaves the caller's EXIT trap alone.
+    trap "rm -f ${(q)cdfile}" EXIT
     WT_CD_FILE="$cdfile" command wt "$@"
     local exit_code=$?
     if [ -s "$cdfile" ]; then
         cd "$(cat "$cdfile")" || true
-    fi
-    rm -f "$cdfile"
-    if [ -n "$_wt_prev_trap" ]; then
-        eval "$_wt_prev_trap"
-    else
-        trap - EXIT
     fi
     return $exit_code
 }

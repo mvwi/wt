@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 // PruneItem describes one stale worktree presented to the user.
@@ -84,7 +84,7 @@ func (m pruneModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "ctrl+c", "q", "esc":
 			m.cancelled = true
@@ -98,7 +98,7 @@ func (m pruneModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.cursor < len(m.items)-1 {
 				m.cursor++
 			}
-		case " ", "x":
+		case "space", "x":
 			m.selected[m.cursor] = !m.selected[m.cursor]
 		case "a":
 			allOn := true
@@ -119,7 +119,9 @@ func (m pruneModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m pruneModel) View() string {
+func (m pruneModel) View() tea.View { return tea.NewView(m.render()) }
+
+func (m pruneModel) render() string {
 	if m.done {
 		return ""
 	}

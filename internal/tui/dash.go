@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 // DashItem describes one worktree row in the dashboard.
@@ -150,7 +150,7 @@ func RunDashboard(cfg DashConfig) (DashResult, error) {
 		lastRefresh:         time.Now(),
 	}
 
-	final, err := tea.NewProgram(m, tea.WithAltScreen()).Run()
+	final, err := tea.NewProgram(m).Run()
 	if err != nil {
 		return DashResult{}, err
 	}
@@ -366,7 +366,7 @@ func (m dashModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		return m, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		// Confirmation prompts intercept all keys.
 		if m.confirm != confirmNone {
 			return m.handleConfirmKey(msg.String())
@@ -1102,7 +1102,19 @@ func bodyLineCap(termHeight int) int {
 	return n
 }
 
-func (m dashModel) View() string {
+func (m dashModel) View() tea.View {
+	content := strings.TrimSuffix(m.render(), "\n")
+	// v2 clips a too-tall frame at the bottom, hiding the footer keys. Keep the
+	// bottom rows instead, as v1 did, until the commit panel gets a height cap.
+	if lines := strings.Split(content, "\n"); m.height > 0 && len(lines) > m.height {
+		content = strings.Join(lines[len(lines)-m.height:], "\n")
+	}
+	v := tea.NewView(content)
+	v.AltScreen = true
+	return v
+}
+
+func (m dashModel) render() string {
 	var b strings.Builder
 	lo := computeLayout(m.items, m.width)
 

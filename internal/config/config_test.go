@@ -151,8 +151,6 @@ commands = ["pnpm install", "npx prisma generate"]
 	})
 }
 
-func strPtr(s string) *string { return &s }
-
 func TestEffectiveWorktreeDir(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -162,8 +160,8 @@ func TestEffectiveWorktreeDir(t *testing.T) {
 		want     string
 	}{
 		{"default pattern", nil, "myrepo", "feat", "wt-myrepo/feat"},
-		{"explicit prefix", strPtr("wt-"), "myrepo", "feat", "wt-feat"},
-		{"explicit empty prefix", strPtr(""), "myrepo", "feat", "feat"},
+		{"explicit prefix", new("wt-"), "myrepo", "feat", "wt-feat"},
+		{"explicit empty prefix", new(""), "myrepo", "feat", "feat"},
 		{"empty repo name", nil, "", "feat", "wt-/feat"},
 		{"empty worktree name", nil, "myrepo", "", "wt-myrepo"},
 	}
@@ -187,10 +185,10 @@ func TestEffectiveBranchName(t *testing.T) {
 		input       string
 		want        string
 	}{
-		{"with config prefix", strPtr("michael"), "ignored", "sidebar", "michael/sidebar"},
+		{"with config prefix", new("michael"), "ignored", "sidebar", "michael/sidebar"},
 		{"falls back to git username", nil, "jane", "sidebar", "jane/sidebar"},
 		{"no prefix at all", nil, "", "sidebar", "sidebar"},
-		{"explicit empty disables prefix", strPtr(""), "jane", "sidebar", "sidebar"},
+		{"explicit empty disables prefix", new(""), "jane", "sidebar", "sidebar"},
 	}
 
 	for _, tt := range tests {

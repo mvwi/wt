@@ -113,7 +113,7 @@ func PotentialConflicts(baseRef string) ([]string, error) {
 
 	baseFiles := toSet(baseOut)
 	var conflicts []string
-	for _, line := range strings.Split(oursOut, "\n") {
+	for line := range strings.SplitSeq(oursOut, "\n") {
 		f := strings.TrimSpace(line)
 		if f != "" && baseFiles[f] {
 			conflicts = append(conflicts, f)
@@ -125,7 +125,7 @@ func PotentialConflicts(baseRef string) ([]string, error) {
 // toSet splits newline-delimited output into a set of non-empty strings.
 func toSet(s string) map[string]bool {
 	m := make(map[string]bool)
-	for _, line := range strings.Split(s, "\n") {
+	for line := range strings.SplitSeq(s, "\n") {
 		f := strings.TrimSpace(line)
 		if f != "" {
 			m[f] = true
@@ -155,7 +155,7 @@ func DiffNameOnlyIn(dir, ref1, ref2 string) ([]string, error) {
 		return nil, err
 	}
 	var files []string
-	for _, line := range strings.Split(out, "\n") {
+	for line := range strings.SplitSeq(out, "\n") {
 		f := strings.TrimSpace(line)
 		if f != "" {
 			files = append(files, f)

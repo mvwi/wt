@@ -3,6 +3,7 @@ package cmd
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 )
 
@@ -91,7 +92,7 @@ func TestDetectInit(t *testing.T) {
 
 		copyFiles, _ := detectInit(dir)
 
-		if !contains(copyFiles, ".claude") {
+		if !slices.Contains(copyFiles, ".claude") {
 			t.Errorf("copyFiles = %v, want to contain .claude", copyFiles)
 		}
 	})
@@ -102,7 +103,7 @@ func TestDetectInit(t *testing.T) {
 
 		copyFiles, _ := detectInit(dir)
 
-		if !contains(copyFiles, ".cursorrules") {
+		if !slices.Contains(copyFiles, ".cursorrules") {
 			t.Errorf("copyFiles = %v, want to contain .cursorrules", copyFiles)
 		}
 	})
@@ -114,7 +115,7 @@ func TestDetectInit(t *testing.T) {
 
 		copyFiles, _ := detectInit(dir)
 
-		if !contains(copyFiles, ".cursor/rules") {
+		if !slices.Contains(copyFiles, ".cursor/rules") {
 			t.Errorf("copyFiles = %v, want to contain .cursor/rules", copyFiles)
 		}
 	})
@@ -127,7 +128,7 @@ func TestDetectInit(t *testing.T) {
 
 		_, commands := detectInit(dir)
 
-		if !contains(commands, "pnpm exec prisma generate --schema prisma/schema.prisma") {
+		if !slices.Contains(commands, "pnpm exec prisma generate --schema prisma/schema.prisma") {
 			t.Errorf("commands = %v, want to contain 'pnpm exec prisma generate --schema prisma/schema.prisma'", commands)
 		}
 	})
@@ -140,7 +141,7 @@ func TestDetectInit(t *testing.T) {
 
 		_, commands := detectInit(dir)
 
-		if !contains(commands, "pnpm exec prisma generate --schema packages/db/prisma/schema.prisma") {
+		if !slices.Contains(commands, "pnpm exec prisma generate --schema packages/db/prisma/schema.prisma") {
 			t.Errorf("commands = %v, want to contain 'pnpm exec prisma generate --schema packages/db/prisma/schema.prisma'", commands)
 		}
 	})
@@ -153,7 +154,7 @@ func TestDetectInit(t *testing.T) {
 
 		_, commands := detectInit(dir)
 
-		if contains(commands, "prisma generate") {
+		if slices.Contains(commands, "prisma generate") {
 			t.Errorf("commands = %v, should not contain prisma generate without JS package manager", commands)
 		}
 	})
@@ -166,7 +167,7 @@ func TestDetectInit(t *testing.T) {
 
 		_, commands := detectInit(dir)
 
-		if contains(commands, "pnpm exec prisma generate") {
+		if slices.Contains(commands, "pnpm exec prisma generate") {
 			t.Errorf("commands = %v, should not detect prisma inside node_modules", commands)
 		}
 	})
@@ -262,13 +263,4 @@ func mkdir(t *testing.T, parts ...string) {
 	if err := os.MkdirAll(filepath.Join(parts...), 0755); err != nil {
 		t.Fatal(err)
 	}
-}
-
-func contains(slice []string, s string) bool {
-	for _, v := range slice {
-		if v == s {
-			return true
-		}
-	}
-	return false
 }

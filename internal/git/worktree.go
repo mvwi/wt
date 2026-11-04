@@ -27,7 +27,7 @@ func ParseWorktreeList(out string) []Worktree {
 	var worktrees []Worktree
 	var current Worktree
 
-	for _, line := range strings.Split(out, "\n") {
+	for line := range strings.SplitSeq(out, "\n") {
 		switch {
 		case strings.HasPrefix(line, "worktree "):
 			current = Worktree{Path: strings.TrimPrefix(line, "worktree ")}

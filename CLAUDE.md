@@ -108,6 +108,7 @@ go vet ./...      # Static analysis
 - Git operations go through `internal/git/`, not raw `exec.Command`
 - GitHub operations go through `internal/github/`, always check `IsAvailable()` first
 - Interactive prompts use `ui.Confirm(message, defaultYes)` — defaultYes=true for safe operations (Y/n), false for destructive (y/N)
+- TUI tests drive the model directly: `newDashModel(cfg)`, then `Update` with `tea.WindowSizeMsg` / `tea.KeyPressMsg`, and assert on `View().Content` (see `internal/tui/dash_test.go`)
 - Auto-install uses `detectInstallCommand()` from `install.go` — update `knownLockfiles` there when adding new package managers
 
 ## Maintaining Documentation

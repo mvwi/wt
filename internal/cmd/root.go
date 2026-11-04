@@ -22,6 +22,10 @@ var errSilent = errors.New("")
 // in PersistentPreRunE before any subcommand reads cwd.
 var cwdOverride string
 
+// preRunReached is set once cobra has parsed flags and checked args, so
+// Execute can tell usage errors from errors the command returned.
+var preRunReached bool
+
 // Version is set at build time via -ldflags.
 var Version = "dev"
 
@@ -32,6 +36,13 @@ var rootCmd = &cobra.Command{
 
 A streamlined workflow for managing git worktrees. Create feature branches,
 sync with your base branch, track PR status, and clean up when done.
+Worktrees go next to the repo, in ../wt-<repo>/<name>.
+
+` + ui.Bold("SETUP") + `
+  Load the shell wrapper so wt can cd for you. Add one line to your shell config:
+  fish   wt init-shell fish | source       (~/.config/fish/config.fish)
+  zsh    eval "$(wt init-shell zsh)"       (~/.zshrc)
+  bash   eval "$(wt init-shell bash)"      (~/.bashrc)
 
 ` + ui.Bold("TYPICAL WORKFLOW") + `
   wt new feature        Create worktree + branch
@@ -62,12 +73,16 @@ const (
 func Execute() {
 	update.CheckInBackground()
 
-	if err := rootCmd.Execute(); err != nil {
+	if cmd, err := rootCmd.ExecuteC(); err != nil {
 		if !errors.Is(err, errSilent) {
 			// Cobra includes "Did you mean this?" in the error message
 			// when SuggestionsMinimumDistance is set. Since we silence
 			// errors to control output, we print the error ourselves.
-			fmt.Fprintf(os.Stderr, "%s %s\n", ui.Red(ui.Fail), err)
+			fmt.Fprintf(os.Stderr, "%s %s\n", ui.Red(ui.Fail), strings.TrimRight(err.Error(), "\n"))
+			if !preRunReached {
+				// Cobra rejected the flags or args before the command ran.
+				fmt.Fprintf(os.Stderr, "   Run '%s --help' for usage.\n", cmd.CommandPath())
+			}
 		}
 		os.Exit(1)
 	}
@@ -191,6 +206,7 @@ Run {{cyan "wt <command> -h"}} for command help. Report bugs with {{cyan "wt fee
 // subcommand runs. All commands read cwd via os.Getwd() and run git from there,
 // so a single chdir at startup propagates transparently to every command.
 func applyCwdOverride(_ *cobra.Command, _ []string) error {
+	preRunReached = true
 	if cwdOverride == "" {
 		return nil
 	}
@@ -250,6 +266,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 	// Base/main branch: just show it
 	if isMain || ctx.isBaseBranch(branch) {
+		printHelpPointer()
 		return nil
 	}
 
@@ -318,5 +335,10 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	printHelpPointer()
 	return nil
+}
+
+func printHelpPointer() {
+	ui.DimF("\nRun wt --help for commands.\n")
 }

@@ -46,6 +46,18 @@ func IsInsideWorkTree() bool {
 	return err == nil
 }
 
+// IsInsideRepo returns true if the current directory is inside a git
+// repository, bare or not.
+func IsInsideRepo() bool {
+	return RunSilent("rev-parse", "--git-dir") == nil
+}
+
+// IsBareRepo returns true if the current directory is inside a bare repository.
+func IsBareRepo() bool {
+	out, err := Run("rev-parse", "--is-bare-repository")
+	return err == nil && out == "true"
+}
+
 // Fetch fetches a specific ref from a remote.
 func Fetch(remote string, refs ...string) error {
 	args := append([]string{"fetch", remote}, refs...)

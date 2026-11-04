@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -22,6 +23,15 @@ type cmdContext struct {
 
 // newContext builds shared context from the current repo.
 func newContext() (*cmdContext, error) {
+	if !git.IsInsideRepo() {
+		cwd, _ := os.Getwd()
+		return nil, fmt.Errorf("not inside a git repository: %s", cwd)
+	}
+	if git.IsBareRepo() {
+		cwd, _ := os.Getwd()
+		return nil, fmt.Errorf("%s is a bare repository; wt needs a normal checkout\n   Run wt from a clone with a working tree", cwd)
+	}
+
 	mainWT, err := git.MainWorktree()
 	if err != nil {
 		return nil, err

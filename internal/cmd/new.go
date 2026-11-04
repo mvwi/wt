@@ -61,6 +61,9 @@ func runNew(cmd *cobra.Command, args []string) error {
 	if name == "" {
 		return fmt.Errorf("name is required\n\nUsage: wt new <name>\n       wt new --from <branch>")
 	}
+	if err := validateName(ctx, name); err != nil {
+		return err
+	}
 
 	return newFromBase(ctx, name)
 }
@@ -88,6 +91,9 @@ func newFromExisting(ctx *cmdContext, name, fromBranch string) error {
 	// Derive name from branch if not provided
 	if name == "" {
 		name = nameFromBranch(ref, ctx.Config.Remote)
+	}
+	if err := validateName(ctx, name); err != nil {
+		return err
 	}
 
 	if isRemote {
@@ -149,6 +155,9 @@ func newFromPR(ctx *cmdContext, name string, number int) error {
 
 	if name == "" {
 		name = nameFromBranch(pr.HeadRefName, ctx.Config.Remote)
+	}
+	if err := validateName(ctx, name); err != nil {
+		return err
 	}
 
 	return createWorktreeFromRemote(ctx, name, pr.HeadRefName, newDoInit)
@@ -213,21 +222,26 @@ func createWorktreeFromRemote(ctx *cmdContext, name, remoteBranch string, doInit
 	return nil
 }
 
-// printSwitchHint prints the next-step command and offers to copy it to the clipboard.
+// printSwitchHint prints the next-step command.
 func printSwitchHint(name string) {
-	switchCmd := fmt.Sprintf("wt switch %s && wt init", name)
-	fmt.Printf("  → %s\n", switchCmd)
+	fmt.Printf("  → wt switch %s && wt init\n", name)
+	ui.PrintWrapperHint()
 	ui.PrintCTA("wt switch "+name, "wt init")
+}
 
-	if ui.IsTTY() && ui.ClipboardAvailable() {
-		if ui.Confirm("Copy to clipboard?", true) {
-			if err := ui.CopyToClipboard(switchCmd); err != nil {
-				ui.Warn("Failed to copy: %v", err)
-			} else {
-				ui.Success("Copied to clipboard")
-			}
-		}
+// validateName rejects worktree names that would break git or hide the
+// main checkout from 'wt switch'. Call it before doing any work.
+func validateName(ctx *cmdContext, name string) error {
+	if strings.HasPrefix(name, "-") {
+		return fmt.Errorf("invalid name %q: it can't start with a dash", name)
 	}
+	if ctx.isBaseBranch(name) || name == ctx.RepoName {
+		return fmt.Errorf("invalid name %q: 'wt switch %s' would open this worktree instead of the main checkout\n   Pick another name", name, name)
+	}
+	if branch := ctx.branchName(name); !git.IsValidBranchName(branch) {
+		return fmt.Errorf("invalid name %q: %q is not a valid git branch name", name, branch)
+	}
+	return nil
 }
 
 func newFromBase(ctx *cmdContext, name string) error {

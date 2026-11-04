@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/mattn/go-isatty"
 	"github.com/mvwi/wt/internal/git"
 	"github.com/mvwi/wt/internal/ui"
 	"github.com/spf13/cobra"
@@ -30,7 +31,10 @@ Resolution order:
   2. Main repo: 'main', base branch name, or repo name
   3. Branch name: exact match against the git branch
   4. Suffix match: any worktree ending with -<name>
-  5. Fuzzy match: worktree or branch containing the search term`,
+  5. Fuzzy match: worktree or branch containing the search term
+
+If a step matches more than one worktree, wt opens fzf on just those
+(or lists them when fzf or a terminal isn't available).`,
 	Example: `  wt switch           Interactive picker (requires fzf)
   wt switch sidebar   Switch to "sidebar" worktree (fuzzy match)
   wt switch -         Switch back to previous worktree
@@ -95,13 +99,27 @@ func savePreviousWorktree(cwd string) {
 
 func switchInteractive(ctx *cmdContext, worktrees []git.Worktree, cwd string) error {
 	if _, err := exec.LookPath("fzf"); err != nil {
-		fmt.Println("Usage: wt switch <name>")
-		fmt.Println()
-		ui.DimF("Tip: Install fzf for interactive picker (brew install fzf)\n")
+		return fmt.Errorf("no worktree name given, and fzf isn't installed for the picker\n   Run wt switch <name>, or install fzf (brew install fzf)")
+	}
+
+	target, err := pickWorktree(ctx, worktrees, cwd, "")
+	if err != nil {
+		return err
+	}
+	if target == "" {
+		fmt.Println("Cancelled")
 		return nil
 	}
 
-	// Build fzf input
+	savePreviousWorktree(cwd)
+	ui.PrintCdHint(target)
+	showSwitchSummary(target, ctx)
+	return nil
+}
+
+// pickWorktree opens fzf over worktrees, starting with query typed in.
+// Returns "" when the user cancels.
+func pickWorktree(ctx *cmdContext, worktrees []git.Worktree, cwd, query string) (string, error) {
 	var lines []string
 	for _, wt := range worktrees {
 		short := ctx.shortName(wt.Path)
@@ -113,14 +131,14 @@ func switchInteractive(ctx *cmdContext, worktrees []git.Worktree, cwd string) er
 		lines = append(lines, fmt.Sprintf("%s%s|%s|%s", marker, short, branch, wt.Path))
 	}
 
-	input := strings.Join(lines, "\n")
 	fzfCmd := exec.Command("fzf", "--ansi", "--no-sort", "--reverse",
 		"--prompt=Switch to: ",
 		"--header=↑↓ navigate  enter select  esc cancel",
 		"--delimiter=|",
 		"--with-nth=1,2",
-		"--preview-window=hidden")
-	fzfCmd.Stdin = strings.NewReader(input)
+		"--preview-window=hidden",
+		"--query="+query)
+	fzfCmd.Stdin = strings.NewReader(strings.Join(lines, "\n"))
 	fzfCmd.Stderr = os.Stderr
 
 	out, err := fzfCmd.Output()
@@ -128,24 +146,17 @@ func switchInteractive(ctx *cmdContext, worktrees []git.Worktree, cwd string) er
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			// exit code 130 = interrupted (Ctrl-C/Esc), 1 = no match
 			if exitErr.ExitCode() == 130 || exitErr.ExitCode() == 1 {
-				fmt.Println("Cancelled")
-				return nil
+				return "", nil
 			}
 		}
-		return fmt.Errorf("fzf error: %w", err)
+		return "", fmt.Errorf("fzf error: %w", err)
 	}
 
-	selection := strings.TrimSpace(string(out))
-	parts := strings.Split(selection, "|")
+	parts := strings.Split(strings.TrimSpace(string(out)), "|")
 	if len(parts) < 3 {
-		return fmt.Errorf("unexpected fzf output")
+		return "", fmt.Errorf("unexpected fzf output")
 	}
-
-	target := parts[2]
-	savePreviousWorktree(cwd)
-	ui.PrintCdHint(target)
-	showSwitchSummary(target, ctx)
-	return nil
+	return parts[2], nil
 }
 
 func switchByName(ctx *cmdContext, worktrees []git.Worktree, cwd, name string) error {
@@ -166,63 +177,83 @@ func switchByName(ctx *cmdContext, worktrees []git.Worktree, cwd, name string) e
 // resolveWorktree finds a worktree path by name using the resolution chain.
 // Returns (path, fuzzy, nil) on success — fuzzy=true when the match came from
 // the substring-contains step (step 5), meaning the caller should confirm
-// before destructive actions. Returns ("", false, nil) when no match is found,
-// or ("", false, error) when the match is ambiguous (error message already
-// printed; returns errSilent).
+// before destructive actions. Returns ("", false, nil) when no match is found.
+// When several worktrees match, it opens fzf on them if it can, and
+// otherwise returns an error that lists them.
 func resolveWorktree(ctx *cmdContext, worktrees []git.Worktree, name string) (string, bool, error) {
+	matches, fuzzy := matchWorktrees(ctx, worktrees, name)
+	switch len(matches) {
+	case 0:
+		return "", false, nil
+	case 1:
+		if fuzzy {
+			ui.DimF("Fuzzy matched: %s → %s\n", name, ctx.shortName(matches[0].Path))
+		}
+		return matches[0].Path, fuzzy, nil
+	}
+
+	_, fzfErr := exec.LookPath("fzf")
+	if fzfErr == nil && isatty.IsTerminal(os.Stdin.Fd()) {
+		target, err := pickWorktree(ctx, matches, "", name)
+		if err != nil {
+			return "", false, err
+		}
+		if target == "" {
+			fmt.Println("Cancelled")
+			return "", false, errSilent
+		}
+		return target, false, nil
+	}
+
+	var names []string
+	for _, m := range matches {
+		names = append(names, "     "+ctx.shortName(m.Path))
+	}
+	return "", false, fmt.Errorf("%q matches more than one worktree:\n%s\n   Use a longer name", name, strings.Join(names, "\n"))
+}
+
+// matchWorktrees returns the worktrees that match name at the first step of
+// the resolution chain that matches any. fuzzy is true for step 5 matches.
+func matchWorktrees(ctx *cmdContext, worktrees []git.Worktree, name string) ([]git.Worktree, bool) {
 	// 1. Exact match with configured prefix
-	exact := ctx.worktreePath(name)
-	if isDir(exact) {
-		return exact, false, nil
+	if exact := ctx.worktreePath(name); isDir(exact) {
+		return []git.Worktree{{Path: exact}}, false
 	}
 
 	// 2. Main repo match (base branch name, "main", "master", or repo name)
 	if name == ctx.RepoName || ctx.isBaseBranch(name) {
-		return ctx.MainWorktree, false, nil
+		return []git.Worktree{{Path: ctx.MainWorktree}}, false
 	}
 
 	// 3. Branch name match (exact match against git branch)
 	for _, wt := range worktrees {
 		if wt.Branch == name {
-			return wt.Path, false, nil
+			return []git.Worktree{wt}, false
 		}
 	}
 
 	// 4. Suffix match
+	var matches []git.Worktree
 	for _, wt := range worktrees {
 		base := filepath.Base(wt.Path)
 		if strings.HasSuffix(base, "-"+name) || strings.HasSuffix(base, "/"+name) {
-			return wt.Path, false, nil
+			matches = append(matches, wt)
 		}
+	}
+	if len(matches) > 0 {
+		return matches, false
 	}
 
 	// 5. Fuzzy match (contains) — checks both short name and branch
-	var fuzzyMatches []git.Worktree
 	nameLower := strings.ToLower(name)
 	for _, wt := range worktrees {
 		short := ctx.shortName(wt.Path)
 		if strings.Contains(strings.ToLower(short), nameLower) ||
 			strings.Contains(strings.ToLower(wt.Branch), nameLower) {
-			fuzzyMatches = append(fuzzyMatches, wt)
+			matches = append(matches, wt)
 		}
 	}
-
-	if len(fuzzyMatches) == 1 {
-		short := ctx.shortName(fuzzyMatches[0].Path)
-		ui.DimF("Fuzzy matched: %s → %s\n", name, short)
-		return fuzzyMatches[0].Path, true, nil
-	}
-	if len(fuzzyMatches) > 1 {
-		fmt.Printf("Multiple matches for '%s':\n\n", name)
-		for _, m := range fuzzyMatches {
-			fmt.Printf("  %s\n", ctx.shortName(m.Path))
-		}
-		fmt.Println()
-		fmt.Println("Be more specific, or use 'wt switch' for interactive picker")
-		return "", false, errSilent
-	}
-
-	return "", false, nil
+	return matches, true
 }
 
 func showSwitchSummary(path string, ctx *cmdContext) {

@@ -1,8 +1,39 @@
 package git
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 )
+
+// The first porcelain line of a modified tracked file starts with a space.
+// Trimming it once turned " M README.md" into path "ADME.md".
+func TestStatusPorcelainInKeepsLeadingSpace(t *testing.T) {
+	dir := t.TempDir()
+	write := func(s string) {
+		if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte(s), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	run := func(args ...string) {
+		if _, err := RunIn(dir, args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	run("init", "-q")
+	write("a\n")
+	run("add", "README.md")
+	run("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "add")
+	write("b\n")
+
+	got, err := StatusPorcelainIn(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].Status != " M" || got[0].Path != "README.md" {
+		t.Errorf("got %+v, want [{Status:\" M\" Path:\"README.md\"}]", got)
+	}
+}
 
 func TestParsePorcelainOutput(t *testing.T) {
 	t.Run("empty output", func(t *testing.T) {

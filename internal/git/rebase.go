@@ -6,9 +6,9 @@ import (
 	"strings"
 )
 
-// Rebase runs `git rebase <onto>` with passthrough output.
+// Rebase runs `git rebase <onto>`, dropping git's hint noise.
 func Rebase(onto string) error {
-	return RunPassthrough("rebase", onto)
+	return runQuiet(gitCmd("rebase", onto))
 }
 
 // RebaseIn runs rebase in a specific directory silently. Returns error on conflict.
@@ -16,9 +16,12 @@ func RebaseIn(dir, onto string) error {
 	return RunSilentIn(dir, "rebase", onto)
 }
 
-// RebaseContinue continues an in-progress rebase.
+// RebaseContinue continues an in-progress rebase and keeps each commit
+// message as is. GIT_EDITOR beats core.editor, so set the env var.
 func RebaseContinue() error {
-	return RunPassthrough("rebase", "--continue")
+	cmd := gitCmd("rebase", "--continue")
+	cmd.Env = append(cmd.Env, "GIT_EDITOR=true")
+	return runQuiet(cmd)
 }
 
 // RebaseAbort aborts an in-progress rebase.

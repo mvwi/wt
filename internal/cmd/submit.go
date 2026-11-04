@@ -66,24 +66,33 @@ func runSubmit(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Push
-	fmt.Println()
-	fmt.Println("Pushing to remote…")
-
 	expectedUpstream := ctx.Config.Remote + "/" + branch
 	actualUpstream := git.Upstream()
 
-	if actualUpstream == expectedUpstream {
+	// Push
+	fmt.Println()
+	head, _ := git.RevParseHead()
+	remoteHead, _ := git.Run("rev-parse", "--verify", "--quiet", expectedUpstream)
+	pushed := true
+	switch {
+	case actualUpstream == expectedUpstream && head != "" && head == remoteHead:
+		pushed = false
+		fmt.Printf("Nothing to push %s %s already matches your branch\n", ui.Dash, expectedUpstream)
+	case actualUpstream == expectedUpstream:
+		fmt.Println("Pushing to remote…")
 		if err := git.PushForceWithLease(); err != nil {
-			// Likely "stale info" — remote-tracking ref is outdated.
-			// Fetch and offer to retry.
+			// Likely "stale info": the remote moved since we last fetched.
+			// After the fetch, a retry overwrites those remote commits.
 			fmt.Println()
-			ui.Warn("Push rejected %s remote tracking info is stale", ui.Dash)
+			ui.Warn("Push rejected %s the remote branch has commits you haven't fetched", ui.Dash)
 			fmt.Println("  Fetching latest remote state…")
 			if fetchErr := git.Fetch(ctx.Config.Remote, branch); fetchErr != nil {
 				return fmt.Errorf("failed to fetch: %w", fetchErr)
 			}
-			if !ui.Confirm("Retry push?", true) {
+			if ok, err := ui.ConfirmDiscard("Overwrite the remote commits?", false); !ok {
+				if err != nil {
+					return fmt.Errorf("push rejected: %s has commits you don't have\n   Check them with: git log HEAD..%s", expectedUpstream, expectedUpstream)
+				}
 				return fmt.Errorf("push cancelled")
 			}
 			fmt.Println()
@@ -92,7 +101,8 @@ func runSubmit(cmd *cobra.Command, args []string) error {
 				return fmt.Errorf("failed to push to remote: %w", err)
 			}
 		}
-	} else {
+	default:
+		fmt.Println("Pushing to remote…")
 		if actualUpstream != "" {
 			fmt.Printf("(fixing upstream: %s → %s)\n", actualUpstream, expectedUpstream)
 		} else {
@@ -102,21 +112,34 @@ func runSubmit(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to push to remote: %w", err)
 		}
 	}
-
-	fmt.Println()
-	ui.Success("Submitted!")
-
-	if github.IsAvailable() {
+	if pushed {
 		fmt.Println()
-		if ui.IsTTY() {
-			if ui.Confirm("Watch PR status?", true) {
-				fmt.Println()
-				return runWatch(cmd, nil)
-			}
-		} else {
-			ui.PrintCTA("wt watch")
-		}
+		ui.Success("Submitted!")
 	}
 
+	if git.HasChanges() {
+		fmt.Println("Note: uncommitted changes stay local. Commit them to include them.")
+	}
+
+	if !github.IsAvailable() {
+		return nil
+	}
+	pr, err := github.GetPRForBranch(branch)
+	switch {
+	case err != nil:
+		// No PR info (e.g. not a GitHub remote); say nothing.
+	case pr == nil:
+		fmt.Println()
+		fmt.Printf("No open PR for this branch. Create one: %s\n", ui.Cyan("gh pr create"))
+		ui.PrintCTA("gh pr create")
+	case ui.IsTTY():
+		fmt.Println()
+		if ui.Confirm("Watch PR status?", true) {
+			fmt.Println()
+			return runWatch(cmd, nil)
+		}
+	default:
+		ui.PrintCTA("wt watch")
+	}
 	return nil
 }

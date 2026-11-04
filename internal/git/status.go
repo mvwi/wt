@@ -38,7 +38,14 @@ func HasChangesIn(dir string) bool {
 
 // StatusShort returns the short status output for display.
 func StatusShort() (string, error) {
-	return Run("status", "--short")
+	return StatusShortIn("")
+}
+
+// StatusShortIn returns short status for a directory. It keeps the leading
+// space of " M file" lines so the columns line up.
+func StatusShortIn(dir string) (string, error) {
+	out, err := runRawIn(dir, "status", "--short")
+	return strings.TrimRight(out, "\n"), err
 }
 
 // StatusPorcelain returns parsed file changes.
@@ -50,7 +57,7 @@ func StatusPorcelain() ([]FileChange, error) {
 // Uses -uall to list individual files inside untracked directories,
 // rather than collapsing them into a single directory entry.
 func StatusPorcelainIn(dir string) ([]FileChange, error) {
-	out, err := RunIn(dir, "status", "--porcelain", "-uall")
+	out, err := runRawIn(dir, "status", "--porcelain", "-uall")
 	if err != nil {
 		return nil, err
 	}

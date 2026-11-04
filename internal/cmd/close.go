@@ -21,18 +21,23 @@ Without arguments, closes the current worktree.
 With a name, closes the specified worktree.
 
 Safety checks:
-  - Warns if worktree has uncommitted changes
+  - Asks before discarding uncommitted changes or unpushed commits
+    (--yes does not skip this; --force does)
   - Warns if PR is still open
   - Cannot close the main repository worktree`,
 	Example: `  wt close                 Close current worktree
   wt close sidebar         Close the "sidebar" worktree
-  wt close sidebar --yes   Close without confirmation prompts`,
+  wt close sidebar --yes   Skip prompts that lose no work
+  wt close sidebar --force Discard uncommitted changes and unpushed commits`,
 	Args:              cobra.MaximumNArgs(1),
 	ValidArgsFunction: completeWorktreeNames,
 	RunE:              runClose,
 }
 
+var closeForceFlag bool
+
 func init() {
+	closeCmd.Flags().BoolVarP(&closeForceFlag, "force", "f", false, "discard uncommitted changes and unpushed commits")
 	rootCmd.AddCommand(closeCmd)
 }
 
@@ -89,21 +94,19 @@ func runClose(cmd *cobra.Command, args []string) error {
 	// Safety: uncommitted changes
 	if git.HasChangesIn(targetPath) {
 		ui.Warn("Worktree has uncommitted changes:")
-		short, _ := git.RunIn(targetPath, "status", "--short")
+		short, _ := git.StatusShortIn(targetPath)
 		fmt.Println(short)
 		fmt.Println()
-		if !ui.Confirm("Discard changes and close?", false) {
-			fmt.Println("Cancelled")
-			return nil
+		if ok, err := ui.ConfirmDiscard("Discard changes and close?", closeForceFlag); !ok {
+			return cancelled(err)
 		}
 	}
 
 	// Safety: unpushed commits
 	if unpushed := git.UnpushedCountIn(targetPath); unpushed > 0 {
 		ui.Warn("Branch has %d unpushed commit(s)", unpushed)
-		if !ui.Confirm("Discard commits and close?", false) {
-			fmt.Println("Cancelled")
-			return nil
+		if ok, err := ui.ConfirmDiscard("Discard commits and close?", closeForceFlag); !ok {
+			return cancelled(err)
 		}
 	}
 
@@ -131,6 +134,11 @@ func runClose(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to remove worktree: %w", err)
 	}
 
+	// Our cwd may be gone now, and git refuses to run from a deleted dir.
+	if err := os.Chdir(ctx.MainWorktree); err != nil {
+		return fmt.Errorf("cannot enter main worktree: %w", err)
+	}
+
 	// cd out after successful removal
 	if needsCd {
 		ui.PrintCdHint(ctx.MainWorktree)
@@ -138,16 +146,32 @@ func runClose(cmd *cobra.Command, args []string) error {
 	}
 
 	// Delete local branch
+	branchKept := false
 	if targetBranch != "" && git.BranchExists(targetBranch) {
 		if err := git.DeleteBranch(targetBranch); err != nil {
 			ui.Warn("Could not delete local branch %s: %v", targetBranch, err)
+			branchKept = true
 		} else {
 			ui.Success("Deleted local branch: %s", targetBranch)
 		}
 	}
 
 	fmt.Println()
-	ui.Success("Closed worktree")
+	if branchKept {
+		ui.Warn("Closed worktree, but branch %s is still there", targetBranch)
+	} else {
+		ui.Success("Closed worktree")
+	}
 	ui.PrintCTA("wt list")
+	return nil
+}
+
+// cancelled ends a command after a declined prompt: exit 0 for a plain "no",
+// or the error when the prompt could not be asked.
+func cancelled(err error) error {
+	if err != nil {
+		return err
+	}
+	fmt.Println("Cancelled")
 	return nil
 }

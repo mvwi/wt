@@ -2,6 +2,7 @@ package ui
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -44,6 +45,7 @@ const (
 
 // YesFlag is set by the root command's --yes persistent flag.
 // When true, Confirm() skips the interactive prompt and returns true.
+// It never answers ConfirmDiscard(); that takes --force.
 var YesFlag bool
 
 // Truncate shortens a string to max runes, adding "…" if truncated.
@@ -69,7 +71,26 @@ func Confirm(message string, defaultYes bool) bool {
 	if !IsTTY() {
 		return defaultYes
 	}
+	return ask(message, defaultYes)
+}
 
+// ErrNeedsForce is returned by ConfirmDiscard when it may not ask.
+var ErrNeedsForce = errors.New("won't discard work without --force\n   Re-run with --force to discard it")
+
+// ConfirmDiscard asks before throwing away uncommitted changes or commits.
+// Only force answers it: --yes does not, and with no terminal (or under
+// --yes) it returns ErrNeedsForce so the command exits non-zero.
+func ConfirmDiscard(message string, force bool) (bool, error) {
+	if force {
+		return true, nil
+	}
+	if YesFlag || !IsTTY() {
+		return false, ErrNeedsForce
+	}
+	return ask(message, false), nil
+}
+
+func ask(message string, defaultYes bool) bool {
 	hint := "y/N"
 	if defaultYes {
 		hint = "Y/n"

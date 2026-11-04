@@ -246,18 +246,26 @@ func rebaseContinue(ctx *cmdContext) error {
 		return fmt.Errorf("no rebase in progress\n   Start one with: wt rebase")
 	}
 
+	didStash, preRef := parseRebaseState()
+
 	inProgress, _ := git.IsRebaseInProgress()
-	if inProgress {
-		fmt.Println("Continuing rebase…")
-		if err := git.RebaseContinue(); err != nil {
-			fmt.Println()
-			ui.Warn("Still have conflicts. Resolve them and run:")
-			fmt.Printf("  %s\n", ui.Cyan("wt rebase --continue"))
-			return nil
+	if !inProgress {
+		// The rebase ended outside wt (e.g. plain `git rebase --continue`).
+		// Don't pop a stash this old: the stack may have changed since.
+		git.RemoveStateFile(stateFileName)
+		if didStash {
+			ui.Warn("wt stashed your changes before that rebase. Check `git stash list` for \"wt rebase: auto-stash\".")
 		}
+		return fmt.Errorf("no rebase in progress\n   Start one with: wt rebase")
 	}
 
-	didStash, preRef := parseRebaseState()
+	fmt.Println("Continuing rebase…")
+	if err := git.RebaseContinue(); err != nil {
+		fmt.Println()
+		ui.Warn("Still have conflicts. Resolve them and run:")
+		fmt.Printf("  %s\n", ui.Cyan("wt rebase --continue"))
+		return nil
+	}
 	restoreStash(didStash)
 	git.RemoveStateFile(stateFileName)
 

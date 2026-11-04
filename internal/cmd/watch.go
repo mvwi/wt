@@ -357,6 +357,9 @@ func buildSpinnerMessage(ws *github.WatchStatus) string {
 	reviewWaiting := ws.ReviewDecision == "REVIEW_REQUIRED"
 
 	switch {
+	case cs.Total == 0 && ws.MergeStateStatus == "BLOCKED":
+		// Typical for fork PRs whose workflows wait for a maintainer to approve them.
+		return ui.Dim("Blocked, no checks have started " + ui.Dash + " workflows may need maintainer approval…")
 	case ciWaiting && reviewWaiting:
 		return ui.Dim("Waiting for checks and review…")
 	case ciWaiting:

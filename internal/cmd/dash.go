@@ -283,11 +283,11 @@ func gatherDashItems(ctx *cmdContext, cwd string) ([]tui.DashItem, error) {
 		return nil, err
 	}
 
-	infos, _ := collectWorktreeInfos(ctx, cwd, worktrees)
+	infos, branches := collectWorktreeInfos(ctx, cwd, worktrees)
 
 	var openPRs, mergedPRs, closedPRs []github.PR
 	if github.IsAvailable() {
-		openPRs, mergedPRs, closedPRs, _ = fetchPRData()
+		openPRs, mergedPRs, closedPRs, _ = fetchPRData(branches)
 	}
 
 	staleThreshold := ctx.Config.EffectiveStaleThreshold()

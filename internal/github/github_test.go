@@ -1,6 +1,37 @@
 package github
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
+
+func TestHeadQueries(t *testing.T) {
+	if got := headQueries(nil); len(got) != 0 {
+		t.Errorf("headQueries(nil) = %v, want none", got)
+	}
+	if got := headQueries([]string{"a/x", "b"}); len(got) != 1 || got[0] != "head:a/x head:b" {
+		t.Errorf("headQueries = %v, want [head:a/x head:b]", got)
+	}
+
+	long := make([]string, 30)
+	for i := range long {
+		long[i] = "mike/some-long-branch-name"
+	}
+	got := headQueries(long)
+	if len(got) < 2 {
+		t.Fatalf("want several queries, got %d", len(got))
+	}
+	n := 0
+	for _, q := range got {
+		if len(q) > maxHeadQuery {
+			t.Errorf("query too long (%d): %s", len(q), q)
+		}
+		n += len(strings.Fields(q))
+	}
+	if n != len(long) {
+		t.Errorf("terms = %d, want %d", n, len(long))
+	}
+}
 
 func review(login, state string) Review {
 	return Review{

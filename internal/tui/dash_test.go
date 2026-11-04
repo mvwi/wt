@@ -7,9 +7,10 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
-var ansiRe = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+var ansiRe = regexp.MustCompile(`\x1b\[[0-9;:]*m`)
 
 func plain(s string) string { return ansiRe.ReplaceAllString(s, "") }
 
@@ -155,5 +156,64 @@ func TestDashKeys(t *testing.T) {
 func TestDashViewUsesAltScreen(t *testing.T) {
 	if !commitDash(t, "", 0, 80, 30).View().AltScreen {
 		t.Error("dashboard should render in the alt screen")
+	}
+}
+
+func TestBuildChecksLineFailingFirst(t *testing.T) {
+	checks := []DashCheck{
+		{Name: "lint", State: "pass"},
+		{Name: "build", State: "pass"},
+		{Name: "e2e", State: "pending"},
+		{Name: "unit", State: "fail"},
+	}
+	got := plain(buildChecksLine(checks, 20))
+	if !strings.HasPrefix(got, "✗ unit · ◐ e2e") {
+		t.Errorf("buildChecksLine = %q, want failing then pending first", got)
+	}
+	if checks[0].Name != "lint" {
+		t.Errorf("buildChecksLine reordered the caller's slice")
+	}
+}
+
+func TestLayoutFooterFitsWidth(t *testing.T) {
+	m := dashModel{items: []DashItem{{Path: "/a", Branch: "feat"}}}
+	for _, width := range []int{40, 60, 78, 120} {
+		lines := layoutFooter(footerKeys(m), dStyleDim.Render("updated 3s ago"), width)
+		joined := plain(strings.Join(lines, "\n"))
+		for _, l := range lines {
+			if w := lipgloss.Width(l); w > width {
+				t.Errorf("width %d: line %q is %d wide", width, plain(l), w)
+			}
+		}
+		for _, want := range []string{"q quit", "? help", "updated 3s ago"} {
+			if !strings.Contains(joined, want) {
+				t.Errorf("width %d: footer %q lacks %q", width, joined, want)
+			}
+		}
+	}
+}
+
+func TestEnterWithoutCommitsShowsNote(t *testing.T) {
+	m := dashModel{
+		items:   []DashItem{{Path: "/a", Branch: "feat"}},
+		details: map[string]*dashDetailCache{"/a": {}},
+	}
+	next, _ := m.handleWorktreesKey("enter")
+	dm := next.(dashModel)
+	if dm.focus != focusWorktrees || dm.flash == "" {
+		t.Errorf("focus=%v flash=%q, want worktrees focus and a note", dm.focus, dm.flash)
+	}
+}
+
+func TestHelpOverlayToggles(t *testing.T) {
+	m := dashModel{items: []DashItem{{Path: "/a", Branch: "feat"}}}
+	next, _ := m.Update(tea.KeyPressMsg{Code: '?', Text: "?"})
+	dm := next.(dashModel)
+	if !dm.showHelp || !strings.Contains(plain(dm.render()), "GLYPHS") {
+		t.Fatalf("? did not open help")
+	}
+	next, _ = dm.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
+	if next.(dashModel).showHelp {
+		t.Errorf("any key should close help")
 	}
 }

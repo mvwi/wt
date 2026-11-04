@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/fatih/color"
@@ -145,7 +147,21 @@ func PrintWrapperHint() {
 		return
 	}
 	wrapperHintShown = true
-	DimF("  wt can't cd for you: the shell wrapper isn't loaded. %s\n", wrapperSetup(os.Getenv("SHELL")))
+	DimF("  wt can't cd for you: the shell wrapper isn't loaded. %s\n", wrapperSetup(currentShell()))
+}
+
+// currentShell names the shell that ran wt: the parent process, since $SHELL is
+// the login shell and may differ (zsh started from fish). Falls back to $SHELL.
+func currentShell() string {
+	out, err := exec.Command("ps", "-o", "comm=", "-p", strconv.Itoa(os.Getppid())).Output()
+	if err == nil {
+		name := strings.TrimPrefix(filepath.Base(strings.TrimSpace(string(out))), "-")
+		switch name {
+		case "fish", "zsh", "bash":
+			return name
+		}
+	}
+	return os.Getenv("SHELL")
 }
 
 // wrapperSetup returns the line that loads the wrapper for the given $SHELL.

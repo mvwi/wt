@@ -24,14 +24,15 @@ Requires the GitHub CLI (gh) to be installed.`,
 	RunE: runPR,
 }
 
-var prDoInit bool
-
 func init() {
-	prCmd.Flags().BoolVarP(&prDoInit, "init", "i", false, "run 'wt init' after creating")
+	addCreateFlags(prCmd)
 	rootCmd.AddCommand(prCmd)
 }
 
 func runPR(cmd *cobra.Command, args []string) error {
+	if err := startOutput(); err != nil {
+		return err
+	}
 	if !github.IsAvailable() {
 		return fmt.Errorf("gh CLI is required for this command (brew install gh)")
 	}
@@ -58,5 +59,5 @@ func runPR(cmd *cobra.Command, args []string) error {
 	fmt.Printf("PR #%d: %s\n", pr.Number, pr.Title)
 	fmt.Println()
 
-	return checkoutPR(ctx, "", pr, prDoInit)
+	return checkoutPR(ctx, "", pr)
 }

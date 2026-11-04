@@ -179,6 +179,9 @@ func fetchPRData(branches []string) (openPRs, mergedPRs, closedPRs []github.PR, 
 	go func() { defer wg.Done(); closedPRs, closedErr = github.ListPRs("closed", branches...) }()
 	wg.Wait()
 	err = cmp.Or(openErr, mergedErr, closedErr)
+	if openErr == nil {
+		cacheOpenPRs(branches, openPRs)
+	}
 	return
 }
 

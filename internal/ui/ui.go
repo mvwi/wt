@@ -48,6 +48,10 @@ const (
 // It never answers ConfirmDiscard(); that takes --force.
 var YesFlag bool
 
+// JSON is set when a command prints JSON. IsTTY then reports false, so
+// nothing prompts or animates, and PrintCTA stays quiet: the JSON has its own cta.
+var JSON bool
+
 // Truncate shortens a string to max runes, adding "…" if truncated.
 func Truncate(s string, max int) string {
 	runes := []rune(s)
@@ -187,7 +191,7 @@ func Info(format string, args ...any) {
 
 // IsTTY reports whether stdout is connected to a terminal.
 func IsTTY() bool {
-	return isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
+	return !JSON && isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
 }
 
 // ClearLines moves the cursor up n lines and clears each one.
@@ -212,7 +216,7 @@ func Header(text string) {
 // Only emits output when stdout is not a TTY — human terminal output is unaffected.
 // Format: "cta: cmd1 | cmd2"
 func PrintCTA(cmds ...string) {
-	if len(cmds) == 0 || IsTTY() {
+	if len(cmds) == 0 || IsTTY() || JSON {
 		return
 	}
 	fmt.Printf("cta: %s\n", strings.Join(cmds, " | "))

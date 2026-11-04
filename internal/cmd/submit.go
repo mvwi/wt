@@ -31,10 +31,22 @@ var (
 func init() {
 	submitCmd.Flags().BoolVar(&submitContinueFlag, "continue", false, "resume after resolving conflicts")
 	submitCmd.Flags().BoolVar(&submitAbortFlag, "abort", false, "abort and restore state")
+	addOutputFlag(submitCmd)
 	rootCmd.AddCommand(submitCmd)
 }
 
+// submitJSON is what submit prints with --output json.
+type submitJSON struct {
+	Branch string   `json:"branch"`
+	Pushed bool     `json:"pushed"`
+	PR     int      `json:"pr,omitempty"`
+	CTA    []string `json:"cta,omitempty"`
+}
+
 func runSubmit(cmd *cobra.Command, args []string) error {
+	if err := startOutput(); err != nil {
+		return err
+	}
 	ctx, err := newContext()
 	if err != nil {
 		return err
@@ -59,10 +71,16 @@ func runSubmit(cmd *cobra.Command, args []string) error {
 
 	// If rebase was just --abort or still in conflict, don't push
 	if submitAbortFlag {
+		if jsonOut != nil {
+			return printJSON(submitJSON{Branch: branch})
+		}
 		return nil
 	}
 	inProgress, _ := git.IsRebaseInProgress()
 	if inProgress {
+		if jsonOut != nil {
+			return fmt.Errorf("rebase stopped on conflicts, nothing pushed\n   Fix them, then run wt submit --continue")
+		}
 		return nil
 	}
 
@@ -119,6 +137,17 @@ func runSubmit(cmd *cobra.Command, args []string) error {
 
 	if git.HasChanges() {
 		fmt.Println("Note: uncommitted changes stay local. Commit them to include them.")
+	}
+
+	if jsonOut != nil {
+		out := submitJSON{Branch: branch, Pushed: pushed}
+		if pr, err := github.GetPRForBranch(branch); err == nil && github.IsAvailable() {
+			out.CTA = []string{"gh pr create"}
+			if pr != nil {
+				out.PR, out.CTA = pr.Number, []string{"wt watch"}
+			}
+		}
+		return printJSON(out)
 	}
 
 	if !github.IsAvailable() {

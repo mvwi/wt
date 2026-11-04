@@ -18,6 +18,12 @@ import (
 // Execute should exit non-zero without printing anything extra.
 var errSilent = errors.New("")
 
+// exitCode makes wt exit with that code and print nothing, as after a
+// failed --run command.
+type exitCode int
+
+func (e exitCode) Error() string { return fmt.Sprintf("exit status %d", int(e)) }
+
 // cwdOverride is set by the persistent -C/--directory flag and applied
 // in PersistentPreRunE before any subcommand reads cwd.
 var cwdOverride string
@@ -71,9 +77,15 @@ const (
 
 // Execute runs the root command.
 func Execute() {
-	update.CheckInBackground()
+	if !isShellInitCommand() {
+		update.CheckInBackground()
+	}
 
 	if cmd, err := rootCmd.ExecuteC(); err != nil {
+		var code exitCode
+		if errors.As(err, &code) {
+			os.Exit(int(code))
+		}
 		if !errors.Is(err, errSilent) {
 			// Cobra includes "Did you mean this?" in the error message
 			// when SuggestionsMinimumDistance is set. Since we silence
@@ -145,6 +157,9 @@ var commandIcons = map[string]string{
 	"completion": "🧩",
 	"init-shell": "🐚",
 	"feedback":   "💬",
+	"edit":       "💻",
+	"prompt":     "📍",
+	"skill":      "🤖",
 }
 
 // helpLine renders one command row: full usage (with args), icon, summary.
@@ -221,13 +236,14 @@ func applyCwdOverride(_ *cobra.Command, _ []string) error {
 }
 
 // isShellInitCommand returns true for commands that run during shell startup
-// (init-shell, completion) where stderr output would be disruptive.
+// or in every prompt (init-shell, completion, prompt), where stderr output or
+// a network call would be disruptive.
 func isShellInitCommand() bool {
 	if len(os.Args) < 2 {
 		return false
 	}
 	switch os.Args[1] {
-	case "init-shell", "completion":
+	case "init-shell", "completion", "prompt":
 		return true
 	}
 	return false
@@ -302,7 +318,10 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 	// PR status
 	if github.IsAvailable() {
-		pr, _ := github.GetPRForBranch(branch)
+		pr, err := github.GetPRForBranch(branch)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, ui.Dim("  Couldn't load PR status: "+firstLine(err.Error())))
+		}
 		if pr != nil && pr.State == "OPEN" {
 			rs := pr.GetReviewSummary()
 			cs := pr.GetCISummary()

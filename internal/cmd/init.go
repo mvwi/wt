@@ -3,9 +3,11 @@ package cmd
 import (
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/mvwi/wt/internal/ui"
@@ -22,6 +24,14 @@ When [init] is configured in .wt.toml, runs exactly those steps:
 
   copy_files — files copied from the main worktree (if missing)
   commands   — shell commands run sequentially
+
+These add to the configured or detected steps:
+
+  clone_dirs — dirs cloned copy-on-write from the main worktree (if missing)
+  env        — KEY = "template" lines written into .env (or env_file);
+               templates may use {index} {port} {name} {branch} {repo}
+
+Commands see WT_NAME, WT_PATH, WT_BRANCH, WT_MAIN, WT_INDEX and WT_PORT.
 
 When no [init] section exists, auto-detects common patterns:
 
@@ -70,14 +80,16 @@ func runInitIn(dir string, ctx *cmdContext) error {
 		return fmt.Errorf("you're in the main repo\n   Switch to a worktree first: wt switch <name>")
 	}
 
-	copyFiles := ctx.Config.Init.CopyFiles
-	commands := ctx.Config.Init.Commands
+	cfg := ctx.Config.Init
+	copyFiles := cfg.CopyFiles
+	commands := cfg.Commands
 	configured := len(copyFiles) > 0 || len(commands) > 0
 
-	// Auto-detect when no [init] section is configured
+	// Auto-detect when no [init] steps are configured. clone_dirs and env
+	// add to either set of steps.
 	if !configured {
 		copyFiles, commands = detectInit(ctx.MainWorktree)
-		if len(copyFiles) == 0 && len(commands) == 0 {
+		if len(copyFiles) == 0 && len(commands) == 0 && len(cfg.CloneDirs) == 0 && len(cfg.Env) == 0 {
 			fmt.Println("Nothing to initialize — no [init] config and nothing detected.")
 			fmt.Println()
 			fmt.Println("Add an [init] section to .wt.toml to configure setup:")
@@ -126,10 +138,49 @@ func runInitIn(dir string, ctx *cmdContext) error {
 		}
 	}
 
-	// Step 2: Run commands
+	// Step 2: Clone heavy dirs so install only has to fix the diff
+	for _, d := range cfg.CloneDirs {
+		src := filepath.Join(ctx.MainWorktree, d)
+		dst := filepath.Join(dir, d)
+		switch {
+		case !isDir(src):
+			steps = append(steps, initStep{"clone " + d, "skip", "not found in main worktree"})
+		case fileExists(dst):
+			steps = append(steps, initStep{"clone " + d, "skip", "already exists"})
+		default:
+			err := os.MkdirAll(filepath.Dir(dst), 0755)
+			if err == nil {
+				err = cloneTree(src, dst)
+			}
+			if err != nil {
+				steps = append(steps, initStep{"clone " + d, "skip", "no copy-on-write clone: " + err.Error()})
+			} else {
+				steps = append(steps, initStep{"clone " + d, "ok", ""})
+			}
+		}
+	}
+
+	vars := worktreeVars(ctx, dir)
+
+	// Step 3: Write [init] env into the env file (after copy_files may have created it)
+	if len(cfg.Env) > 0 {
+		envFile := ctx.Config.EffectiveEnvFile()
+		vals := make(map[string]string, len(cfg.Env))
+		for k, tmpl := range cfg.Env {
+			vals[k] = expandVars(tmpl, vars)
+		}
+		if err := upsertEnv(filepath.Join(dir, envFile), vals); err != nil {
+			steps = append(steps, initStep{"write " + envFile, "fail", err.Error()})
+		} else {
+			steps = append(steps, initStep{"write " + envFile, "ok", ""})
+		}
+	}
+
+	// Step 4: Run commands
+	env := worktreeEnv(vars)
 	for _, command := range commands {
 		fmt.Printf("  %s %s\n", ui.Dim("$"), command)
-		if err := runShellString(dir, command); err != nil {
+		if err := runShellString(dir, command, env...); err != nil {
 			steps = append(steps, initStep{"run " + command, "fail", err.Error()})
 		} else {
 			steps = append(steps, initStep{"run " + command, "ok", ""})
@@ -162,6 +213,7 @@ func runInitIn(dir string, ctx *cmdContext) error {
 		fmt.Println()
 		fmt.Println(ui.Dim("Tip: add [init] to .wt.toml to customize this behavior"))
 	}
+	printToolHint(dir)
 
 	return nil
 }
@@ -205,12 +257,50 @@ func detectInit(mainWorktree string) (copyFiles []string, commands []string) {
 	return
 }
 
-func runShellString(dir, command string) error {
+// runShellString runs command with sh -c in dir, adding env to wt's own environment.
+func runShellString(dir, command string, env ...string) error {
 	cmd := exec.Command("sh", "-c", command)
 	cmd.Dir = dir
+	cmd.Env = append(os.Environ(), env...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
+}
+
+// upsertEnv sets each key in the env file at path: it replaces the key's line
+// if there is one and appends one if not. Other lines stay as they are.
+func upsertEnv(path string, vals map[string]string) error {
+	data, err := os.ReadFile(path)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	var lines []string
+	if len(data) > 0 {
+		lines = strings.Split(strings.TrimSuffix(string(data), "\n"), "\n")
+	}
+	for _, k := range slices.Sorted(maps.Keys(vals)) {
+		line := k + "=" + vals[k]
+		i := slices.IndexFunc(lines, func(l string) bool { return envKey(l) == k })
+		if i < 0 {
+			lines = append(lines, line)
+			continue
+		}
+		if strings.HasPrefix(strings.TrimSpace(lines[i]), "export ") {
+			line = "export " + line
+		}
+		lines[i] = line
+	}
+	return os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0644)
+}
+
+// envKey returns the key a dotenv line sets, or "" for comments and blanks.
+func envKey(line string) string {
+	line = strings.TrimPrefix(strings.TrimSpace(line), "export ")
+	k, _, ok := strings.Cut(line, "=")
+	if !ok || strings.HasPrefix(k, "#") {
+		return ""
+	}
+	return strings.TrimSpace(k)
 }
 
 // copyDirRecursive copies a directory tree from src to dst, preserving permissions.

@@ -120,11 +120,7 @@ func newFromExisting(ctx *cmdContext, name, fromBranch string) error {
 	ui.Success("Created worktree")
 	fmt.Println()
 
-	if newDoInit {
-		return runInitIn(wtPath, ctx)
-	}
-	printSwitchHint(name)
-	return nil
+	return finishNew(ctx, name, wtPath, newDoInit)
 }
 
 // parsePRNumber checks if s looks like a PR number ("#123" or "123")
@@ -268,11 +264,7 @@ func createWorktreeFromRemote(ctx *cmdContext, name, remoteBranch string, doInit
 	ui.Success("Created worktree")
 	fmt.Println()
 
-	if doInit {
-		return runInitIn(wtPath, ctx)
-	}
-	printSwitchHint(name)
-	return nil
+	return finishNew(ctx, name, wtPath, doInit)
 }
 
 // printSwitchHint prints the next-step command.
@@ -331,9 +323,5 @@ func newFromBase(ctx *cmdContext, name string) error {
 	ui.Success("Created worktree")
 	fmt.Println()
 
-	if newDoInit {
-		return runInitIn(wtPath, ctx)
-	}
-	printSwitchHint(name)
-	return nil
+	return finishNew(ctx, name, wtPath, newDoInit)
 }

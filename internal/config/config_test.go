@@ -151,6 +151,52 @@ commands = ["pnpm install", "npx prisma generate"]
 	})
 }
 
+func TestLoadHooksAndEnv(t *testing.T) {
+	dir := t.TempDir()
+	err := os.WriteFile(filepath.Join(dir, ".wt.toml"), []byte(`
+port_base = 4000
+
+[init]
+clone_dirs = ["node_modules"]
+env = { PORT = "{port}", COMPOSE_PROJECT_NAME = "{repo}-{name}" }
+env_file = ".env.local"
+
+[hooks]
+post_new = ["echo new"]
+pre_close = ["docker compose down"]
+post_close = ["echo bye"]
+`), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(dir, "myrepo")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if cfg.EffectivePortBase() != 4000 {
+		t.Errorf("PortBase = %d, want 4000", cfg.EffectivePortBase())
+	}
+	if len(cfg.Init.CloneDirs) != 1 || cfg.Init.CloneDirs[0] != "node_modules" {
+		t.Errorf("CloneDirs = %v", cfg.Init.CloneDirs)
+	}
+	if cfg.Init.Env["PORT"] != "{port}" || cfg.Init.Env["COMPOSE_PROJECT_NAME"] != "{repo}-{name}" {
+		t.Errorf("Env = %v", cfg.Init.Env)
+	}
+	if cfg.EffectiveEnvFile() != ".env.local" {
+		t.Errorf("EnvFile = %q", cfg.EffectiveEnvFile())
+	}
+	if len(cfg.Hooks.PostNew) != 1 || len(cfg.Hooks.PreClose) != 1 || len(cfg.Hooks.PostClose) != 1 {
+		t.Errorf("Hooks = %+v", cfg.Hooks)
+	}
+
+	empty := &Config{}
+	if empty.EffectivePortBase() != 3000 || empty.EffectiveEnvFile() != ".env" {
+		t.Errorf("defaults: port base %d, env file %q", empty.EffectivePortBase(), empty.EffectiveEnvFile())
+	}
+}
+
 func TestEffectiveWorktreeDir(t *testing.T) {
 	tests := []struct {
 		name     string

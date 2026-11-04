@@ -321,6 +321,13 @@ func rebaseAll(ctx *cmdContext) error {
 	fmt.Println()
 
 	var rebased, skipped, uptodate, failed int
+	var conflicted []string
+	commits := func(n int) string {
+		if n == 1 {
+			return "1 commit"
+		}
+		return fmt.Sprintf("%d commits", n)
+	}
 
 	for _, wt := range worktrees {
 		branch, _ := git.CurrentBranchIn(wt.Path)
@@ -338,7 +345,7 @@ func rebaseAll(ctx *cmdContext) error {
 					fmt.Printf("%s\n", ui.Red("✗ fast-forward failed"))
 					failed++
 				} else {
-					msg := fmt.Sprintf("✓ fast-forwarded (%d commits)", ab.Behind)
+					msg := fmt.Sprintf("✓ fast-forwarded (%s)", commits(ab.Behind))
 					suffix := lockfileChangedSuffix(wt.Path, preRef)
 					fmt.Printf("%s%s\n", ui.Green(msg), suffix)
 					rebased++
@@ -366,10 +373,11 @@ func rebaseAll(ctx *cmdContext) error {
 		preRef, _ := git.RevParseHeadIn(wt.Path)
 		if err := git.RebaseIn(wt.Path, ctx.baseRef()); err != nil {
 			git.RebaseAbortIn(wt.Path)
-			fmt.Printf("%s\n", ui.Red("✗ conflicts (aborted, rebase manually)"))
+			fmt.Printf("%s\n", ui.Red("✗ conflicts (aborted)"))
+			conflicted = append(conflicted, short)
 			failed++
 		} else {
-			msg := fmt.Sprintf("✓ rebased (%d commits from %s)", ab.Behind, ctx.Config.BaseBranch)
+			msg := fmt.Sprintf("✓ rebased (%s from %s)", commits(ab.Behind), ctx.Config.BaseBranch)
 			suffix := lockfileChangedSuffix(wt.Path, preRef)
 			fmt.Printf("%s%s\n", ui.Green(msg), suffix)
 			rebased++
@@ -388,7 +396,21 @@ func rebaseAll(ctx *cmdContext) error {
 		fmt.Printf("  %s\n", ui.Yellow(fmt.Sprintf("⚠ %d skipped (uncommitted changes)", skipped)))
 	}
 	if failed > 0 {
-		fmt.Printf("  %s\n", ui.Red(fmt.Sprintf("✗ %d failed (conflicts)", failed)))
+		fmt.Printf("  %s\n", ui.Red(fmt.Sprintf("✗ %d failed", failed)))
+	}
+	if len(conflicted) > 0 {
+		fmt.Println()
+		fmt.Println("Resolve conflicts one worktree at a time:")
+		var ctas []string
+		for _, name := range conflicted {
+			cmd := "wt switch " + name + " && wt rebase"
+			fmt.Printf("  %s\n", ui.Cyan(cmd))
+			ctas = append(ctas, cmd)
+		}
+		ui.PrintCTA(ctas...)
+	}
+	if failed > 0 {
+		return errSilent // scripts must see that not every worktree was rebased
 	}
 	return nil
 }

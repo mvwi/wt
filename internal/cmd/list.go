@@ -33,8 +33,6 @@ Use --output json for machine-readable output (all data in one pass).`,
 
 func init() {
 	listCmd.Flags().String("output", "", "Output format: json, toon")
-	listCmd.Flags().Bool("json", false, "Output as JSON")
-	_ = listCmd.Flags().MarkDeprecated("json", "use --output json instead")
 	rootCmd.AddCommand(listCmd)
 }
 
@@ -91,10 +89,6 @@ type listJSONEntry struct {
 
 func runList(cmd *cobra.Command, args []string) error {
 	outputFormat, _ := cmd.Flags().GetString("output")
-	jsonFlag, _ := cmd.Flags().GetBool("json")
-	if jsonFlag && outputFormat == "" {
-		outputFormat = "json"
-	}
 
 	ctx, err := newContext()
 	if err != nil {

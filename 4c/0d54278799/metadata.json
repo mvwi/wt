@@ -1,0 +1,31 @@
+{
+  "cli_version": "0.11.4",
+  "checkpoint_id": "4c0d54278799",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 10,
+  "files_touched": [
+    "internal/cmd/init_test.go",
+    "internal/config/config_test.go",
+    "internal/git/rebase.go",
+    "internal/git/status.go",
+    "internal/git/worktree.go",
+    "internal/update/check.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/4c/0d54278799/0/metadata.json",
+      "transcript": "/4c/0d54278799/0/full.jsonl",
+      "compact_transcript": "/4c/0d54278799/0/transcript.jsonl",
+      "content_hash": "/4c/0d54278799/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 70,
+    "cache_creation_tokens": 95024,
+    "cache_read_tokens": 2696015,
+    "output_tokens": 18130,
+    "api_call_count": 26
+  }
+}

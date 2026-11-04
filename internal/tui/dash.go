@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -134,7 +135,20 @@ type DashConfig struct {
 // RunDashboard launches the interactive worktree dashboard. The dashboard owns
 // the terminal until the user presses enter (select) or q/esc/ctrl+c (quit).
 func RunDashboard(cfg DashConfig) (DashResult, error) {
-	m := dashModel{
+	final, err := tea.NewProgram(newDashModel(cfg)).Run()
+	if err != nil {
+		return DashResult{}, err
+	}
+
+	fm := final.(dashModel)
+	if fm.switchTo != "" {
+		return DashResult{SwitchTo: fm.switchTo}, nil
+	}
+	return DashResult{}, nil
+}
+
+func newDashModel(cfg DashConfig) dashModel {
+	return dashModel{
 		items:               cfg.Initial,
 		gather:              cfg.Gather,
 		close:               cfg.Close,
@@ -149,17 +163,6 @@ func RunDashboard(cfg DashConfig) (DashResult, error) {
 		commitDetailLoading: map[string]bool{},
 		lastRefresh:         time.Now(),
 	}
-
-	final, err := tea.NewProgram(m).Run()
-	if err != nil {
-		return DashResult{}, err
-	}
-
-	fm := final.(dashModel)
-	if fm.switchTo != "" {
-		return DashResult{SwitchTo: fm.switchTo}, nil
-	}
-	return DashResult{}, nil
 }
 
 // focusPane indicates which list owns navigation keys (j/k/enter).
@@ -1104,8 +1107,8 @@ func bodyLineCap(termHeight int) int {
 
 func (m dashModel) View() tea.View {
 	content := strings.TrimSuffix(m.render(), "\n")
-	// v2 clips a too-tall frame at the bottom, hiding the footer keys. Keep the
-	// bottom rows instead, as v1 did, until the commit panel gets a height cap.
+	// v2 clips a too-tall frame at the bottom, hiding the footer keys. If the
+	// frame still overflows (e.g. many worktree rows), keep the bottom rows.
 	if lines := strings.Split(content, "\n"); m.height > 0 && len(lines) > m.height {
 		content = strings.Join(lines[len(lines)-m.height:], "\n")
 	}
@@ -1178,7 +1181,13 @@ func (m dashModel) render() string {
 	// Third panel: commit detail — only when commits pane is focused.
 	if m.focus == focusCommits && m.fetchCommitDetail != nil {
 		b.WriteString("  " + dStyleDim.Render(strings.Repeat("─", ruleWidth)) + "\n")
-		b.WriteString(m.renderCommitDetail(lo.detailWidth()))
+		// Rows left after everything above and the 2-line footer. 0 = no cap
+		// (height unknown before the first WindowSizeMsg).
+		room := 0
+		if m.height > 0 {
+			room = max(2, m.height-strings.Count(b.String(), "\n")-2)
+		}
+		b.WriteString(m.renderCommitDetail(lo.detailWidth(), room))
 	}
 
 	// Footer
@@ -1528,7 +1537,9 @@ func (m dashModel) renderDetail(width, bodyMax int) string {
 
 // renderCommitDetail renders the third panel — the full detail for the commit
 // under the commit cursor when the commits pane is focused.
-func (m dashModel) renderCommitDetail(width int) string {
+// renderCommitDetail renders the commit panel in at most maxLines lines
+// (0 = no cap), trimming the body first and then the file list.
+func (m dashModel) renderCommitDetail(width, maxLines int) string {
 	commits := m.focusedCommits()
 	if m.commitCursor < 0 || m.commitCursor >= len(commits) {
 		return ""
@@ -1578,26 +1589,82 @@ func (m dashModel) renderCommitDetail(width int) string {
 	fmt.Fprintf(&b, "  %s%s\n", strings.Repeat(" ", labelCol), meta)
 
 	// Body (wrapped) — dim background text with issue refs colored blue.
+	var body []string
 	if d.Body != "" {
-		fmt.Fprintln(&b)
-		for _, line := range wrapText(d.Body, contentWidth) {
-			fmt.Fprintf(&b, "  %s%s\n", strings.Repeat(" ", labelCol), colorizeBody(line))
+		for _, line := range wrapText(reflowBody(d.Body), contentWidth) {
+			body = append(body, colorizeBody(line))
 		}
 	}
-
 	// FILES section — per-file row with status, path, +adds −dels right-aligned.
-	if len(d.Files) > 0 {
+	var files []string
+	for _, f := range d.Files {
+		files = append(files, renderCommitFileRow(f, contentWidth-1))
+	}
+	if maxLines > 0 {
+		body, files = fitCommitPanel(body, files, maxLines-2) // subject + meta
+	}
+
+	indent := strings.Repeat(" ", labelCol)
+	if len(body) > 0 {
 		fmt.Fprintln(&b)
-		fmt.Fprintf(&b, "  %s     %s\n",
-			dStyleSection.Render("FILES"),
-			renderCommitFileRow(d.Files[0], contentWidth-1),
-		)
-		for _, f := range d.Files[1:] {
-			fmt.Fprintf(&b, "  %s%s\n", strings.Repeat(" ", labelCol), renderCommitFileRow(f, contentWidth-1))
+		for _, line := range body {
+			fmt.Fprintf(&b, "  %s%s\n", indent, line)
+		}
+	}
+	if len(files) > 0 {
+		fmt.Fprintln(&b)
+		fmt.Fprintf(&b, "  %s     %s\n", dStyleSection.Render("FILES"), files[0])
+		for _, row := range files[1:] {
+			fmt.Fprintf(&b, "  %s%s\n", indent, row)
 		}
 	}
 
 	return b.String()
+}
+
+// fitCommitPanel trims the commit body, then the file list, to fit room lines.
+// Each non-empty section also costs one blank separator line.
+func fitCommitPanel(body, files []string, room int) ([]string, []string) {
+	cost := func(s []string) int {
+		if len(s) == 0 {
+			return 0
+		}
+		return len(s) + 1
+	}
+	if cost(body)+cost(files) <= room {
+		return body, files
+	}
+	if keep := room - cost(files) - 1; keep >= 1 && len(body) > 0 {
+		body = slices.Clone(body[:keep])
+		body[keep-1] += dStyleDim.Render(" …")
+		return body, files
+	}
+	if cost(files) <= room {
+		return nil, files
+	}
+	if keep := room - 2; keep >= 0 { // blank + "+N more" line
+		more := dStyleDim.Render(fmt.Sprintf("+%d more", len(files)-keep))
+		return nil, append(slices.Clone(files[:keep]), more)
+	}
+	return nil, nil
+}
+
+// ownLineRe matches body lines that must not be joined onto the line above:
+// indented text, list items, and trailers such as "Signed-off-by: x".
+var ownLineRe = regexp.MustCompile(`^(\s|[-*•] |\d+[.)] |[A-Za-z-]+: )`)
+
+// reflowBody joins hard-wrapped commit body lines back into paragraphs, so
+// wrapText can wrap them to the panel width instead of leaving short stubs.
+func reflowBody(s string) string {
+	var out []string
+	for line := range strings.SplitSeq(s, "\n") {
+		if n := len(out); n > 0 && out[n-1] != "" && line != "" && !ownLineRe.MatchString(line) {
+			out[n-1] += " " + strings.TrimSpace(line)
+			continue
+		}
+		out = append(out, line)
+	}
+	return strings.Join(out, "\n")
 }
 
 // renderCommitFileRow renders one file row in the FILES section:

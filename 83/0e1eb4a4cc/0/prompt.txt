@@ -1,0 +1,7 @@
+check for outdated packages, figure out if there's anything to update/patch CVEs for
+
+---
+
+okay ran brew upgrade go
+
+you can update the minor ones too. lets get packages as current as possible

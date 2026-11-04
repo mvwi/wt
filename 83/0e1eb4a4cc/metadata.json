@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.11.4",
+  "checkpoint_id": "830e1eb4a4cc",
+  "strategy": "manual-commit",
+  "branch": "chore/upgrade-deps",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "go.mod",
+    "go.sum"
+  ],
+  "sessions": [
+    {
+      "metadata": "/83/0e1eb4a4cc/0/metadata.json",
+      "transcript": "/83/0e1eb4a4cc/0/full.jsonl",
+      "compact_transcript": "/83/0e1eb4a4cc/0/transcript.jsonl",
+      "content_hash": "/83/0e1eb4a4cc/0/content_hash.txt",
+      "prompt": "/83/0e1eb4a4cc/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 28,
+    "cache_creation_tokens": 65720,
+    "cache_read_tokens": 1168716,
+    "output_tokens": 5874,
+    "api_call_count": 14
+  }
+}

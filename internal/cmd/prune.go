@@ -44,10 +44,6 @@ type staleWorktree struct {
 }
 
 func runPrune(cmd *cobra.Command, args []string) error {
-	if !github.IsAvailable() {
-		return fmt.Errorf("gh CLI is required for prune (brew install gh)")
-	}
-
 	ctx, err := newContext()
 	if err != nil {
 		return err
@@ -58,40 +54,18 @@ func runPrune(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("cannot determine current directory: %w", err)
 	}
 
-	spin := ui.NewSpinner("Scanning for stale worktrees")
-
-	var mergedPRs, closedPRs []github.PR
-	var mergedErr, closedErr error
-	var wg sync.WaitGroup
-	wg.Add(2)
-	go func() { defer wg.Done(); mergedPRs, mergedErr = github.ListPRs("merged") }()
-	go func() { defer wg.Done(); closedPRs, closedErr = github.ListPRs("closed") }()
-	wg.Wait()
-
-	if mergedErr != nil && closedErr != nil {
-		spin.Stop()
-		return fmt.Errorf("could not fetch PR data: %v", mergedErr)
-	}
-
 	worktrees, err := git.ListWorktrees()
 	if err != nil {
-		spin.Stop()
 		return err
 	}
 
-	var stale []staleWorktree
-	var skippedDirty []staleWorktree
-
+	// Candidates: feature worktrees other than main and the current one.
+	var candidates []git.Worktree
+	var branches []string
 	for _, wt := range worktrees {
-		// Skip main
-		if wt.Path == ctx.MainWorktree {
+		if wt.Path == ctx.MainWorktree || wt.Path == cwd || isSubpath(cwd, wt.Path) {
 			continue
 		}
-		// Skip current
-		if wt.Path == cwd || isSubpath(cwd, wt.Path) {
-			continue
-		}
-
 		branch := wt.Branch
 		if branch == "" {
 			branch, _ = git.CurrentBranchIn(wt.Path)
@@ -99,36 +73,54 @@ func runPrune(cmd *cobra.Command, args []string) error {
 		if ctx.isBaseBranch(branch) {
 			continue
 		}
+		candidates = append(candidates, git.Worktree{Path: wt.Path, Branch: branch})
+		branches = append(branches, branch)
+	}
 
-		// Check PR status
-		mergedPR := github.FindPRForBranch(mergedPRs, branch)
-		closedPR := github.FindPRForBranch(closedPRs, branch)
+	spin := ui.NewSpinner("Scanning for stale worktrees")
 
-		var reason string
-		switch {
-		case mergedPR != nil:
-			reason = fmt.Sprintf("PR #%d merged", mergedPR.Number)
-		case closedPR != nil:
-			reason = fmt.Sprintf("PR #%d closed", closedPR.Number)
-		default:
+	reasons, partial, ghErr := prReasons(branches)
+	local := !github.IsAvailable() || ghErr != nil
+	if local {
+		reasons, err = mergedReasons(ctx, branches)
+		if err != nil {
+			spin.Stop()
+			return err
+		}
+	}
+
+	var stale []staleWorktree
+	var skippedDirty []staleWorktree
+
+	for _, wt := range candidates {
+		reason := reasons[wt.Branch]
+		if reason == "" {
 			continue
 		}
 
 		// Stale but has uncommitted changes — track separately
 		if git.HasChangesIn(wt.Path) {
-			skippedDirty = append(skippedDirty, staleWorktree{wt.Path, branch, reason})
+			skippedDirty = append(skippedDirty, staleWorktree{wt.Path, wt.Branch, reason})
 			continue
 		}
 
-		stale = append(stale, staleWorktree{wt.Path, branch, reason})
+		stale = append(stale, staleWorktree{wt.Path, wt.Branch, reason})
 	}
 
 	git.PruneWorktrees()
 
 	spin.Stop()
 
-	if mergedErr != nil || closedErr != nil {
-		ui.Warn("Could not fetch some PR data — results may be incomplete")
+	if local {
+		why := "gh is not installed"
+		if ghErr != nil {
+			why = fmt.Sprintf("could not fetch PR data (%v)", ghErr)
+		}
+		ui.Warn("%s, so only branches merged into %s count as stale.", why, ctx.baseRef())
+		fmt.Println("   Squash-merged branches can't be detected without gh.")
+		fmt.Println()
+	} else if partial {
+		ui.Warn("Could not fetch some PR data %s results may be incomplete", ui.Dash)
 	}
 
 	if len(stale) == 0 {
@@ -192,6 +184,54 @@ func runPrune(cmd *cobra.Command, args []string) error {
 	printSkippedDirty(skippedDirty)
 	ui.PrintCTA("wt list")
 	return nil
+}
+
+// prReasons maps each branch with a merged or closed PR to a reason. partial
+// is true when one of the two lookups failed; err is set only when both did.
+func prReasons(branches []string) (reasons map[string]string, partial bool, err error) {
+	reasons = make(map[string]string)
+	if !github.IsAvailable() || len(branches) == 0 {
+		return reasons, false, nil
+	}
+
+	var mergedPRs, closedPRs []github.PR
+	var mergedErr, closedErr error
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() { defer wg.Done(); mergedPRs, mergedErr = github.ListPRs("merged", branches...) }()
+	go func() { defer wg.Done(); closedPRs, closedErr = github.ListPRs("closed", branches...) }()
+	wg.Wait()
+
+	if mergedErr != nil && closedErr != nil {
+		return nil, false, mergedErr
+	}
+
+	for _, b := range branches {
+		if pr := github.FindPRForBranch(mergedPRs, b); pr != nil {
+			reasons[b] = fmt.Sprintf("PR #%d merged", pr.Number)
+		} else if pr := github.FindPRForBranch(closedPRs, b); pr != nil {
+			reasons[b] = fmt.Sprintf("PR #%d closed", pr.Number)
+		}
+	}
+	return reasons, mergedErr != nil || closedErr != nil, nil
+}
+
+// mergedReasons is the fallback without gh: a branch is stale when the base
+// branch already contains it. Branches with no commits since creation are
+// skipped, since git also counts them as merged.
+func mergedReasons(ctx *cmdContext, branches []string) (map[string]string, error) {
+	_ = git.Fetch(ctx.Config.Remote, ctx.Config.BaseBranch) // best effort; a stale base only misses branches
+	merged, err := git.MergedBranches(ctx.baseRef())
+	if err != nil {
+		return nil, err
+	}
+	reasons := make(map[string]string)
+	for _, b := range branches {
+		if merged[b] && git.BranchMoved(b) {
+			reasons[b] = "merged into " + ctx.baseRef()
+		}
+	}
+	return reasons, nil
 }
 
 // selectPruneTargets returns the indices of stale worktrees the user wants to remove.

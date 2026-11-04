@@ -187,13 +187,40 @@ post_close = ["echo bye"]
 	if cfg.EffectiveEnvFile() != ".env.local" {
 		t.Errorf("EnvFile = %q", cfg.EffectiveEnvFile())
 	}
-	if len(cfg.Hooks.PostNew) != 1 || len(cfg.Hooks.PreClose) != 1 || len(cfg.Hooks.PostClose) != 1 {
-		t.Errorf("Hooks = %+v", cfg.Hooks)
+	// A repo's .wt.toml must not set hooks: they run without being asked for.
+	if len(cfg.Hooks.PostNew)+len(cfg.Hooks.PreClose)+len(cfg.Hooks.PostClose) != 0 || !cfg.RepoHooksIgnored {
+		t.Errorf("repo hooks should be ignored: Hooks = %+v, ignored = %v", cfg.Hooks, cfg.RepoHooksIgnored)
 	}
 
 	empty := &Config{}
 	if empty.EffectivePortBase() != 3000 || empty.EffectiveEnvFile() != ".env" {
 		t.Errorf("defaults: port base %d, env file %q", empty.EffectivePortBase(), empty.EffectiveEnvFile())
+	}
+}
+
+func TestLoadHooksFromGlobalConfig(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	if err := os.MkdirAll(filepath.Join(home, ".config", "wt"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	err := os.WriteFile(filepath.Join(home, ".config", "wt", "config.toml"), []byte(`
+[hooks]
+post_new = ["echo all"]
+
+[repos.myrepo.hooks]
+pre_close = ["docker compose down"]
+`), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(t.TempDir(), "myrepo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Hooks.PostNew) != 1 || len(cfg.Hooks.PreClose) != 1 || cfg.RepoHooksIgnored {
+		t.Errorf("Hooks = %+v, ignored = %v", cfg.Hooks, cfg.RepoHooksIgnored)
 	}
 }
 

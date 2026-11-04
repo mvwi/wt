@@ -23,6 +23,7 @@ func finishNew(ctx *cmdContext, name, wtPath string, doInit bool) error {
 			return err
 		}
 	}
+	warnRepoHooks(ctx)
 	if hooks := ctx.Config.Hooks.PostNew; len(hooks) > 0 {
 		if err := runHooks("post_new", hooks, wtPath, worktreeEnv(worktreeVars(ctx, wtPath))); err != nil {
 			ui.Warn("%v", err)
@@ -36,6 +37,13 @@ func finishNew(ctx *cmdContext, name, wtPath string, doInit bool) error {
 }
 
 // runHooks runs each command with sh -c in dir and stops at the first failure.
+// warnRepoHooks says that [hooks] in .wt.toml were skipped and where they belong.
+func warnRepoHooks(ctx *cmdContext) {
+	if ctx.Config.RepoHooksIgnored {
+		ui.Warn("Skipped [hooks] in .wt.toml: hooks only run from ~/.config/wt/config.toml (under [repos.%s] for this repo)", ctx.RepoName)
+	}
+}
+
 func runHooks(event string, cmds []string, dir string, env []string) error {
 	for _, c := range cmds {
 		fmt.Println(ui.Dim(event + ": " + c))

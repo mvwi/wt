@@ -115,7 +115,7 @@ brew install mvwi/tap/wt
 
 **Go:**
 ```sh
-go install github.com/mvwi/wt@latest
+go install github.com/mvwi/wt/cmd/wt@latest
 ```
 
 **Binary:** Download from [Releases](https://github.com/mvwi/wt/releases).
@@ -150,6 +150,7 @@ eval "$(wt completion zsh)"
 | `wt new <name>` | `create` | Create worktree with feature branch |
 | `wt init` | | Initialize worktree (auto-detects or uses config) |
 | `wt list` | `ls` | Show all worktrees with PR status |
+| `wt dash` | `dashboard` | Live worktree dashboard (TUI) |
 | `wt switch [name]` | `sw`, `cd`, `checkout`, `co` | Switch to a worktree (fzf picker if no args, `-` for previous) |
 | `wt rebase` | | Rebase current branch onto base branch (auto-installs deps if lockfile changed) |
 | `wt submit` | | Rebase + push to remote |

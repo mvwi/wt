@@ -16,6 +16,7 @@ internal/
     init.go                  Initialize worktree (copy files, run commands)
     install.go               Shared lockfile detection + install command helpers
     list.go                  Show worktrees + PR/review/CI status
+    dash.go                  Live worktree dashboard (launches tui.RunDashboard)
     switch.go                Switch worktree (fzf picker or fuzzy match)
     rebase.go                Rebase onto base branch (--all, --continue, --abort)
     submit.go                Rebase + push
@@ -40,6 +41,9 @@ internal/
     rebase.go                Rebase, MergeFF, Push, state file management
   github/                    Wraps `gh` CLI — degrades gracefully if not installed
     github.go                PR listing, review/CI summaries, branch rename via API
+  tui/                       Bubble Tea screens; take plain data, return the user's choice
+    dash.go                  `wt dash` dashboard model
+    prune.go                 `wt prune` stale-worktree picker
   ui/                        Terminal output helpers
     ui.go                    Colors, prompts, glyphs, cd hints, Truncate
     spinner.go               Animated spinner for long-running operations
@@ -80,6 +84,7 @@ We call the `git` CLI via `exec.Command`. go-git has poor worktree support and d
 - `github.com/spf13/cobra` — CLI framework + shell completions
 - `github.com/fatih/color` — terminal colors (respects NO_COLOR)
 - `github.com/BurntSushi/toml` — config parsing
+- `charm.land/bubbletea/v2` + `charm.land/lipgloss/v2` — TUI screens in `internal/tui/` (v2 API: `View()` returns `tea.View`, keys arrive as `tea.KeyPressMsg`)
 
 ## Build & Test
 

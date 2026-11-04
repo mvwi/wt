@@ -209,7 +209,7 @@ func runInitIn(dir string, ctx *cmdContext) error {
 		ui.Success("Worktree initialized")
 	}
 
-	if !configured {
+	if !configured && len(cfg.CloneDirs) == 0 && len(cfg.Env) == 0 {
 		fmt.Println()
 		fmt.Println(ui.Dim("Tip: add [init] to .wt.toml to customize this behavior"))
 	}

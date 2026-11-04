@@ -50,8 +50,7 @@ func newSpinner(formatted string) *Spinner {
 		defer close(s.stopped)
 
 		if !tty {
-			// Non-TTY: just print the message once and wait for stop
-			fmt.Printf("  %s\n", formatted)
+			// Non-TTY: draw nothing, so pipes and logs get only real output.
 			<-s.done
 			return
 		}

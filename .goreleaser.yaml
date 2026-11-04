@@ -49,12 +49,10 @@ homebrew_casks:
         wt completion fish | source
         eval \"$(wt completion bash)\"
         eval \"$(wt completion zsh)\"
-    url:
-      verified: "github.com/mvwi/wt/"
     hooks:
       post:
-        install: |
-          system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/wt"]
+        install_steps: |
+          run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ .StagedPath }}/wt"]
     repository:
       owner: mvwi
       name: homebrew-tap

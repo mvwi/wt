@@ -175,7 +175,7 @@ func rebaseFeatureBranch(ctx *cmdContext, branch string) error {
 		fmt.Println()
 		fmt.Printf("Or abort: %s\n", ui.Yellow("wt rebase --abort"))
 		ui.PrintCTA("wt rebase --continue", "wt rebase --abort")
-		return nil // Don't return error — user needs to resolve
+		return errSilent // exit 1 so scripts don't read a paused rebase as success
 	}
 
 	restoreStash(didStash)
@@ -264,7 +264,7 @@ func rebaseContinue(ctx *cmdContext) error {
 		fmt.Println()
 		ui.Warn("Still have conflicts. Resolve them and run:")
 		fmt.Printf("  %s\n", ui.Cyan("wt rebase --continue"))
-		return nil
+		return errSilent
 	}
 	restoreStash(didStash)
 	git.RemoveStateFile(stateFileName)

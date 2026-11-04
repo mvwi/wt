@@ -69,17 +69,11 @@ func runSubmit(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// If rebase was just --abort or still in conflict, don't push
+	// After --abort there is nothing to push. A rebase that stops on
+	// conflicts returns an error above, so nothing is pushed then either.
 	if submitAbortFlag {
 		if jsonOut != nil {
 			return printJSON(submitJSON{Branch: branch})
-		}
-		return nil
-	}
-	inProgress, _ := git.IsRebaseInProgress()
-	if inProgress {
-		if jsonOut != nil {
-			return fmt.Errorf("rebase stopped on conflicts, nothing pushed\n   Fix them, then run wt submit --continue")
 		}
 		return nil
 	}

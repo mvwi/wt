@@ -20,16 +20,21 @@ var moveCmd = &cobra.Command{
 	Long: `Move all uncommitted changes (modified, new, deleted files) to another worktree.
 
 If the target worktree doesn't exist, offers to create a new one from the base branch.
-Checks for conflicting changes in the destination before overwriting.`,
+Asks before overwriting files the destination has its own changes to
+(--yes does not skip this; --force does).`,
 	Example: `  wt move sidebar         Move changes to existing "sidebar" worktree
   wt move new-feature     Move changes (creates worktree if needed)
-  wt move sidebar --yes   Move without confirmation prompts`,
+  wt move sidebar --yes   Skip prompts that lose no work
+  wt move sidebar --force Also overwrite the destination's own changes`,
 	Args:              cobra.ExactArgs(1),
 	ValidArgsFunction: completeWorktreeNames,
 	RunE:              runMove,
 }
 
+var moveForceFlag bool
+
 func init() {
+	moveCmd.Flags().BoolVarP(&moveForceFlag, "force", "f", false, "overwrite the destination's own changes")
 	rootCmd.AddCommand(moveCmd)
 }
 
@@ -119,9 +124,8 @@ func runMove(cmd *cobra.Command, args []string) error {
 				fmt.Printf("   • %s\n", f)
 			}
 			fmt.Println()
-			if !ui.Confirm("Overwrite?", false) {
-				fmt.Println("Aborted")
-				return nil
+			if ok, err := ui.ConfirmDiscard("Overwrite?", moveForceFlag); !ok {
+				return cancelled(err)
 			}
 			fmt.Println()
 		}

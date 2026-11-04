@@ -6,7 +6,9 @@ func StashPush(message string) error {
 	return err
 }
 
-// StashPop restores the most recent stash.
+// StashPop restores the most recent stash. It captures output so a clean pop
+// doesn't print a full `git status`; on failure the error carries git's stderr.
 func StashPop() error {
-	return RunPassthrough("stash", "pop")
+	_, err := Run("stash", "pop")
+	return err
 }

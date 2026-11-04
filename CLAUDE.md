@@ -29,6 +29,12 @@ internal/
     open.go                  Open PR in browser
     watch.go                 Poll PR until mergeable or blocked
     feedback.go              Open GitHub issue for feedback/bugs
+    edit.go                  Open a worktree in the user's editor
+    prompt.go                Prompt segment from local refs + PR cache (no network)
+    skill.go                 Print SKILL.md for AI agents, built from the command tree
+    output.go                Shared --output json flag: addOutputFlag, startOutput, printJSON
+    hooks.go                 finishNew (end of every create flow), [hooks], WT_INDEX/WT_PORT, [init] env
+    clone_darwin.go          clone_dirs via APFS clonefile (clone_other.go: cp --reflink=always)
     shell.go                 Shell wrapper output (init-shell fish|bash|zsh)
     completion.go            Shell completion generation
   git/                       Wraps `git` CLI via exec.Command
@@ -70,6 +76,18 @@ We call the `git` CLI via `exec.Command`. go-git has poor worktree support and d
 ### GitHub integration: graceful degradation
 `github.IsAvailable()` checks if `gh` is on PATH. All GitHub features (PR status in list, safety checks in close, remote rename) are skipped silently when `gh` isn't installed. JSON is parsed with `encoding/json` — no `jq` dependency.
 
+### Create flows end in one place
+`new`, `pr` and `pull` all end in `finishCreate` (new.go), which calls `finishNew` (hooks.go) for init, `post_new` hooks and the next-step hint, then handles `--output json`, `--edit` and `--run`. Add new create-time behaviour there, not in each command.
+
+### Hooks come only from global config
+`[hooks]` run without being asked for, so `config.Load` drops them from a repo's `.wt.toml` (sets `RepoHooksIgnored`, and `warnRepoHooks` says so). Never let repo-local config run commands implicitly; `[init] commands` are fine because the user runs `wt init` or passes `-i`.
+
+### Discarding work needs --force
+`-y` answers prompts but never discards work. Prompts that would lose uncommitted changes, unpushed commits or remote commits use `ui.ConfirmDiscard(msg, force)`, which returns `ui.ErrNeedsForce` (exit 1) under `-y` or without a TTY. A declined prompt in an interactive terminal prints "Cancelled" and exits 0.
+
+### Machine-readable output
+Commands that agents call take `--output json` via `addOutputFlag`/`startOutput`/`printJSON` (output.go). In JSON mode `ui.JSON` is set: stdout gets only the JSON object, `IsTTY()` reports false so there are no prompts or spinners, and a needed confirmation becomes an error. `fetchPRData` (list.go) and `watch` write the PR cache that `wt prompt` reads.
+
 ### Configuration: zero-config with full override
 `.wt.toml` is optional. Defaults: `base_branch = "main"`, `remote = "origin"`, `branch_prefix` = git username. Config is loaded from the main worktree root (not cwd). See `config.go` for all fields.
 
@@ -107,7 +125,9 @@ go vet ./...      # Static analysis
 - Don't hardcode "staging", "main", or "origin" — use `ctx.Config.BaseBranch`, `ctx.Config.Remote`
 - Git operations go through `internal/git/`, not raw `exec.Command`
 - GitHub operations go through `internal/github/`, always check `IsAvailable()` first
-- Interactive prompts use `ui.Confirm(message, defaultYes)` — defaultYes=true for safe operations (Y/n), false for destructive (y/N)
+- Interactive prompts use `ui.Confirm(message, defaultYes)` — defaultYes=true for safe operations (Y/n), false for destructive (y/N). Prompts that throw away work use `ui.ConfirmDiscard` instead (see "Discarding work needs --force")
+- Parse `git status --porcelain` through `git.StatusPorcelainIn`, never through `Run`/`RunIn`: those trim output, which eats the leading space of the first status line
+- Spinners draw nothing when stdout isn't a TTY; never print progress text that would leak into pipes
 - TUI tests drive the model directly: `newDashModel(cfg)`, then `Update` with `tea.WindowSizeMsg` / `tea.KeyPressMsg`, and assert on `View().Content` (see `internal/tui/dash_test.go`)
 - Auto-install uses `detectInstallCommand()` from `install.go` — update `knownLockfiles` there when adding new package managers
 

@@ -117,6 +117,7 @@ func runWatch(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("could not fetch PR status for %s: %w", ref, err)
 	}
+	cacheWatchStatus(ws)
 
 	// Resolve merge method once up front (2 gh calls — no need to repeat per poll)
 	mergeMethod := ""
@@ -171,6 +172,7 @@ func runWatch(cmd *cobra.Command, args []string) error {
 				spin.Stop()
 				return fmt.Errorf("failed to fetch PR status: %w", err)
 			}
+			cacheWatchStatus(ws)
 
 			// Clear and redraw
 			spin.Stop()

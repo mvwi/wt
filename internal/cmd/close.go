@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/mvwi/wt/internal/git"
 	"github.com/mvwi/wt/internal/github"
@@ -38,10 +39,22 @@ var closeForceFlag bool
 
 func init() {
 	closeCmd.Flags().BoolVarP(&closeForceFlag, "force", "f", false, "discard uncommitted changes and unpushed commits")
+	addOutputFlag(closeCmd)
 	rootCmd.AddCommand(closeCmd)
 }
 
+// closeJSON is what close prints with --output json.
+type closeJSON struct {
+	Name          string `json:"name"`
+	Path          string `json:"path"`
+	Branch        string `json:"branch"`
+	BranchDeleted bool   `json:"branch_deleted"`
+}
+
 func runClose(cmd *cobra.Command, args []string) error {
+	if err := startOutput(); err != nil {
+		return err
+	}
 	ctx, err := newContext()
 	if err != nil {
 		return err
@@ -73,8 +86,7 @@ func runClose(cmd *cobra.Command, args []string) error {
 		}
 		if fuzzy {
 			if !ui.Confirm(fmt.Sprintf("Close %s?", ctx.shortName(targetPath)), false) {
-				fmt.Println("Cancelled")
-				return nil
+				return cancelled(nil)
 			}
 		}
 	} else {
@@ -112,12 +124,14 @@ func runClose(cmd *cobra.Command, args []string) error {
 
 	// Safety: open PR
 	if github.IsAvailable() && targetBranch != "" {
-		pr, _ := github.GetPRForBranch(targetBranch)
+		pr, err := github.GetPRForBranch(targetBranch)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, ui.Dim("Skipped the open-PR check: "+firstLine(err.Error())))
+		}
 		if pr != nil && pr.State == "OPEN" {
 			ui.Warn("PR #%d is still open", pr.Number)
 			if !ui.Confirm("Close worktree anyway?", false) {
-				fmt.Println("Cancelled")
-				return nil
+				return cancelled(nil)
 			}
 		}
 	}
@@ -159,13 +173,14 @@ func runClose(cmd *cobra.Command, args []string) error {
 	}
 
 	// Delete local branch
-	branchKept := false
+	branchKept, branchDeleted := false, false
 	if targetBranch != "" && git.BranchExists(targetBranch) {
 		if err := git.DeleteBranch(targetBranch); err != nil {
 			ui.Warn("Could not delete local branch %s: %v", targetBranch, err)
 			branchKept = true
 		} else {
 			ui.Success("Deleted local branch: %s", targetBranch)
+			branchDeleted = true
 		}
 	}
 
@@ -176,15 +191,28 @@ func runClose(cmd *cobra.Command, args []string) error {
 		ui.Success("Closed worktree")
 	}
 	ui.PrintCTA("wt list")
+	if jsonOut != nil {
+		return printJSON(closeJSON{Name: ctx.shortName(targetPath), Path: targetPath, Branch: targetBranch, BranchDeleted: branchDeleted})
+	}
 	return nil
 }
 
 // cancelled ends a command after a declined prompt: exit 0 for a plain "no",
-// or the error when the prompt could not be asked.
+// or the error when the prompt could not be asked. With --output json a "no"
+// is an error too, since no prompt was shown and stdout would stay empty.
 func cancelled(err error) error {
 	if err != nil {
 		return err
 	}
+	if jsonOut != nil {
+		return fmt.Errorf("needs confirmation, and --output json never prompts\n   Re-run with --yes")
+	}
 	fmt.Println("Cancelled")
 	return nil
+}
+
+// firstLine returns the first line of s, for one-line notes about errors.
+func firstLine(s string) string {
+	line, _, _ := strings.Cut(strings.TrimSpace(s), "\n")
+	return line
 }

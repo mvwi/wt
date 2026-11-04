@@ -45,10 +45,14 @@ If a step matches more than one worktree, wt opens fzf on just those
 }
 
 func init() {
+	addOutputFlag(switchCmd)
 	rootCmd.AddCommand(switchCmd)
 }
 
 func runSwitch(cmd *cobra.Command, args []string) error {
+	if err := startOutput(); err != nil {
+		return err
+	}
 	ctx, err := newContext()
 	if err != nil {
 		return err
@@ -66,7 +70,7 @@ func runSwitch(cmd *cobra.Command, args []string) error {
 
 	// Handle "wt switch -" — toggle to previous worktree
 	if len(args) == 1 && args[0] == "-" {
-		return switchPrevious(cwd)
+		return switchPrevious(ctx, cwd)
 	}
 
 	// No args: interactive fzf picker
@@ -77,7 +81,7 @@ func runSwitch(cmd *cobra.Command, args []string) error {
 	return switchByName(ctx, worktrees, cwd, args[0])
 }
 
-func switchPrevious(cwd string) error {
+func switchPrevious(ctx *cmdContext, cwd string) error {
 	prev, err := git.ReadStateFile(prevWorktreeStateFile)
 	if err != nil {
 		return fmt.Errorf("no previous worktree to switch to\n   Use wt switch <name> to specify one")
@@ -88,9 +92,7 @@ func switchPrevious(cwd string) error {
 		return fmt.Errorf("previous worktree no longer exists: %s\n   It may have been closed. Run wt list to see available worktrees", prev)
 	}
 
-	savePreviousWorktree(cwd)
-	ui.PrintCdHint(prev)
-	return nil
+	return finishSwitch(ctx, cwd, prev)
 }
 
 func savePreviousWorktree(cwd string) {
@@ -98,6 +100,9 @@ func savePreviousWorktree(cwd string) {
 }
 
 func switchInteractive(ctx *cmdContext, worktrees []git.Worktree, cwd string) error {
+	if jsonOut != nil {
+		return fmt.Errorf("no worktree name given, and --output json never opens the picker\n   Run wt switch <name> --output json")
+	}
 	if _, err := exec.LookPath("fzf"); err != nil {
 		return fmt.Errorf("no worktree name given, and fzf isn't installed for the picker\n   Run wt switch <name>, or install fzf (brew install fzf)")
 	}
@@ -111,10 +116,7 @@ func switchInteractive(ctx *cmdContext, worktrees []git.Worktree, cwd string) er
 		return nil
 	}
 
-	savePreviousWorktree(cwd)
-	ui.PrintCdHint(target)
-	showSwitchSummary(target, ctx)
-	return nil
+	return finishSwitch(ctx, cwd, target)
 }
 
 // pickWorktree opens fzf over worktrees, starting with query typed in.
@@ -168,10 +170,35 @@ func switchByName(ctx *cmdContext, worktrees []git.Worktree, cwd, name string) e
 		return fmt.Errorf("worktree not found: %s\n   Run wt list to see available worktrees", name)
 	}
 
+	return finishSwitch(ctx, cwd, target)
+}
+
+// finishSwitch records where we came from, hands target to the shell
+// wrapper, then prints the summary or JSON.
+func finishSwitch(ctx *cmdContext, cwd, target string) error {
 	savePreviousWorktree(cwd)
 	ui.PrintCdHint(target)
-	showSwitchSummary(target, ctx)
-	return nil
+	if jsonOut == nil {
+		showSwitchSummary(target, ctx)
+		return nil
+	}
+
+	branch, _ := git.CurrentBranchIn(target)
+	var cta []string
+	if !ctx.isBaseBranch(branch) {
+		cta = []string{"wt init"}
+		if ab, err := git.GetAheadBehindIn(target, ctx.baseRef()); err == nil && ab.Behind > 0 {
+			cta = []string{"wt rebase", "wt init"}
+		}
+	}
+	return printJSON(worktreeJSON{
+		Name:   ctx.shortName(target),
+		Path:   target,
+		Branch: branch,
+		Base:   ctx.Config.BaseBranch,
+		PR:     readPRCache()[ctx.MainWorktree][branch].Number,
+		CTA:    cta,
+	})
 }
 
 // resolveWorktree finds a worktree path by name using the resolution chain.
@@ -193,7 +220,7 @@ func resolveWorktree(ctx *cmdContext, worktrees []git.Worktree, name string) (st
 	}
 
 	_, fzfErr := exec.LookPath("fzf")
-	if fzfErr == nil && isatty.IsTerminal(os.Stdin.Fd()) {
+	if fzfErr == nil && jsonOut == nil && isatty.IsTerminal(os.Stdin.Fd()) {
 		target, err := pickWorktree(ctx, matches, "", name)
 		if err != nil {
 			return "", false, err

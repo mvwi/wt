@@ -1,0 +1,9 @@
+check the viability of moving this over from github hosted runners to another service. i want to stay within the free tier of whatever though
+
+---
+
+what does need macos runners?
+
+---
+
+okay do that

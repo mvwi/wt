@@ -25,6 +25,11 @@ func BranchExists(name string) bool {
 	return RunSilent("show-ref", "--verify", "--quiet", "refs/heads/"+name) == nil
 }
 
+// IsValidBranchName reports whether git accepts name as a new branch name.
+func IsValidBranchName(name string) bool {
+	return !strings.HasPrefix(name, "-") && RunSilent("check-ref-format", "--branch", name) == nil
+}
+
 // RemoteBranchExists checks if a remote branch exists (e.g., "origin/feature").
 func RemoteBranchExists(name string) bool {
 	return RunSilent("show-ref", "--verify", "--quiet", "refs/remotes/"+name) == nil

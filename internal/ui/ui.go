@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/fatih/color"
@@ -107,6 +108,32 @@ func PrintCdHint(path string) {
 		return
 	}
 	fmt.Printf("  → cd %s\n", shellQuote(path))
+	PrintWrapperHint()
+}
+
+var wrapperHintShown bool
+
+// PrintWrapperHint tells a human at a terminal how to load the shell wrapper,
+// once per run. It stays quiet when the wrapper is loaded or stdout is not a TTY.
+func PrintWrapperHint() {
+	if wrapperHintShown || os.Getenv("WT_CD_FILE") != "" || !IsTTY() {
+		return
+	}
+	wrapperHintShown = true
+	DimF("  wt can't cd for you: the shell wrapper isn't loaded. %s\n", wrapperSetup(os.Getenv("SHELL")))
+}
+
+// wrapperSetup returns the line that loads the wrapper for the given $SHELL.
+func wrapperSetup(shell string) string {
+	switch filepath.Base(shell) {
+	case "fish":
+		return "Add to ~/.config/fish/config.fish:\n    wt init-shell fish | source"
+	case "zsh":
+		return "Add to ~/.zshrc:\n    eval \"$(wt init-shell zsh)\""
+	case "bash":
+		return "Add to ~/.bashrc:\n    eval \"$(wt init-shell bash)\""
+	}
+	return "See: wt init-shell --help"
 }
 
 // shellQuote wraps a path in single quotes if it contains shell-special characters.

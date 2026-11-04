@@ -13,10 +13,10 @@ jobs:
   test:
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        # macOS runners queue for a long time, so PRs test on ubuntu only and
+        # macOS runs on push to main, against stable Go only.
+        os: ${{ github.event_name == 'push' && fromJSON('["ubuntu-latest", "macos-latest"]') || fromJSON('["ubuntu-latest"]') }}
         go: ["1.26", "stable"]
-        # macOS runners queue for a long time; ubuntu already covers the
-        # minimum Go version, so macOS only runs against stable.
         exclude:
           - os: macos-latest
             go: "1.26"

@@ -30,6 +30,27 @@ func IsValidBranchName(name string) bool {
 	return !strings.HasPrefix(name, "-") && RunSilent("check-ref-format", "--branch", name) == nil
 }
 
+// MergedBranches returns the local branches whose tips are reachable from ref.
+func MergedBranches(ref string) (map[string]bool, error) {
+	out, err := Run("branch", "--merged", ref, "--format=%(refname:short)")
+	if err != nil {
+		return nil, err
+	}
+	merged := make(map[string]bool)
+	for b := range strings.FieldsSeq(out) {
+		merged[b] = true
+	}
+	return merged, nil
+}
+
+// BranchMoved reports whether a branch's reflog shows any change since it was
+// created. A fresh branch also counts as merged into its base, so callers use
+// this to tell the two apart.
+func BranchMoved(branch string) bool {
+	out, err := Run("reflog", "show", "--format=%H", "refs/heads/"+branch, "--")
+	return err == nil && strings.Contains(out, "\n")
+}
+
 // RemoteBranchExists checks if a remote branch exists (e.g., "origin/feature").
 func RemoteBranchExists(name string) bool {
 	return RunSilent("show-ref", "--verify", "--quiet", "refs/remotes/"+name) == nil

@@ -125,7 +125,7 @@ func runClose(cmd *cobra.Command, args []string) error {
 	// Safety: open PR
 	if github.IsAvailable() && targetBranch != "" {
 		pr, err := github.GetPRForBranch(targetBranch)
-		if err != nil {
+		if err != nil && !isNotGitHubRemote(err) {
 			fmt.Fprintln(os.Stderr, ui.Dim("Skipped the open-PR check: "+firstLine(err.Error())))
 		}
 		if pr != nil && pr.State == "OPEN" {

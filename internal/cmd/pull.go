@@ -84,9 +84,5 @@ func runPull(cmd *cobra.Command, args []string) error {
 	ui.Success("Created worktree")
 	fmt.Println()
 
-	if pullDoInit {
-		return runInitIn(wtPath, ctx)
-	}
-	printSwitchHint(name)
-	return nil
+	return finishNew(ctx, name, wtPath, pullDoInit)
 }

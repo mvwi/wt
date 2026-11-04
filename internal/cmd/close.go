@@ -122,6 +122,15 @@ func runClose(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Read the env now: the index file goes away with the worktree.
+	var hookEnv []string
+	if len(ctx.Config.Hooks.PreClose)+len(ctx.Config.Hooks.PostClose) > 0 {
+		hookEnv = worktreeEnv(worktreeVars(ctx, targetPath))
+	}
+	if err := runHooks("pre_close", ctx.Config.Hooks.PreClose, targetPath, hookEnv); err != nil {
+		return fmt.Errorf("%w\n   Close cancelled", err)
+	}
+
 	fmt.Printf("Closing worktree: %s\n", targetPath)
 	fmt.Printf("Branch: %s\n", targetBranch)
 	fmt.Println()
@@ -143,6 +152,10 @@ func runClose(cmd *cobra.Command, args []string) error {
 	if needsCd {
 		ui.PrintCdHint(ctx.MainWorktree)
 		fmt.Printf("Moved to main repo: %s\n", ctx.MainWorktree)
+	}
+
+	if err := runHooks("post_close", ctx.Config.Hooks.PostClose, ctx.MainWorktree, hookEnv); err != nil {
+		ui.Warn("%v", err)
 	}
 
 	// Delete local branch

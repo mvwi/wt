@@ -37,8 +37,26 @@ type Config struct {
 	// Pointer to distinguish "not set" (nil → true) from "explicitly false".
 	AutoInstall *bool `toml:"auto_install"`
 
+	// PortBase is added to a worktree's index to give WT_PORT. Default: 3000.
+	PortBase int `toml:"port_base"`
+
 	// Init configures the `wt init` command behavior.
 	Init InitConfig `toml:"init"`
+
+	// Hooks are shell commands run at points in a worktree's life.
+	Hooks HooksConfig `toml:"hooks"`
+}
+
+// HooksConfig lists shell commands per lifecycle event. Configure under [hooks].
+type HooksConfig struct {
+	// PostNew runs in the new worktree after new, pr and pull (after init, if it ran).
+	PostNew []string `toml:"post_new"`
+
+	// PreClose runs in the worktree before close removes it. A failure aborts the close.
+	PreClose []string `toml:"pre_close"`
+
+	// PostClose runs in the main worktree after close removes the worktree.
+	PostClose []string `toml:"post_close"`
 }
 
 // globalFile is the on-disk shape of ~/.config/wt/config.toml.
@@ -56,6 +74,17 @@ type InitConfig struct {
 
 	// Commands are shell commands run sequentially during init.
 	Commands []string `toml:"commands"`
+
+	// CloneDirs are copy-on-write cloned from the main worktree if missing
+	// (e.g. node_modules), before commands run.
+	CloneDirs []string `toml:"clone_dirs"`
+
+	// Env holds KEY = "template" lines upserted into EnvFile. Templates may use
+	// {index}, {port}, {name}, {branch} and {repo}.
+	Env map[string]string `toml:"env"`
+
+	// EnvFile is the file Env writes to, relative to the worktree. Default: ".env".
+	EnvFile string `toml:"env_file"`
 }
 
 // Load reads config with layered precedence:
@@ -131,6 +160,27 @@ func mergeConfig(dst, src *Config) {
 	if len(src.Init.Commands) > 0 {
 		dst.Init.Commands = src.Init.Commands
 	}
+	if len(src.Init.CloneDirs) > 0 {
+		dst.Init.CloneDirs = src.Init.CloneDirs
+	}
+	if len(src.Init.Env) > 0 {
+		dst.Init.Env = src.Init.Env
+	}
+	if src.Init.EnvFile != "" {
+		dst.Init.EnvFile = src.Init.EnvFile
+	}
+	if src.PortBase > 0 {
+		dst.PortBase = src.PortBase
+	}
+	if len(src.Hooks.PostNew) > 0 {
+		dst.Hooks.PostNew = src.Hooks.PostNew
+	}
+	if len(src.Hooks.PreClose) > 0 {
+		dst.Hooks.PreClose = src.Hooks.PreClose
+	}
+	if len(src.Hooks.PostClose) > 0 {
+		dst.Hooks.PostClose = src.Hooks.PostClose
+	}
 }
 
 // globalConfigPath returns ~/.config/wt/config.toml.
@@ -172,6 +222,22 @@ func (c *Config) EffectiveAutoInstall() bool {
 		return *c.AutoInstall
 	}
 	return true
+}
+
+// EffectivePortBase returns the port base, defaulting to 3000.
+func (c *Config) EffectivePortBase() int {
+	if c.PortBase > 0 {
+		return c.PortBase
+	}
+	return 3000
+}
+
+// EffectiveEnvFile returns the file [init] env writes to, defaulting to ".env".
+func (c *Config) EffectiveEnvFile() string {
+	if c.Init.EnvFile != "" {
+		return c.Init.EnvFile
+	}
+	return ".env"
 }
 
 // EffectiveWorktreeDir builds the worktree directory name.

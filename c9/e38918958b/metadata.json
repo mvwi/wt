@@ -3,7 +3,7 @@
   "checkpoint_id": "c9e38918958b",
   "strategy": "manual-commit",
   "branch": "fix/ux-polish",
-  "checkpoints_count": 4,
+  "checkpoints_count": 5,
   "files_touched": null,
   "sessions": [
     {
@@ -12,14 +12,21 @@
       "compact_transcript": "/c9/e38918958b/0/transcript.jsonl",
       "content_hash": "/c9/e38918958b/0/content_hash.txt",
       "prompt": "/c9/e38918958b/0/prompt.txt"
+    },
+    {
+      "metadata": "/c9/e38918958b/1/metadata.json",
+      "transcript": "/c9/e38918958b/1/full.jsonl",
+      "compact_transcript": "/c9/e38918958b/1/transcript.jsonl",
+      "content_hash": "/c9/e38918958b/1/content_hash.txt",
+      "prompt": "/c9/e38918958b/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 38,
-    "cache_creation_tokens": 38116,
-    "cache_read_tokens": 2218574,
-    "output_tokens": 15968,
-    "api_call_count": 15,
+    "input_tokens": 70,
+    "cache_creation_tokens": 58329,
+    "cache_read_tokens": 4993675,
+    "output_tokens": 26298,
+    "api_call_count": 31,
     "subagent_tokens": {
       "input_tokens": 418,
       "cache_creation_tokens": 623744,

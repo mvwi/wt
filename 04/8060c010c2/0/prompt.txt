@@ -1,0 +1,11 @@
+check for outdated packages, figure out if there's anything to update/patch CVEs for
+
+---
+
+okay ran brew upgrade go
+
+you can update the minor ones too. lets get packages as current as possible
+
+---
+
+lets try to upgrade bubbletea and lipgloss too. commit first and then give it a shot so it's easy to revert if something breaks

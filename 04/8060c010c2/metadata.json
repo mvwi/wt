@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.11.4",
+  "checkpoint_id": "048060c010c2",
+  "strategy": "manual-commit",
+  "branch": "chore/upgrade-deps",
+  "checkpoints_count": 2,
+  "files_touched": [
+    ".github/workflows/ci.yml",
+    ".github/workflows/release.yml"
+  ],
+  "sessions": [
+    {
+      "metadata": "/04/8060c010c2/0/metadata.json",
+      "transcript": "/04/8060c010c2/0/full.jsonl",
+      "compact_transcript": "/04/8060c010c2/0/transcript.jsonl",
+      "content_hash": "/04/8060c010c2/0/content_hash.txt",
+      "prompt": "/04/8060c010c2/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 28,
+    "cache_creation_tokens": 65720,
+    "cache_read_tokens": 1168716,
+    "output_tokens": 5874,
+    "api_call_count": 14
+  }
+}

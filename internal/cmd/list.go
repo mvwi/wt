@@ -165,27 +165,30 @@ func collectWorktreeInfos(ctx *cmdContext, cwd string, worktrees []git.Worktree)
 	return infos, featureBranches
 }
 
-// fetchPRData fetches open, merged, and closed PRs in parallel. err is the
-// first failure, if any; the other lists may still hold data.
-func fetchPRData() (openPRs, mergedPRs, closedPRs []github.PR, err error) {
+// fetchPRData fetches open, merged, and closed PRs for the given branches in
+// parallel. err is the first failure, if any; the other lists may still hold data.
+func fetchPRData(branches []string) (openPRs, mergedPRs, closedPRs []github.PR, err error) {
+	if len(branches) == 0 {
+		return
+	}
 	var openErr, mergedErr, closedErr error
 	var wg sync.WaitGroup
 	wg.Add(3)
-	go func() { defer wg.Done(); openPRs, openErr = github.ListPRs("open") }()
-	go func() { defer wg.Done(); mergedPRs, mergedErr = github.ListPRs("merged") }()
-	go func() { defer wg.Done(); closedPRs, closedErr = github.ListPRs("closed") }()
+	go func() { defer wg.Done(); openPRs, openErr = github.ListPRs("open", branches...) }()
+	go func() { defer wg.Done(); mergedPRs, mergedErr = github.ListPRs("merged", branches...) }()
+	go func() { defer wg.Done(); closedPRs, closedErr = github.ListPRs("closed", branches...) }()
 	wg.Wait()
 	err = cmp.Or(openErr, mergedErr, closedErr)
 	return
 }
 
 func runListJSON(ctx *cmdContext, cwd string, worktrees []git.Worktree) error {
-	infos, _ := collectWorktreeInfos(ctx, cwd, worktrees)
+	infos, branches := collectWorktreeInfos(ctx, cwd, worktrees)
 
 	// Fetch PR data (no spinner, no terminal output)
 	var openPRs, mergedPRs, closedPRs []github.PR
 	if github.IsAvailable() {
-		openPRs, mergedPRs, closedPRs, _ = fetchPRData()
+		openPRs, mergedPRs, closedPRs, _ = fetchPRData(branches)
 	}
 
 	entries := make([]listJSONEntry, 0, len(infos))
@@ -228,11 +231,11 @@ func runListJSON(ctx *cmdContext, cwd string, worktrees []git.Worktree) error {
 }
 
 func runListTOON(ctx *cmdContext, cwd string, worktrees []git.Worktree) error {
-	infos, _ := collectWorktreeInfos(ctx, cwd, worktrees)
+	infos, branches := collectWorktreeInfos(ctx, cwd, worktrees)
 
 	var openPRs, mergedPRs, closedPRs []github.PR
 	if github.IsAvailable() {
-		openPRs, mergedPRs, closedPRs, _ = fetchPRData()
+		openPRs, mergedPRs, closedPRs, _ = fetchPRData(branches)
 	}
 
 	hasBehind := false
@@ -359,7 +362,7 @@ func runListTerminal(ctx *cmdContext, cwd string, worktrees []git.Worktree) erro
 	if showPR {
 		spin := ui.NewSpinner("Loading PR status")
 		var err error
-		openPRs, mergedPRs, closedPRs, err = fetchPRData()
+		openPRs, mergedPRs, closedPRs, err = fetchPRData(featureBranches)
 		spin.Stop()
 		switch {
 		case err == nil:

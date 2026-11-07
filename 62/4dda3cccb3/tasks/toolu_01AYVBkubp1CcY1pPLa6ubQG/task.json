@@ -1,0 +1,14 @@
+{
+  "tool_use_id": "toolu_01AYVBkubp1CcY1pPLa6ubQG",
+  "agent_id": "a31d30b1c962c9960",
+  "task_description": "Features: run/json/edit/prompt/skill",
+  "token_usage": {
+    "input_tokens": 110,
+    "cache_creation_tokens": 174321,
+    "cache_read_tokens": 7891311,
+    "output_tokens": 59440,
+    "api_call_count": 54
+  },
+  "started_at": "2026-11-04T12:06:53.423101-03:00",
+  "completed_at": "2026-11-07T06:48:31.615334-03:00"
+}

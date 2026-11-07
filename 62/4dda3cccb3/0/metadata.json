@@ -1,0 +1,127 @@
+{
+  "cli_version": "0.11.4",
+  "checkpoint_id": "624dda3cccb3",
+  "session_id": "10a8e376-1259-4304-8272-99cc91e0bb9b",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-07T09:48:34.942085Z",
+  "branch": "main",
+  "checkpoints_count": 7,
+  "files_touched": [
+    ".claude/worktrees/agent-a24c020ca60e85cc4/internal/cmd/dash.go",
+    ".claude/worktrees/agent-a24c020ca60e85cc4/internal/cmd/list.go",
+    ".claude/worktrees/agent-a24c020ca60e85cc4/internal/cmd/new.go",
+    ".claude/worktrees/agent-a24c020ca60e85cc4/internal/cmd/pr.go",
+    ".claude/worktrees/agent-a24c020ca60e85cc4/internal/cmd/pr_test.go",
+    ".claude/worktrees/agent-a24c020ca60e85cc4/internal/cmd/prune.go",
+    ".claude/worktrees/agent-a24c020ca60e85cc4/internal/cmd/watch.go",
+    ".claude/worktrees/agent-a24c020ca60e85cc4/internal/cmd/watch_test.go",
+    ".claude/worktrees/agent-a24c020ca60e85cc4/internal/git/branch.go",
+    ".claude/worktrees/agent-a24c020ca60e85cc4/internal/github/github.go",
+    ".claude/worktrees/agent-a24c020ca60e85cc4/internal/github/github_test.go",
+    ".claude/worktrees/agent-a31d30b1c962c9960/internal/cmd/agent_test.go",
+    ".claude/worktrees/agent-a31d30b1c962c9960/internal/cmd/edit.go",
+    ".claude/worktrees/agent-a31d30b1c962c9960/internal/cmd/new.go",
+    ".claude/worktrees/agent-a31d30b1c962c9960/internal/cmd/output.go",
+    ".claude/worktrees/agent-a31d30b1c962c9960/internal/cmd/pr.go",
+    ".claude/worktrees/agent-a31d30b1c962c9960/internal/cmd/prompt.go",
+    ".claude/worktrees/agent-a31d30b1c962c9960/internal/cmd/pull.go",
+    ".claude/worktrees/agent-a31d30b1c962c9960/internal/cmd/skill.go",
+    ".claude/worktrees/agent-a40f7a1cc036a622f/internal/cmd/clone_darwin.go",
+    ".claude/worktrees/agent-a40f7a1cc036a622f/internal/cmd/clone_other.go",
+    ".claude/worktrees/agent-a40f7a1cc036a622f/internal/cmd/hooks.go",
+    ".claude/worktrees/agent-a40f7a1cc036a622f/internal/cmd/hooks_test.go",
+    ".claude/worktrees/agent-a40f7a1cc036a622f/internal/cmd/init.go",
+    ".claude/worktrees/agent-a40f7a1cc036a622f/internal/cmd/zz_probe_test.go",
+    ".claude/worktrees/agent-a50f5913e1e312e74/.scratch/t.zsh",
+    ".claude/worktrees/agent-a50f5913e1e312e74/internal/cmd/context.go",
+    ".claude/worktrees/agent-a50f5913e1e312e74/internal/cmd/new.go",
+    ".claude/worktrees/agent-a50f5913e1e312e74/internal/cmd/root.go",
+    ".claude/worktrees/agent-a50f5913e1e312e74/internal/cmd/shell_test.go",
+    ".claude/worktrees/agent-a50f5913e1e312e74/internal/cmd/switch.go",
+    ".claude/worktrees/agent-a50f5913e1e312e74/internal/cmd/switch_test.go",
+    ".claude/worktrees/agent-a50f5913e1e312e74/internal/git/branch.go",
+    ".claude/worktrees/agent-a50f5913e1e312e74/internal/git/repo.go",
+    ".claude/worktrees/agent-a50f5913e1e312e74/internal/ui/ui.go",
+    ".claude/worktrees/agent-a5c4c1d795be32bd5/internal/cmd/context.go",
+    ".claude/worktrees/agent-a5c4c1d795be32bd5/internal/cmd/list_test.go",
+    ".claude/worktrees/agent-a5c4c1d795be32bd5/internal/git/branch.go",
+    ".claude/worktrees/agent-a5c4c1d795be32bd5/internal/tui/dash_test.go",
+    ".claude/worktrees/agent-a5c4c1d795be32bd5/internal/ui/spinner.go",
+    ".claude/worktrees/agent-a5c4c1d795be32bd5/internal/ui/ui.go",
+    ".claude/worktrees/agent-a5c4c1d795be32bd5/internal/ui/ui_test.go",
+    ".claude/worktrees/agent-a8bc41948e95ded1a/internal/cmd/close.go",
+    ".claude/worktrees/agent-a8bc41948e95ded1a/internal/cmd/move.go",
+    ".claude/worktrees/agent-a8bc41948e95ded1a/internal/cmd/rebase.go",
+    ".claude/worktrees/agent-a8bc41948e95ded1a/internal/cmd/submit.go",
+    ".claude/worktrees/agent-a8bc41948e95ded1a/internal/git/git.go",
+    ".claude/worktrees/agent-a8bc41948e95ded1a/internal/git/git_test.go",
+    ".claude/worktrees/agent-a8bc41948e95ded1a/internal/git/rebase.go",
+    ".claude/worktrees/agent-a8bc41948e95ded1a/internal/git/stash.go",
+    ".claude/worktrees/agent-a8bc41948e95ded1a/internal/git/status.go",
+    ".claude/worktrees/agent-a8bc41948e95ded1a/internal/git/status_test.go",
+    ".claude/worktrees/agent-a8bc41948e95ded1a/internal/ui/ui.go",
+    ".claude/worktrees/agent-a8bc41948e95ded1a/internal/ui/ui_test.go"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-5-5",
+  "turn_id": "6fb7779ebb7a",
+  "checkpoint_transcript_start": 1548,
+  "transcript_lines_at_start": 1548,
+  "compact_transcript_start": 192,
+  "token_usage": {
+    "input_tokens": 0,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "output_tokens": 0,
+    "api_call_count": 0
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "claude-skill-toolu_01W4hkdwf47NeA9V4PzmRnYd",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "wt-release"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "6fb7779ebb7a",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 1312,
+        "end": 1313,
+        "entry_ids": [
+          "980aef8f-de9f-47d9-8194-a4b9096f45de"
+        ],
+        "tool_use_id": "toolu_01W4hkdwf47NeA9V4PzmRnYd"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01W4hkdwf47NeA9V4PzmRnYd"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: wt-release",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 30
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-11-07T09:48:34.737202Z",
+    "agent_lines": 0,
+    "agent_removed": 0,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 0,
+    "total_lines_changed": 0,
+    "agent_percentage": 0,
+    "metric_version": 2
+  }
+}

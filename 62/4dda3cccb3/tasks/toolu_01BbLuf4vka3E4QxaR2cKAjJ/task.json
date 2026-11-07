@@ -1,0 +1,14 @@
+{
+  "tool_use_id": "toolu_01BbLuf4vka3E4QxaR2cKAjJ",
+  "agent_id": "a50f5913e1e312e74",
+  "task_description": "Fix shell/onboarding/switch/errors",
+  "token_usage": {
+    "input_tokens": 90,
+    "cache_creation_tokens": 134472,
+    "cache_read_tokens": 5006833,
+    "output_tokens": 31489,
+    "api_call_count": 45
+  },
+  "started_at": "2026-11-04T11:56:00.704358-03:00",
+  "completed_at": "2026-11-07T06:48:31.537272-03:00"
+}

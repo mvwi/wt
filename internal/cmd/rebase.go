@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 	"slices"
 	"strings"
 
@@ -334,7 +333,9 @@ func rebaseAll(ctx *cmdContext) error {
 		if ctx.isBaseBranch(branch) {
 			short := ctx.shortName(wt.Path)
 			fmt.Printf("  %-25s ", short)
-			remoteRef := ctx.Config.Remote + "/" + ctx.Config.BaseBranch
+			// Its own remote branch: with base_branch = "staging", a worktree
+			// on main must not be fast-forwarded to staging.
+			remoteRef := ctx.Config.Remote + "/" + branch
 			ab, err := git.GetAheadBehindIn(wt.Path, remoteRef)
 			if err != nil || ab.Behind == 0 {
 				fmt.Printf("%s\n", ui.Green("✓ up to date"))
@@ -465,12 +466,13 @@ func autoInstallIfNeeded(ctx *cmdContext, preRef string) {
 		return
 	}
 
-	cwd, err := os.Getwd()
+	// The worktree root: diff paths are relative to it, and cwd may be a subdirectory.
+	root, err := git.TopLevel()
 	if err != nil {
 		return
 	}
 
-	lockfile, command := detectInstallCommand(cwd)
+	lockfile, command := detectInstallCommand(root)
 	if lockfile == "" {
 		return
 	}
@@ -487,7 +489,7 @@ func autoInstallIfNeeded(ctx *cmdContext, preRef string) {
 	fmt.Println()
 	fmt.Printf("Lockfile changed (%s) — running install...\n", lockfile)
 	fmt.Printf("  %s %s\n", ui.Dim("$"), command)
-	if err := runShellString(cwd, command); err != nil {
+	if err := runShellString(root, command); err != nil {
 		fmt.Println()
 		ui.Warn("Install failed — run manually: %s", command)
 	}

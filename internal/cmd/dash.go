@@ -56,23 +56,16 @@ func runDash(cmd *cobra.Command, args []string) error {
 	}
 
 	gather := func() ([]tui.DashItem, error) {
-		// On each tick, re-read cwd in case the user switched in another shell.
-		// We don't update the closure's cwd value because IsCurrent is a UX hint,
-		// not a correctness requirement.
+		// cwd is read once at start: IsCurrent is a hint, not a correctness need.
 		return gatherDashItems(ctx, cwd)
 	}
 
 	closeFn := func(path, branch string) error {
-		// RemoveWorktree passes --force, so dirty/unpushed worktrees are
-		// removable from here. The dashboard already gates risky closes behind
-		// a confirmation prompt — by the time we get here, the user agreed.
-		if err := git.RemoveWorktree(path); err != nil {
-			return err
-		}
-		if branch != "" && git.BranchExists(branch) {
-			_ = git.DeleteBranch(branch)
-		}
-		return nil
+		// The removal is forced, so dirty/unpushed worktrees are removable
+		// from here. The dashboard already gates risky closes behind a
+		// confirmation prompt — by the time we get here, the user agreed.
+		_, err := closeWorktree(ctx, path, branch, true)
+		return err
 	}
 
 	fetchDetail := func(item tui.DashItem) (tui.DashDetail, error) {
@@ -178,7 +171,7 @@ func dashRebase(ctx *cmdContext, path, branch string) (int, error) {
 	}
 
 	if ctx.isBaseBranch(branch) {
-		return dashFastForwardBase(ctx, path)
+		return dashFastForwardBase(ctx, path, branch)
 	}
 
 	// Fetch the base ref so the rebase target is current. Failure here is
@@ -194,19 +187,20 @@ func dashRebase(ctx *cmdContext, path, branch string) (int, error) {
 	}
 	if err := git.RebaseIn(path, ctx.baseRef()); err != nil {
 		git.RebaseAbortIn(path)
-		return 0, fmt.Errorf("conflicts — wt rebase --continue")
+		return 0, fmt.Errorf("conflicts — run wt rebase there")
 	}
 	return ab.Behind, nil
 }
 
-// dashFastForwardBase fast-forwards the base-branch worktree from its remote.
-// Mirrors the CLI's rebaseBaseBranch but without any interactive prompts: we
-// already bailed on dirty in dashRebase, so this just fetches and merges.
-func dashFastForwardBase(ctx *cmdContext, path string) (int, error) {
-	if err := git.Fetch(ctx.Config.Remote, ctx.Config.BaseBranch); err != nil {
+// dashFastForwardBase fast-forwards a base-branch worktree from its own remote
+// branch. Mirrors the CLI's rebaseBaseBranch but without any interactive
+// prompts: we already bailed on dirty in dashRebase, so this just fetches and
+// merges.
+func dashFastForwardBase(ctx *cmdContext, path, branch string) (int, error) {
+	if err := git.Fetch(ctx.Config.Remote, branch); err != nil {
 		return 0, fmt.Errorf("fetch failed: %w", err)
 	}
-	remoteRef := ctx.Config.Remote + "/" + ctx.Config.BaseBranch
+	remoteRef := ctx.Config.Remote + "/" + branch
 	ab, err := git.GetAheadBehindIn(path, remoteRef)
 	if err != nil {
 		return 0, err

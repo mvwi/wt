@@ -22,7 +22,7 @@ func LogOnelineIn(dir, base string, n int) ([]LogEntry, error) {
 	}
 	out, err := RunIn(dir, "log",
 		fmt.Sprintf("-%d", n),
-		"--format=%h\t%s\t%ct",
+		"--format=%h\t%ct\t%s", // subject last: it may hold a tab
 		base+"..HEAD",
 	)
 	if err != nil {
@@ -39,12 +39,12 @@ func LogOnelineIn(dir, base string, n int) ([]LogEntry, error) {
 			continue
 		}
 		age := ""
-		if ts, err := strconv.ParseInt(parts[2], 10, 64); err == nil {
+		if ts, err := strconv.ParseInt(parts[1], 10, 64); err == nil {
 			age = formatRelativeAge(time.Since(time.Unix(ts, 0)))
 		}
 		entries = append(entries, LogEntry{
 			Hash:    parts[0],
-			Subject: parts[1],
+			Subject: parts[2],
 			Age:     age,
 		})
 	}
@@ -60,7 +60,8 @@ type DiffStats struct {
 }
 
 // DiffStatsIn returns commits-ahead and shortstat (files/additions/deletions)
-// for HEAD vs base. Empty range yields zeroed struct, not an error.
+// for what HEAD changed since it left base. Empty range yields zeroed struct,
+// not an error.
 func DiffStatsIn(dir, base string) (DiffStats, error) {
 	stats := DiffStats{}
 
@@ -75,7 +76,9 @@ func DiffStatsIn(dir, base string) (DiffStats, error) {
 	}
 
 	// `git diff --shortstat` output: " 14 files changed, 247 insertions(+), 82 deletions(-)"
-	shortstat, err := RunIn(dir, "diff", "--shortstat", base+"..HEAD")
+	// Three dots: diff from the merge base, so commits that only base has
+	// don't show up as deletions.
+	shortstat, err := RunIn(dir, "diff", "--shortstat", base+"...HEAD")
 	if err != nil {
 		return stats, err
 	}
@@ -168,12 +171,12 @@ func CommitDetailIn(dir, hash string) (CommitDetail, error) {
 		return d, nil
 	}
 	for line := range strings.SplitSeq(numOut, "\n") {
-		fields := strings.Fields(line)
+		// Tab-separated, so a path may hold spaces.
+		fields := strings.SplitN(line, "\t", 3)
 		if len(fields) < 3 {
 			continue
 		}
-		addsStr, delsStr := fields[0], fields[1]
-		path := fields[len(fields)-1]
+		addsStr, delsStr, path := fields[0], fields[1], fields[2]
 
 		f := CommitFile{Path: path}
 		switch {
@@ -197,9 +200,10 @@ func CommitDetailIn(dir, hash string) (CommitDetail, error) {
 	return d, nil
 }
 
-// DiffFilesIn returns per-file change status between base and HEAD.
+// DiffFilesIn returns per-file change status for what HEAD changed since it
+// left base.
 func DiffFilesIn(dir, base string) ([]DiffFile, error) {
-	out, err := RunIn(dir, "diff", "--name-status", base+"..HEAD")
+	out, err := RunIn(dir, "diff", "--name-status", base+"...HEAD")
 	if err != nil {
 		return nil, err
 	}
@@ -209,8 +213,8 @@ func DiffFilesIn(dir, base string) ([]DiffFile, error) {
 	lines := strings.Split(out, "\n")
 	changes := make([]DiffFile, 0, len(lines))
 	for _, line := range lines {
-		fields := strings.Fields(line)
-		if len(fields) < 2 {
+		fields := strings.Split(line, "\t") // tab-separated, so a path may hold spaces
+		if len(fields) < 2 || fields[0] == "" {
 			continue
 		}
 		// Rename/copy entries have an extra "score" suffix on the status (e.g. "R100")

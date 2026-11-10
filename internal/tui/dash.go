@@ -938,7 +938,7 @@ func styleForAge(age string) lipgloss.Style {
 	}
 }
 
-// stylesForFilePath colors paths by their semantic category. Tests stand out
+// styleForFilePath colors paths by their semantic category. Tests stand out
 // in magenta so churn there is distinguishable from real source changes;
 // configs are cyan; docs are dim; everything else (code) uses the default.
 func styleForFilePath(path string) lipgloss.Style {
@@ -1622,9 +1622,8 @@ func (m dashModel) renderDetail(width, bodyMax int) string {
 }
 
 // renderCommitDetail renders the third panel — the full detail for the commit
-// under the commit cursor when the commits pane is focused.
-// renderCommitDetail renders the commit panel in at most maxLines lines
-// (0 = no cap), trimming the body first and then the file list.
+// under the commit cursor when the commits pane is focused — in at most
+// maxLines lines (0 = no cap), trimming the body first and then the file list.
 func (m dashModel) renderCommitDetail(width, maxLines int) string {
 	commits := m.focusedCommits()
 	if m.commitCursor < 0 || m.commitCursor >= len(commits) {
@@ -1657,14 +1656,16 @@ func (m dashModel) renderCommitDetail(width, maxLines int) string {
 	contentWidth := max(20, width-labelCol)
 
 	// Render subject with conventional-commit type colored.
+	// Truncate the plain subject, never the styled type cell: cutting through
+	// its escape codes garbles the line.
 	typeCell, subjectRest := formatCommitType(d.Subject, 0)
-	subjectRendered := strings.TrimSpace(typeCell) + " " + subjectRest
-	if strings.TrimSpace(typeCell) == "" {
-		subjectRendered = subjectRest
+	subjectRendered := truncate(subjectRest, contentWidth)
+	if typeCell != "" {
+		subjectRendered = typeCell + " " + truncate(subjectRest, contentWidth-lipgloss.Width(typeCell)-1)
 	}
 	fmt.Fprintf(&b, "  %s    %s\n",
 		dStyleSection.Render("COMMIT"),
-		truncate(subjectRendered, contentWidth),
+		subjectRendered,
 	)
 
 	// Author · date line — author handle in cyan, date dim.

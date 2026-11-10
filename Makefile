@@ -2,7 +2,7 @@ BINARY := wt
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 LDFLAGS := -ldflags "-s -w -X github.com/mvwi/wt/internal/cmd.Version=$(VERSION)"
 
-.PHONY: build install test lint clean setup
+.PHONY: build install test lint coverage clean setup
 
 build:
 	go build -trimpath $(LDFLAGS) -o $(BINARY) ./cmd/wt

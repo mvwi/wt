@@ -41,12 +41,12 @@ internal/
     git.go                   Run/RunIn/RunPassthrough/RunSilent helpers
     worktree.go              List, Add, Remove, Move worktrees
     branch.go                Branch operations + ahead/behind calculation
-    repo.go                  RepoName, MainWorktree, Username, TopLevel
+    repo.go                  Username, TopLevel, GitDir, Fetch
     status.go                HasChanges, StatusPorcelain, UnpushedCount
     stash.go                 StashPush, StashPop
     rebase.go                Rebase, MergeFF, Push, state file management
   github/                    Wraps `gh` CLI — degrades gracefully if not installed
-    github.go                PR listing, review/CI summaries, branch rename via API
+    github.go                PR listing, review/CI summaries, PR create and merge
   tui/                       Bubble Tea screens; take plain data, return the user's choice
     dash.go                  `wt dash` dashboard model
     prune.go                 `wt prune` stale-worktree picker
@@ -78,6 +78,9 @@ We call the `git` CLI via `exec.Command`. go-git has poor worktree support and d
 
 ### Create flows end in one place
 `new`, `pr` and `pull` all end in `finishCreate` (new.go), which calls `finishNew` (hooks.go) for init, `post_new` hooks and the next-step hint, then handles `--output json`, `--edit` and `--run`. Add new create-time behaviour there, not in each command.
+
+### Removing a worktree happens in one place
+`close`, `prune` and the dashboard's close all call `closeWorktree` (close.go): `pre_close` hooks, the removal, `post_close` hooks, then the branch delete. Pass `quiet` from a TUI, which owns the screen. Add remove-time behaviour there, not in each caller.
 
 ### Hooks come only from global config
 `[hooks]` run without being asked for, so `config.Load` drops them from a repo's `.wt.toml` (sets `RepoHooksIgnored`, and `warnRepoHooks` says so). Never let repo-local config run commands implicitly; `[init] commands` are fine because the user runs `wt init` or passes `-i`.
@@ -126,7 +129,9 @@ go vet ./...      # Static analysis
 - Git operations go through `internal/git/`, not raw `exec.Command`
 - GitHub operations go through `internal/github/`, always check `IsAvailable()` first
 - Interactive prompts use `ui.Confirm(message, defaultYes)` — defaultYes=true for safe operations (Y/n), false for destructive (y/N). Prompts that throw away work use `ui.ConfirmDiscard` instead (see "Discarding work needs --force")
-- Parse `git status --porcelain` through `git.StatusPorcelainIn`, never through `Run`/`RunIn`: those trim output, which eats the leading space of the first status line
+- Parse `git status --porcelain` through `git.StatusPorcelainIn`, never through `Run`/`RunIn`: those trim output, which eats the leading space of the first status line. It passes `-z`, so paths with spaces or non-ASCII bytes come back unquoted
+- A command that acts on the current worktree takes its root from `git.TopLevel()`, not `os.Getwd()`: the user may be in a subdirectory
+- State shared by all worktrees (the `wt switch -` target) goes in the common git dir; `git.SaveStateFile` writes to the current worktree's own git dir, which suits per-worktree state like the rebase stash marker
 - Spinners draw nothing when stdout isn't a TTY; never print progress text that would leak into pipes
 - TUI tests drive the model directly: `newDashModel(cfg)`, then `Update` with `tea.WindowSizeMsg` / `tea.KeyPressMsg`, and assert on `View().Content` (see `internal/tui/dash_test.go`)
 - Auto-install uses `detectInstallCommand()` from `install.go` — update `knownLockfiles` there when adding new package managers

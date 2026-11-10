@@ -24,7 +24,8 @@ Works without config. `wt list` pulls in PR status, CI, and code review from Git
 ## How It Works
 
 ```sh
-wt new sidebar-card       # Create worktree + branch, cd into it
+wt new sidebar-card       # Create worktree + branch
+wt switch sidebar-card    # cd into it
 wt init                   # Copy files, run commands from .wt.toml
 # ...work on your feature...
 wt submit                 # Rebase onto main + push (offers to watch PR)
@@ -56,6 +57,7 @@ You're deep in changes when you find an unrelated bug. The old way: stash your c
 
 ```sh
 wt new hotfix                  # New worktree from main — your feature branch is untouched
+wt switch hotfix
 # ...fix the bug...
 wt submit                     # Rebase + push the fix
 wt switch -                   # Back to your feature, exactly where you left off (or even better, farm this out to an agent to preserve your focus too)
@@ -319,8 +321,8 @@ A `.wt.toml` in a repo root always wins, but most users won't need one.
 | `init.env` | `{}` | Key/template pairs written into `init.env_file` |
 | `init.env_file` | `".env"` | File that `init.env` writes to |
 | `hooks.post_new` | `[]` | Commands run after `new`, `pr`, `pull` (global config only) |
-| `hooks.pre_close` | `[]` | Commands run before `close`; failure aborts |
-| `hooks.post_close` | `[]` | Commands run after `close` |
+| `hooks.pre_close` | `[]` | Commands run before a worktree is removed (`close`, `prune`, dashboard close); failure aborts |
+| `hooks.post_close` | `[]` | Commands run after a worktree is removed |
 
 </details>
 
@@ -333,7 +335,7 @@ A `.wt.toml` in a repo root always wins, but most users won't need one.
 - `--output json` on `list`, `new`, `pr`, `pull`, `switch`, `close` and `submit` prints only JSON to stdout and never prompts; a needed confirmation becomes an error
 - `wt list --output toon` outputs token-efficient worktree and PR status (~50% fewer tokens than JSON)
 - Commands emit `cta: cmd1 | cmd2` on stdout when piped (non-TTY), telling agents what to run next
-- `-y` never discards work. `wt close` refuses to drop uncommitted changes or unpushed commits without `--force`, so an agent can't lose work by accident
+- `-y` never discards work. `wt close` refuses to drop uncommitted changes or unpushed commits without `--force`, and `wt prune` skips worktrees that have either, so an agent can't lose work by accident
 - `wt init` auto-copies AI config (`.claude`, `.cursorrules`, `.cursor/rules`) to new worktrees
 
 ### LLM Instructions

@@ -3,6 +3,7 @@ package git
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 )
 
@@ -35,73 +36,54 @@ func TestStatusPorcelainInKeepsLeadingSpace(t *testing.T) {
 	}
 }
 
+// Without -z git quotes these names ("my file.txt" keeps its quotes, é turns
+// into \303\251), and wt move then could not find the files it was moving.
+func TestStatusPorcelainInKeepsOddNames(t *testing.T) {
+	dir := t.TempDir()
+	if _, err := RunIn(dir, "init", "-q"); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"café.txt", "my file.txt"}
+	for _, name := range want {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	got, err := StatusPorcelainIn(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var paths []string
+	for _, c := range got {
+		paths = append(paths, c.Path)
+	}
+	slices.Sort(paths)
+	if !slices.Equal(paths, want) {
+		t.Errorf("paths = %q, want %q", paths, want)
+	}
+}
+
 func TestParsePorcelainOutput(t *testing.T) {
-	t.Run("empty output", func(t *testing.T) {
-		got := ParsePorcelainOutput("")
-		if got != nil {
-			t.Errorf("got %v, want nil", got)
-		}
-	})
-
-	t.Run("modified file", func(t *testing.T) {
-		got := ParsePorcelainOutput(" M src/main.go\n")
-		if len(got) != 1 {
-			t.Fatalf("got %d changes, want 1", len(got))
-		}
-		if got[0].Status != " M" || got[0].Path != "src/main.go" {
-			t.Errorf("got {%q, %q}, want {\" M\", \"src/main.go\"}", got[0].Status, got[0].Path)
-		}
-	})
-
-	t.Run("rename parses old and new paths", func(t *testing.T) {
-		got := ParsePorcelainOutput("R  old.go -> new.go\n")
-		if len(got) != 1 {
-			t.Fatalf("got %d changes, want 1", len(got))
-		}
-		if got[0].OldPath != "old.go" || got[0].Path != "new.go" {
-			t.Errorf("got {old=%q, new=%q}, want {old=\"old.go\", new=\"new.go\"}", got[0].OldPath, got[0].Path)
-		}
-	})
-
-	t.Run("rename with arrow in filename uses first separator only", func(t *testing.T) {
-		got := ParsePorcelainOutput("R  old.go -> dir/new -> file.go\n")
-		if len(got) != 1 {
-			t.Fatalf("got %d changes, want 1", len(got))
-		}
-		if got[0].OldPath != "old.go" || got[0].Path != "dir/new -> file.go" {
-			t.Errorf("got {old=%q, new=%q}, want {old=\"old.go\", new=\"dir/new -> file.go\"}", got[0].OldPath, got[0].Path)
-		}
-	})
-
-	t.Run("multiple changes", func(t *testing.T) {
-		input := " M file1.go\nA  file2.go\n?? file3.go\n"
-		got := ParsePorcelainOutput(input)
-		if len(got) != 3 {
-			t.Fatalf("got %d changes, want 3", len(got))
-		}
-	})
-
-	t.Run("path with spaces", func(t *testing.T) {
-		got := ParsePorcelainOutput(" M path/to/my file.go\n")
-		if len(got) != 1 {
-			t.Fatalf("got %d changes, want 1", len(got))
-		}
-		if got[0].Path != "path/to/my file.go" {
-			t.Errorf("Path = %q, want %q", got[0].Path, "path/to/my file.go")
-		}
-	})
-
-	t.Run("untracked directory entry has trailing slash", func(t *testing.T) {
-		// Without -uall, git status --porcelain collapses untracked dirs into "?? dir/"
-		// With -uall, individual files are listed instead. This test documents
-		// that the parser handles the collapsed form (which we no longer produce
-		// but should still parse correctly).
-		got := ParsePorcelainOutput("?? new-dir/\n")
-		if len(got) != 1 {
-			t.Fatalf("got %d changes, want 1", len(got))
-		}
-		if got[0].Status != "??" || got[0].Path != "new-dir/" {
-			t.Errorf("got {%q, %q}, want {\"??\", \"new-dir/\"}", got[0].Status, got[0].Path)
-		}
-	})
+	tests := []struct {
+		name string
+		in   string
+		want []FileChange
+	}{
+		{"empty output", "", nil},
+		{"modified file", " M src/main.go\x00", []FileChange{{Status: " M", Path: "src/main.go"}}},
+		{"rename: new path, then old path as its own entry", "R  new.go\x00old.go\x00?? x\x00",
+			[]FileChange{{Status: "R ", Path: "new.go", OldPath: "old.go"}, {Status: "??", Path: "x"}}},
+		{"multiple changes", " M file1.go\x00A  file2.go\x00?? file3.go\x00",
+			[]FileChange{{Status: " M", Path: "file1.go"}, {Status: "A ", Path: "file2.go"}, {Status: "??", Path: "file3.go"}}},
+		{"spaces, arrows and newlines stay in the path", " M my -> file\n.go\x00",
+			[]FileChange{{Status: " M", Path: "my -> file\n.go"}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ParsePorcelainOutput(tt.in); !slices.Equal(got, tt.want) {
+				t.Errorf("got %+v, want %+v", got, tt.want)
+			}
+		})
+	}
 }

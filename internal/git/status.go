@@ -9,13 +9,13 @@ import (
 type FileChange struct {
 	Status string // Two-character status (e.g., "M ", " M", "??", "R ")
 	Path   string
-	// For renames: original path
+	// For renames and copies: original path
 	OldPath string
 }
 
 // IsRename returns true if this change is a rename.
 func (f FileChange) IsRename() bool {
-	return strings.HasPrefix(f.Status, "R")
+	return strings.Contains(f.Status, "R")
 }
 
 // HasChanges returns true if the working tree has uncommitted changes.
@@ -57,41 +57,32 @@ func StatusPorcelain() ([]FileChange, error) {
 // Uses -uall to list individual files inside untracked directories,
 // rather than collapsing them into a single directory entry.
 func StatusPorcelainIn(dir string) ([]FileChange, error) {
-	out, err := runRawIn(dir, "status", "--porcelain", "-uall")
+	out, err := runRawIn(dir, "status", "--porcelain", "-z", "-uall")
 	if err != nil {
 		return nil, err
 	}
 	return ParsePorcelainOutput(out), nil
 }
 
-// ParsePorcelainOutput parses the output of `git status --porcelain` into FileChanges.
+// ParsePorcelainOutput parses the output of `git status --porcelain -z`.
+// -z keeps paths verbatim. Without it git quotes any path that has a space or
+// a non-ASCII byte, and the quoted name matches no file on disk.
 func ParsePorcelainOutput(out string) []FileChange {
-	if strings.TrimSpace(out) == "" {
-		return nil
-	}
-
 	var changes []FileChange
-	for line := range strings.SplitSeq(out, "\n") {
-		if len(line) < 3 {
+	entries := strings.Split(out, "\x00")
+	for i := 0; i < len(entries); i++ {
+		e := entries[i]
+		if len(e) < 4 {
 			continue
 		}
-		status := line[:2]
-		path := line[3:]
-
-		fc := FileChange{Status: status}
-
-		// Handle renames: "R  old -> new"
-		if strings.HasPrefix(status, "R") && strings.Contains(path, " -> ") {
-			parts := strings.SplitN(path, " -> ", 2)
-			fc.OldPath = parts[0]
-			fc.Path = parts[1]
-		} else {
-			fc.Path = path
+		fc := FileChange{Status: e[:2], Path: e[3:]}
+		// A rename or copy is followed by its original path as the next entry.
+		if strings.ContainsAny(fc.Status, "RC") && i+1 < len(entries) {
+			i++
+			fc.OldPath = entries[i]
 		}
-
 		changes = append(changes, fc)
 	}
-
 	return changes
 }
 

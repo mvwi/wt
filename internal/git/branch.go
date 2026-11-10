@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// CurrentBranch returns the current branch name, or "" for detached HEAD.
+// CurrentBranch returns the current branch name, or "HEAD" when detached.
 func CurrentBranch() (string, error) {
 	return Run("rev-parse", "--abbrev-ref", "HEAD")
 }
@@ -106,26 +106,14 @@ func GetAheadBehind(remoteRef string) (AheadBehind, error) {
 
 // GetAheadBehindIn computes ahead/behind for a specific worktree.
 func GetAheadBehindIn(dir, remoteRef string) (AheadBehind, error) {
-	ab := AheadBehind{}
-
-	behind, err := RunIn(dir, "rev-list", "--count", "HEAD.."+remoteRef)
+	var ab AheadBehind
+	out, err := RunIn(dir, "rev-list", "--left-right", "--count", "HEAD..."+remoteRef)
 	if err != nil {
 		return ab, err
 	}
-	ab.Behind, err = strconv.Atoi(strings.TrimSpace(behind))
-	if err != nil {
-		return ab, fmt.Errorf("invalid behind count %q: %w", behind, err)
+	if _, err := fmt.Sscan(out, &ab.Ahead, &ab.Behind); err != nil {
+		return ab, fmt.Errorf("invalid ahead/behind counts %q: %w", out, err)
 	}
-
-	ahead, err := RunIn(dir, "rev-list", "--count", remoteRef+"..HEAD")
-	if err != nil {
-		return ab, err
-	}
-	ab.Ahead, err = strconv.Atoi(strings.TrimSpace(ahead))
-	if err != nil {
-		return ab, fmt.Errorf("invalid ahead count %q: %w", ahead, err)
-	}
-
 	return ab, nil
 }
 

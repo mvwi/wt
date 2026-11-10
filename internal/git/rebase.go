@@ -53,7 +53,7 @@ func MergeFFIn(dir, ref string) error {
 	return RunSilentIn(dir, "merge", "--ff-only", ref)
 }
 
-// Push pushes with force-with-lease.
+// PushForceWithLease pushes with --force-with-lease.
 func PushForceWithLease() error {
 	return RunPassthrough("push", "--force-with-lease")
 }
@@ -61,11 +61,6 @@ func PushForceWithLease() error {
 // PushSetUpstream pushes and sets the upstream.
 func PushSetUpstream(remote string) error {
 	return RunPassthrough("push", "-u", remote, "HEAD")
-}
-
-// FetchPrune fetches and prunes dead remote refs.
-func FetchPrune() {
-	_ = RunSilent("fetch", "--prune")
 }
 
 // SaveStateFile writes the rebase state to a file in the git dir.

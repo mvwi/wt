@@ -108,7 +108,7 @@ func createFromBranch(ctx *cmdContext, name, branch string) error {
 	}
 
 	if name == "" {
-		name = nameFromBranch(ref, ctx.Config.Remote)
+		name = nameFromBranch(ref)
 	}
 	if err := validateName(ctx, name); err != nil {
 		return err
@@ -165,7 +165,7 @@ func checkoutPR(ctx *cmdContext, name string, pr *github.PRInfo) error {
 		return fmt.Errorf("PR #%d is already checked out as %s\n   Run wt switch %s", pr.Number, short, short)
 	}
 	if name == "" {
-		name = nameFromBranch(pr.HeadRefName, ctx.Config.Remote)
+		name = nameFromBranch(pr.HeadRefName)
 	}
 	if err := validateName(ctx, name); err != nil {
 		return err
@@ -213,16 +213,14 @@ func worktreeForBranch(branch string) string {
 	return ""
 }
 
-// nameFromBranch derives a short worktree name from a branch ref.
-// Takes the last segment after "/" and strips the remote prefix if present.
+// nameFromBranch derives a short worktree name from a branch ref: the last
+// segment after "/".
 //
 //	"origin/user/fix-login" → "fix-login"
 //	"user/fix-login"        → "fix-login"
 //	"fix-login"             → "fix-login"
-func nameFromBranch(ref, remote string) string {
-	parts := strings.Split(ref, "/")
-	name := parts[len(parts)-1]
-	return strings.TrimPrefix(name, remote+"/")
+func nameFromBranch(ref string) string {
+	return ref[strings.LastIndex(ref, "/")+1:]
 }
 
 // createWorktreeFromRemote checks out an existing branch, local or remote,
@@ -252,7 +250,7 @@ func createWorktreeFromRemote(ctx *cmdContext, name, remoteBranch string, pr int
 	if git.BranchExists(localBranch) {
 		err = git.AddWorktreeFromExisting(wtPath, localBranch)
 	} else {
-		err = git.AddWorktreeFromRemote(wtPath, localBranch, remoteRef)
+		err = git.AddWorktree(wtPath, localBranch, remoteRef)
 	}
 	if err != nil {
 		return fmt.Errorf("failed to create worktree: %w", err)

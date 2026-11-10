@@ -37,17 +37,10 @@ func newContext() (*cmdContext, error) {
 		return nil, err
 	}
 
-	repo, err := git.RepoName()
-	if err != nil {
-		return nil, err
-	}
+	repo := filepath.Base(mainWT)
+	parentDir := filepath.Dir(mainWT)
 
 	cfg, err := config.Load(mainWT, repo)
-	if err != nil {
-		return nil, err
-	}
-
-	parentDir, err := git.ParentDir()
 	if err != nil {
 		return nil, err
 	}
@@ -137,13 +130,12 @@ func completeWorktreeNames(_ *cobra.Command, _ []string, toComplete string) ([]s
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 
-	prefix := ctx.Config.EffectiveWorktreeDir(ctx.RepoName, "")
 	var names []string
 	for _, wt := range worktrees {
 		if wt.Path == ctx.MainWorktree {
 			continue
 		}
-		short := strings.TrimPrefix(filepath.Base(wt.Path), prefix)
+		short := ctx.shortName(wt.Path)
 		if toComplete == "" || strings.HasPrefix(short, toComplete) {
 			names = append(names, short)
 		}

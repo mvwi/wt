@@ -16,7 +16,7 @@ const (
 	httpTimeout   = 3 * time.Second
 )
 
-// cacheDir returns ~/.config/wt/, creating it if needed.
+// cacheDir returns wt's folder in the user config dir, creating it if needed.
 func cacheDir() (string, error) {
 	configDir, err := os.UserConfigDir()
 	if err != nil {

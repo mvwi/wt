@@ -62,16 +62,6 @@ func MainWorktree() (string, error) {
 	return wts[0].Path, nil
 }
 
-// ParentDir returns the parent directory of the main worktree
-// (where sibling worktrees are created).
-func ParentDir() (string, error) {
-	main, err := MainWorktree()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Dir(main), nil
-}
-
 // AddWorktree creates a new worktree with a new branch from a base ref.
 func AddWorktree(path, branch, baseRef string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
@@ -87,15 +77,6 @@ func AddWorktreeFromExisting(path, branch string) error {
 		return err
 	}
 	_, err := Run("worktree", "add", path, branch)
-	return err
-}
-
-// AddWorktreeFromRemote creates a worktree with a local tracking branch from a remote.
-func AddWorktreeFromRemote(path, localBranch, remoteBranch string) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		return err
-	}
-	_, err := Run("worktree", "add", "-b", localBranch, path, remoteBranch)
 	return err
 }
 

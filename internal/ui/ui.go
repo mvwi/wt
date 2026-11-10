@@ -68,7 +68,7 @@ func Truncate(s string, max int) string {
 
 // Confirm prompts the user with a y/n question.
 // defaultYes: if true, pressing Enter means yes (Y/n); if false, means no (y/N).
-// When stdin is not a terminal, returns defaultYes without prompting.
+// When stdout is not a terminal, returns defaultYes without prompting.
 // Unrecognized input re-prompts until a valid answer is given.
 func Confirm(message string, defaultYes bool) bool {
 	if YesFlag {
@@ -130,11 +130,11 @@ func ask(message string, defaultYes bool) bool {
 func PrintCdHint(path string) {
 	if cdFile := os.Getenv("WT_CD_FILE"); cdFile != "" {
 		if err := os.WriteFile(cdFile, []byte(path), 0600); err != nil {
-			fmt.Printf("  → cd %s\n", shellQuote(path))
+			fmt.Printf("  → cd %s\n", ShellQuote(path))
 		}
 		return
 	}
-	fmt.Printf("  → cd %s\n", shellQuote(path))
+	fmt.Printf("  → cd %s\n", ShellQuote(path))
 	PrintWrapperHint()
 }
 
@@ -177,8 +177,8 @@ func wrapperSetup(shell string) string {
 	return "See: wt init-shell --help"
 }
 
-// shellQuote wraps a path in single quotes if it contains shell-special characters.
-func shellQuote(s string) string {
+// ShellQuote wraps a string in single quotes if it contains shell-special characters.
+func ShellQuote(s string) string {
 	if !strings.ContainsAny(s, " \t\n'\"\\$`|&;<>(){}[]!*?~") {
 		return s
 	}
@@ -200,14 +200,9 @@ func Warn(format string, args ...any) {
 	fmt.Fprintf(os.Stderr, Yellow("⚠")+"  "+format+"\n", args...)
 }
 
-// Info prints a regular message.
-func Info(format string, args ...any) {
-	fmt.Printf(format+"\n", args...)
-}
-
 // IsTTY reports whether stdout is connected to a terminal.
 func IsTTY() bool {
-	return !JSON && isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
+	return !JSON && (isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd()))
 }
 
 // ClearLines moves the cursor up n lines and clears each one.

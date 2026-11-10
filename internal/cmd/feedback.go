@@ -19,10 +19,8 @@ var feedbackCmd = &cobra.Command{
 	Long: `Open a new GitHub issue on the wt repository.
 
 If a message is provided, it will be used as the issue title.
-The issue form opens in your default browser.
-
-Examples:
-  wt feedback
+The issue form opens in your default browser.`,
+	Example: `  wt feedback
   wt feedback "rebase --all should show progress"`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runFeedback,

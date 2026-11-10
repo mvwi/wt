@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/mvwi/wt/internal/config"
@@ -77,14 +76,8 @@ func promptSegment() string {
 	}
 	ctx := &cmdContext{Config: cfg, RepoName: repo, MainWorktree: main, ParentDir: filepath.Dir(main)}
 
-	var ahead, behind int
-	if counts, err := git.Run("rev-list", "--left-right", "--count", "HEAD..."+ctx.baseRef()); err == nil {
-		if a, b, ok := strings.Cut(counts, "\t"); ok {
-			ahead, _ = strconv.Atoi(a)
-			behind, _ = strconv.Atoi(b)
-		}
-	}
-	return formatPrompt(ctx.shortName(top), ahead, behind, readPRCache()[main][branch])
+	ab, _ := git.GetAheadBehind(ctx.baseRef())
+	return formatPrompt(ctx.shortName(top), ab.Ahead, ab.Behind, readPRCache()[main][branch])
 }
 
 func formatPrompt(name string, ahead, behind int, pr cachedPR) string {

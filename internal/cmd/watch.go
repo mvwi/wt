@@ -82,7 +82,7 @@ func runWatch(cmd *cobra.Command, args []string) error {
 			// PR number — use directly
 			ref = args[0]
 		} else {
-			// Fuzzy-match against worktrees
+			// Fuzzy-match against worktrees, then fall back to a branch name
 			worktrees, err := git.ListWorktrees()
 			if err != nil {
 				return err
@@ -91,14 +91,13 @@ func runWatch(cmd *cobra.Command, args []string) error {
 			if resolveErr != nil {
 				return resolveErr
 			}
-			if target == "" {
-				return fmt.Errorf("worktree not found: %s\n   Run wt list to see available worktrees", args[0])
+			// No such worktree: take the argument as a branch name.
+			ref = args[0]
+			if target != "" {
+				if ref, err = git.CurrentBranchIn(target); err != nil {
+					return fmt.Errorf("could not determine branch for worktree: %s", args[0])
+				}
 			}
-			branch, err := git.CurrentBranchIn(target)
-			if err != nil {
-				return fmt.Errorf("could not determine branch for worktree: %s", args[0])
-			}
-			ref = branch
 		}
 	} else {
 		branch, err := git.CurrentBranch()

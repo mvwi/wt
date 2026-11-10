@@ -108,10 +108,13 @@ func runList(cmd *cobra.Command, args []string) error {
 	}
 
 	switch outputFormat {
+	case "":
 	case "json":
 		return runListJSON(ctx, cwd, worktrees)
 	case "toon":
 		return runListTOON(ctx, cwd, worktrees)
+	default:
+		return fmt.Errorf("unknown output format %q (want json or toon)", outputFormat)
 	}
 
 	if len(worktrees) == 0 {

@@ -24,13 +24,6 @@ func IsAvailable() bool {
 	return ghInstalled
 }
 
-// ResetAvailability resets the cached gh availability check.
-// Intended for testing only.
-func ResetAvailability() {
-	ghOnce = sync.Once{}
-	ghInstalled = false
-}
-
 // runGH executes a gh command and returns stdout.
 func runGH(args ...string) (string, error) {
 	cmd := exec.Command("gh", args...)
@@ -307,7 +300,7 @@ func GetPRDetail(number int) (*PRDetail, error) {
 	return &d, nil
 }
 
-// FindPRForBranch returns the first PR matching the branch name and state.
+// FindPRForBranch returns the first PR whose head is branch, or nil.
 func FindPRForBranch(prs []PR, branch string) *PR {
 	for i := range prs {
 		if prs[i].HeadRefName == branch {
@@ -335,6 +328,12 @@ func GetPRForBranch(branch string) (*PR, error) {
 		return nil, nil
 	}
 	return &prs[0], nil
+}
+
+// OpenPR opens the branch's most recent PR in the browser, whatever its state.
+func OpenPR(branch string) error {
+	_, err := runGH("pr", "view", branch, "--web")
+	return err
 }
 
 // PRInfo holds lightweight PR metadata for checkout.

@@ -2,13 +2,9 @@ package cmd
 
 import (
 	"fmt"
-	"os/exec"
-	"strconv"
-	"strings"
 
 	"github.com/mvwi/wt/internal/git"
 	"github.com/mvwi/wt/internal/github"
-	"github.com/mvwi/wt/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -70,17 +66,8 @@ func runOpen(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	pr, err := github.GetPRForBranch(branch)
-	if err != nil {
-		return fmt.Errorf("failed to check for PR: %w", err)
+	if err := github.OpenPR(branch); err != nil {
+		return fmt.Errorf("%w\n   If %s has no PR yet, run wt submit and create one", err, branch)
 	}
-	if pr == nil {
-		return fmt.Errorf("no PR found for branch: %s\n   Run wt submit to push and create one", branch)
-	}
-
-	if pr.State != "OPEN" {
-		ui.Warn("PR #%d is %s", pr.Number, strings.ToLower(pr.State))
-	}
-
-	return exec.Command("gh", "pr", "view", strconv.Itoa(pr.Number), "--web").Run()
+	return nil
 }

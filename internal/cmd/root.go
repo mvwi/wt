@@ -52,6 +52,7 @@ Worktrees go next to the repo, in ../wt-<repo>/<name>.
 
 ` + ui.Bold("TYPICAL WORKFLOW") + `
   wt new feature        Create worktree + branch
+  wt switch feature     cd into it
   wt init               Initialize worktree (see .wt.toml)
   ...work on feature...
   wt submit             Rebase on base branch + push
@@ -318,11 +319,12 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 	// PR status
 	if github.IsAvailable() {
-		pr, err := github.GetPRForBranch(branch)
-		if err != nil {
+		// ListPRs, not GetPRForBranch: only it fetches reviews and checks.
+		prs, err := github.ListPRs("open", branch)
+		if err != nil && !isNotGitHubRemote(err) {
 			fmt.Fprintln(os.Stderr, ui.Dim("  Couldn't load PR status: "+firstLine(err.Error())))
 		}
-		if pr != nil && pr.State == "OPEN" {
+		if pr := github.FindPRForBranch(prs, branch); pr != nil {
 			rs := pr.GetReviewSummary()
 			cs := pr.GetCISummary()
 

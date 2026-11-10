@@ -13,7 +13,7 @@ func testContext(t *testing.T) *cmdContext {
 		Config:       &config.Config{BaseBranch: "main", Remote: "origin"},
 		RepoName:     "repo",
 		MainWorktree: "/src/repo",
-		ParentDir:    t.TempDir(), // empty, so step 1 (exact dir) never hits
+		ParentDir:    "/src",
 		Username:     "me",
 	}
 }
@@ -25,6 +25,7 @@ func TestMatchWorktrees(t *testing.T) {
 		{Path: "/src/wt-repo/api-authz", Branch: "me/api-authz"},
 		{Path: "/src/wt-repo/ui-auth", Branch: "me/ui-auth"},
 		{Path: "/src/wt-repo/sidebar", Branch: "me/sidebar"},
+		{Path: "/src/wt-repo/feat/login", Branch: "me/feat/login"},
 	}
 	tests := []struct {
 		name      string
@@ -36,6 +37,11 @@ func TestMatchWorktrees(t *testing.T) {
 		{"me/sidebar", []string{"/src/wt-repo/sidebar"}, false},
 		{"auth", []string{"/src/wt-repo/api-auth", "/src/wt-repo/ui-auth"}, false},
 		{"authz", []string{"/src/wt-repo/api-authz"}, false},
+		{"sidebar", []string{"/src/wt-repo/sidebar"}, false},
+		{"feat/login", []string{"/src/wt-repo/feat/login"}, false},
+		{"login", []string{"/src/wt-repo/feat/login"}, false},
+		// "feat" is a directory on disk but not a worktree: never an exact match.
+		{"feat", []string{"/src/wt-repo/feat/login"}, true},
 		{"side", []string{"/src/wt-repo/sidebar"}, true},
 		{"api", []string{"/src/wt-repo/api-auth", "/src/wt-repo/api-authz"}, true},
 		{"nope", nil, true},

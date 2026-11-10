@@ -27,10 +27,10 @@ With a name, resolves the worktree using fuzzy matching.
 Use "-" to switch back to the previous worktree.
 
 Resolution order:
-  1. Exact match: wt-<repo>-<name>
+  1. Exact match: the worktree named <name>
   2. Main repo: 'main', base branch name, or repo name
   3. Branch name: exact match against the git branch
-  4. Suffix match: any worktree ending with -<name>
+  4. Suffix match: any worktree ending with -<name> or /<name>
   5. Fuzzy match: worktree or branch containing the search term
 
 If a step matches more than one worktree, wt opens fzf on just those
@@ -81,13 +81,26 @@ func runSwitch(cmd *cobra.Command, args []string) error {
 	return switchByName(ctx, worktrees, cwd, args[0])
 }
 
+// prevWorktreePath is the file that records the worktree we last switched
+// from. It sits in the common git dir: every worktree has its own git dir, and
+// the worktree we land in must read what the one we left wrote.
+func prevWorktreePath() (string, error) {
+	dir, err := git.Run("rev-parse", "--path-format=absolute", "--git-common-dir")
+	return filepath.Join(dir, prevWorktreeStateFile), err
+}
+
 func switchPrevious(ctx *cmdContext, cwd string) error {
-	prev, err := git.ReadStateFile(prevWorktreeStateFile)
+	noPrev := fmt.Errorf("no previous worktree to switch to\n   Use wt switch <name> to specify one")
+	path, err := prevWorktreePath()
 	if err != nil {
-		return fmt.Errorf("no previous worktree to switch to\n   Use wt switch <name> to specify one")
+		return noPrev
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return noPrev
 	}
 
-	prev = strings.TrimSpace(prev)
+	prev := strings.TrimSpace(string(data))
 	if !isDir(prev) {
 		return fmt.Errorf("previous worktree no longer exists: %s\n   It may have been closed. Run wt list to see available worktrees", prev)
 	}
@@ -96,7 +109,9 @@ func switchPrevious(ctx *cmdContext, cwd string) error {
 }
 
 func savePreviousWorktree(cwd string) {
-	_ = git.SaveStateFile(prevWorktreeStateFile, cwd)
+	if path, err := prevWorktreePath(); err == nil {
+		_ = os.WriteFile(path, []byte(cwd), 0600)
+	}
 }
 
 func switchInteractive(ctx *cmdContext, worktrees []git.Worktree, cwd string) error {
@@ -242,9 +257,13 @@ func resolveWorktree(ctx *cmdContext, worktrees []git.Worktree, name string) (st
 // matchWorktrees returns the worktrees that match name at the first step of
 // the resolution chain that matches any. fuzzy is true for step 5 matches.
 func matchWorktrees(ctx *cmdContext, worktrees []git.Worktree, name string) ([]git.Worktree, bool) {
-	// 1. Exact match with configured prefix
-	if exact := ctx.worktreePath(name); isDir(exact) {
-		return []git.Worktree{{Path: exact}}, false
+	// 1. Exact match with configured prefix. Check the worktree list, not the
+	// disk: with a "feat/foo" worktree, "feat" is a directory but no worktree.
+	exact := filepath.Clean(ctx.worktreePath(name))
+	for _, wt := range worktrees {
+		if wt.Path == exact {
+			return []git.Worktree{wt}, false
+		}
 	}
 
 	// 2. Main repo match (base branch name, "main", "master", or repo name)
@@ -262,8 +281,7 @@ func matchWorktrees(ctx *cmdContext, worktrees []git.Worktree, name string) ([]g
 	// 4. Suffix match
 	var matches []git.Worktree
 	for _, wt := range worktrees {
-		base := filepath.Base(wt.Path)
-		if strings.HasSuffix(base, "-"+name) || strings.HasSuffix(base, "/"+name) {
+		if strings.HasSuffix(wt.Path, "-"+name) || strings.HasSuffix(wt.Path, "/"+name) {
 			matches = append(matches, wt)
 		}
 	}

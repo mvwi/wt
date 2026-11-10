@@ -1,0 +1,21 @@
+Read this entire project and find everything that’s broken, inconsistent, inefficient, or no longer needed. Fix what you’re sure about and list the rest for me to review.
+
+---
+
+Read this entire project and find everything that’s broken, inconsistent, inefficient, or no longer needed. Fix what you’re sure about and list the rest for me to review.
+
+---
+
+what of the ones to review would you recommend fixing, which feel like overengineering?
+
+---
+
+okay do it
+
+---
+
+verify what you can, give me instructions for what you can't
+
+---
+
+seems like not a huge need to test that. lets commit and push and release

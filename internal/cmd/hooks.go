@@ -25,7 +25,7 @@ func finishNew(ctx *cmdContext, name, wtPath string, doInit bool) error {
 	}
 	warnRepoHooks(ctx)
 	if hooks := ctx.Config.Hooks.PostNew; len(hooks) > 0 {
-		if err := runHooks("post_new", hooks, wtPath, worktreeEnv(worktreeVars(ctx, wtPath))); err != nil {
+		if err := runHooks("post_new", hooks, wtPath, worktreeEnv(worktreeVars(ctx, wtPath)), false); err != nil {
 			ui.Warn("%v", err)
 		}
 	}
@@ -36,7 +36,6 @@ func finishNew(ctx *cmdContext, name, wtPath string, doInit bool) error {
 	return nil
 }
 
-// runHooks runs each command with sh -c in dir and stops at the first failure.
 // warnRepoHooks says that [hooks] in .wt.toml were skipped and where they belong.
 func warnRepoHooks(ctx *cmdContext) {
 	if ctx.Config.RepoHooksIgnored {
@@ -44,10 +43,18 @@ func warnRepoHooks(ctx *cmdContext) {
 	}
 }
 
-func runHooks(event string, cmds []string, dir string, env []string) error {
+// runHooks runs each command with sh -c in dir and stops at the first failure.
+// quiet prints nothing and drops the commands' output, for the dashboard,
+// which owns the screen.
+func runHooks(event string, cmds []string, dir string, env []string, quiet bool) error {
 	for _, c := range cmds {
-		fmt.Println(ui.Dim(event + ": " + c))
-		if err := runShellString(dir, c, env...); err != nil {
+		run := runShellString
+		if quiet {
+			run = runShellQuiet
+		} else {
+			fmt.Println(ui.Dim(event + ": " + c))
+		}
+		if err := run(dir, c, env...); err != nil {
 			return fmt.Errorf("%s hook failed: %s: %w", event, c, err)
 		}
 	}

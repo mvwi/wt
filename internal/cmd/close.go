@@ -90,11 +90,13 @@ func runClose(cmd *cobra.Command, args []string) error {
 			}
 		}
 	} else {
-		// Close current worktree
-		if cwd == ctx.MainWorktree || isSubpath(cwd, ctx.MainWorktree) {
+		// Close current worktree. cwd may be a subdirectory, so ask git for the root.
+		if targetPath, err = git.TopLevel(); err != nil {
+			return err
+		}
+		if targetPath == ctx.MainWorktree {
 			return fmt.Errorf("cannot close the main repository worktree\n   Specify a worktree name: wt close <name>")
 		}
-		targetPath = cwd
 	}
 
 	if targetPath == ctx.MainWorktree {
@@ -137,53 +139,30 @@ func runClose(cmd *cobra.Command, args []string) error {
 	}
 
 	warnRepoHooks(ctx)
-	// Read the env now: the index file goes away with the worktree.
-	var hookEnv []string
-	if len(ctx.Config.Hooks.PreClose)+len(ctx.Config.Hooks.PostClose) > 0 {
-		hookEnv = worktreeEnv(worktreeVars(ctx, targetPath))
-	}
-	if err := runHooks("pre_close", ctx.Config.Hooks.PreClose, targetPath, hookEnv); err != nil {
-		return fmt.Errorf("%w\n   Close cancelled", err)
-	}
-
 	fmt.Printf("Closing worktree: %s\n", targetPath)
 	fmt.Printf("Branch: %s\n", targetBranch)
 	fmt.Println()
 
 	// Check if we need to cd out before removal
-	needsCd := cwd == targetPath || isSubpath(cwd, targetPath)
+	needsCd := len(args) == 0 || cwd == targetPath || isSubpath(cwd, targetPath)
 
-	// Remove worktree
-	if err := git.RemoveWorktree(targetPath); err != nil {
-		return fmt.Errorf("failed to remove worktree: %w", err)
+	branchDeleted, err := closeWorktree(ctx, targetPath, targetBranch, false)
+	if err != nil {
+		return err
 	}
 
 	// Our cwd may be gone now, and git refuses to run from a deleted dir.
 	if err := os.Chdir(ctx.MainWorktree); err != nil {
 		return fmt.Errorf("cannot enter main worktree: %w", err)
 	}
-
-	// cd out after successful removal
 	if needsCd {
 		ui.PrintCdHint(ctx.MainWorktree)
 		fmt.Printf("Moved to main repo: %s\n", ctx.MainWorktree)
 	}
-
-	if err := runHooks("post_close", ctx.Config.Hooks.PostClose, ctx.MainWorktree, hookEnv); err != nil {
-		ui.Warn("%v", err)
+	if branchDeleted {
+		ui.Success("Deleted local branch: %s", targetBranch)
 	}
-
-	// Delete local branch
-	branchKept, branchDeleted := false, false
-	if targetBranch != "" && git.BranchExists(targetBranch) {
-		if err := git.DeleteBranch(targetBranch); err != nil {
-			ui.Warn("Could not delete local branch %s: %v", targetBranch, err)
-			branchKept = true
-		} else {
-			ui.Success("Deleted local branch: %s", targetBranch)
-			branchDeleted = true
-		}
-	}
+	branchKept := !branchDeleted && git.BranchExists(targetBranch)
 
 	fmt.Println()
 	if branchKept {
@@ -196,6 +175,41 @@ func runClose(cmd *cobra.Command, args []string) error {
 		return printJSON(closeJSON{Name: ctx.shortName(targetPath), Path: targetPath, Branch: targetBranch, BranchDeleted: branchDeleted})
 	}
 	return nil
+}
+
+// closeWorktree is the one way wt removes a worktree, shared by close, prune
+// and the dashboard: pre_close hooks, the removal, post_close hooks, then the
+// branch delete. A failing pre_close hook or removal is the error; later
+// failures only warn. quiet prints nothing, for the dashboard.
+func closeWorktree(ctx *cmdContext, path, branch string, quiet bool) (branchDeleted bool, err error) {
+	hooks := ctx.Config.Hooks
+	var env []string
+	if len(hooks.PreClose)+len(hooks.PostClose) > 0 {
+		// Read the env now: the index file goes away with the worktree.
+		env = worktreeEnv(worktreeVars(ctx, path))
+	}
+	if err := runHooks("pre_close", hooks.PreClose, path, env, quiet); err != nil {
+		return false, fmt.Errorf("%w\n   Close cancelled", err)
+	}
+	if err := git.RemoveWorktree(path); err != nil {
+		return false, fmt.Errorf("failed to remove worktree: %w", err)
+	}
+	if err := runHooks("post_close", hooks.PostClose, ctx.MainWorktree, env, quiet); err != nil && !quiet {
+		ui.Warn("%v", err)
+	}
+
+	// Run git from the main worktree: the caller's cwd may be the one just removed.
+	main := ctx.MainWorktree
+	if git.RunSilentIn(main, "show-ref", "--verify", "--quiet", "refs/heads/"+branch) != nil {
+		return false, nil
+	}
+	if _, err := git.RunIn(main, "branch", "-D", branch); err != nil {
+		if !quiet {
+			ui.Warn("Could not delete local branch %s: %v", branch, err)
+		}
+		return false, nil
+	}
+	return true, nil
 }
 
 // cancelled ends a command after a declined prompt: exit 0 for a plain "no",

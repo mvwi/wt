@@ -57,10 +57,11 @@ type HooksConfig struct {
 	// PostNew runs in the new worktree after new, pr and pull (after init, if it ran).
 	PostNew []string `toml:"post_new"`
 
-	// PreClose runs in the worktree before close removes it. A failure aborts the close.
+	// PreClose runs in a worktree before close, prune or the dashboard removes it.
+	// A failure aborts the removal.
 	PreClose []string `toml:"pre_close"`
 
-	// PostClose runs in the main worktree after close removes the worktree.
+	// PostClose runs in the main worktree after a worktree is removed.
 	PostClose []string `toml:"post_close"`
 }
 

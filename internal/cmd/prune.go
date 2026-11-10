@@ -22,7 +22,7 @@ var pruneCmd = &cobra.Command{
 Skips:
   - Main worktree
   - Current worktree
-  - Worktrees with uncommitted changes
+  - Worktrees with uncommitted changes or unpushed commits
   - Base/main branches`,
 	Example: `  wt prune             Interactively remove stale worktrees
   wt prune --dry-run   Show what would be removed
@@ -41,6 +41,7 @@ type staleWorktree struct {
 	Path   string
 	Branch string
 	Reason string
+	Kept   string // why prune left it alone, for skipped worktrees
 }
 
 func runPrune(cmd *cobra.Command, args []string) error {
@@ -98,13 +99,18 @@ func runPrune(cmd *cobra.Command, args []string) error {
 			continue
 		}
 
-		// Stale but has uncommitted changes — track separately
+		// Stale but holds work that exists nowhere else — track separately.
+		// A merged or closed PR says nothing about what came after it.
 		if git.HasChangesIn(wt.Path) {
-			skippedDirty = append(skippedDirty, staleWorktree{wt.Path, wt.Branch, reason})
+			skippedDirty = append(skippedDirty, staleWorktree{wt.Path, wt.Branch, reason, "has uncommitted changes"})
+			continue
+		}
+		if n := git.UnpushedCountIn(wt.Path); n > 0 {
+			skippedDirty = append(skippedDirty, staleWorktree{wt.Path, wt.Branch, reason, fmt.Sprintf("has %d unpushed commit(s)", n)})
 			continue
 		}
 
-		stale = append(stale, staleWorktree{wt.Path, wt.Branch, reason})
+		stale = append(stale, staleWorktree{Path: wt.Path, Branch: wt.Branch, Reason: reason})
 	}
 
 	git.PruneWorktrees()
@@ -163,6 +169,7 @@ func runPrune(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	warnRepoHooks(ctx)
 	fmt.Printf("Removing %d worktree(s)...\n", len(toRemove))
 
 	removedCount := 0
@@ -170,13 +177,9 @@ func runPrune(cmd *cobra.Command, args []string) error {
 		s := stale[i]
 		short := filepath.Base(s.Path)
 
-		if err := git.RemoveWorktree(s.Path); err != nil {
-			fmt.Printf("  %s %s (failed)\n", ui.Red(ui.Fail), short)
+		if _, err := closeWorktree(ctx, s.Path, s.Branch, false); err != nil {
+			fmt.Printf("  %s %s (failed: %s)\n", ui.Red(ui.Fail), short, firstLine(err.Error()))
 			continue
-		}
-
-		if git.BranchExists(s.Branch) {
-			_ = git.DeleteBranch(s.Branch)
 		}
 		fmt.Printf("  %s %s\n", ui.Green(ui.Pass), short)
 		removedCount++
@@ -189,27 +192,36 @@ func runPrune(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// prReasons maps each branch with a merged or closed PR to a reason. partial
-// is true when one of the two lookups failed; err is set only when both did.
+// prReasons maps each branch with a merged or closed PR, and no open one, to a
+// reason. partial is true when the merged or the closed lookup failed; err is
+// set when both did, or when the open lookup did: without it a reused branch
+// with a new open PR would look stale.
 func prReasons(branches []string) (reasons map[string]string, partial bool, err error) {
 	reasons = make(map[string]string)
 	if !github.IsAvailable() || len(branches) == 0 {
 		return reasons, false, nil
 	}
 
-	var mergedPRs, closedPRs []github.PR
-	var mergedErr, closedErr error
+	var openPRs, mergedPRs, closedPRs []github.PR
+	var openErr, mergedErr, closedErr error
 	var wg sync.WaitGroup
-	wg.Add(2)
+	wg.Add(3)
+	go func() { defer wg.Done(); openPRs, openErr = github.ListPRs("open", branches...) }()
 	go func() { defer wg.Done(); mergedPRs, mergedErr = github.ListPRs("merged", branches...) }()
 	go func() { defer wg.Done(); closedPRs, closedErr = github.ListPRs("closed", branches...) }()
 	wg.Wait()
 
+	if openErr != nil {
+		return nil, false, openErr
+	}
 	if mergedErr != nil && closedErr != nil {
 		return nil, false, mergedErr
 	}
 
 	for _, b := range branches {
+		if github.FindPRForBranch(openPRs, b) != nil {
+			continue
+		}
 		if pr := github.FindPRForBranch(mergedPRs, b); pr != nil {
 			reasons[b] = fmt.Sprintf("PR #%d merged", pr.Number)
 		} else if pr := github.FindPRForBranch(closedPRs, b); pr != nil {
@@ -275,6 +287,6 @@ func printSkippedDirty(skipped []staleWorktree) {
 	fmt.Println()
 	for _, s := range skipped {
 		short := filepath.Base(s.Path)
-		fmt.Printf("  %s %s — %s, skipped (has uncommitted changes)\n", ui.Yellow("!"), short, s.Reason)
+		fmt.Printf("  %s %s — %s, skipped (%s)\n", ui.Yellow("!"), short, s.Reason, s.Kept)
 	}
 }

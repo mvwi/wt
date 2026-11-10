@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/mvwi/wt/internal/git"
@@ -25,9 +24,8 @@ Renames:
 	Example: `  wt rename sidebar-v2    Rename branch, directory, and remote
   wt rename fix --local   Rename locally only (skip remote)
   wt rename fix --yes     Rename without confirmation prompt`,
-	Args:              cobra.ExactArgs(1),
-	ValidArgsFunction: completeWorktreeNames,
-	RunE:              runRename,
+	Args: cobra.ExactArgs(1),
+	RunE: runRename,
 }
 
 var renameLocalOnly bool
@@ -43,9 +41,10 @@ func runRename(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	cwd, err := os.Getwd()
+	// The worktree root: cwd may be a subdirectory of it.
+	root, err := git.TopLevel()
 	if err != nil {
-		return fmt.Errorf("cannot determine current directory: %w", err)
+		return err
 	}
 	currentBranch, err := git.CurrentBranch()
 	if err != nil {
@@ -53,7 +52,7 @@ func runRename(cmd *cobra.Command, args []string) error {
 	}
 
 	// Safety: must be in a worktree, not main repo
-	if cwd == ctx.MainWorktree || isSubpath(cwd, ctx.MainWorktree) {
+	if root == ctx.MainWorktree {
 		return fmt.Errorf("cannot rename the main repository\n   Switch to a worktree first: wt switch <name>")
 	}
 	if ctx.isBaseBranch(currentBranch) {
@@ -77,7 +76,7 @@ func runRename(cmd *cobra.Command, args []string) error {
 	newPath := ctx.worktreePath(newName)
 
 	// Already correct?
-	if currentBranch == newBranch && cwd == newPath {
+	if currentBranch == newBranch && root == newPath {
 		ui.Success("Already named correctly")
 		return nil
 	}
@@ -86,7 +85,7 @@ func runRename(cmd *cobra.Command, args []string) error {
 	if currentBranch != newBranch && git.BranchExists(newBranch) {
 		return fmt.Errorf("branch already exists: %s", newBranch)
 	}
-	if cwd != newPath && isDir(newPath) {
+	if root != newPath && isDir(newPath) {
 		return fmt.Errorf("directory already exists: %s", newPath)
 	}
 
@@ -112,9 +111,9 @@ func runRename(cmd *cobra.Command, args []string) error {
 		fmt.Printf("  Branch:    %s\n", ui.Dim(currentBranch+" (no change)"))
 	}
 
-	currentShort := ctx.shortName(cwd)
-	if cwd != newPath {
-		fmt.Printf("  Directory: %s → %s\n", currentShort, ctx.worktreeDir(newName))
+	currentShort := ctx.shortName(root)
+	if root != newPath {
+		fmt.Printf("  Directory: %s → %s\n", currentShort, newName)
 	} else {
 		fmt.Printf("  Directory: %s\n", ui.Dim(currentShort+" (no change)"))
 	}
@@ -147,9 +146,9 @@ func runRename(cmd *cobra.Command, args []string) error {
 	}
 
 	// Step 2: Move worktree directory
-	if cwd != newPath {
+	if root != newPath {
 		fmt.Println("Moving worktree…")
-		if err := git.MoveWorktree(cwd, newPath); err != nil {
+		if err := git.MoveWorktree(root, newPath); err != nil {
 			// Rollback branch rename
 			if currentBranch != newBranch {
 				fmt.Println("   Rolling back branch rename…")
@@ -199,13 +198,6 @@ func runRename(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 	ui.Success("Renamed!")
 
-	newCtx, _ := newContext()
-	if newCtx != nil {
-		path := newPath
-		if cwd == newPath {
-			path = cwd
-		}
-		showSwitchSummary(path, newCtx)
-	}
+	showSwitchSummary(newPath, ctx)
 	return nil
 }

@@ -100,7 +100,7 @@ func TestHookEnv(t *testing.T) {
 
 	dir := t.TempDir()
 	out := filepath.Join(dir, "out")
-	err := runHooks("post_new", []string{`echo "$WT_NAME $WT_PORT $PWD" > out`}, dir, worktreeEnv(vars))
+	err := runHooks("post_new", []string{`echo "$WT_NAME $WT_PORT $PWD" > out`}, dir, worktreeEnv(vars), false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +110,7 @@ func TestHookEnv(t *testing.T) {
 		t.Errorf("hook saw %q", s)
 	}
 
-	if err := runHooks("pre_close", []string{"exit 3", "touch never"}, dir, nil); err == nil {
+	if err := runHooks("pre_close", []string{"exit 3", "touch never"}, dir, nil, true); err == nil {
 		t.Error("failing hook returned nil")
 	}
 	if fileExists(filepath.Join(dir, "never")) {

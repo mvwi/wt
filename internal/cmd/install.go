@@ -14,6 +14,7 @@ type lockfileMapping struct {
 var knownLockfiles = []lockfileMapping{
 	{"pnpm-lock.yaml", "pnpm install --frozen-lockfile", "pnpm exec"},
 	{"yarn.lock", "yarn install --frozen-lockfile", "yarn"},
+	{"bun.lock", "bun install --frozen-lockfile", "bunx"},
 	{"bun.lockb", "bun install --frozen-lockfile", "bunx"},
 	{"package-lock.json", "npm ci", "npx"},
 	{"go.sum", "go mod download", ""},

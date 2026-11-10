@@ -31,7 +31,7 @@ These add to the configured or detected steps:
   env        — KEY = "template" lines written into .env (or env_file);
                templates may use {index} {port} {name} {branch} {repo}
 
-Commands see WT_NAME, WT_PATH, WT_BRANCH, WT_MAIN, WT_INDEX and WT_PORT.
+Commands see WT_NAME, WT_PATH, WT_BRANCH, WT_MAIN, WT_REPO, WT_INDEX and WT_PORT.
 
 When no [init] section exists, auto-detects common patterns:
 
@@ -120,21 +120,19 @@ func runInitIn(dir string, ctx *cmdContext) error {
 			continue
 		}
 
-		if isDir(src) {
-			if err := copyDirRecursive(src, dst); err != nil {
-				steps = append(steps, initStep{"copy " + file, "fail", err.Error()})
-			} else {
-				steps = append(steps, initStep{"copy " + file, "ok", ""})
-			}
+		// copyFile keeps the file mode, so a 0600 .env stays private.
+		err := os.MkdirAll(filepath.Dir(dst), 0755)
+		switch {
+		case err != nil:
+		case isDir(src):
+			err = copyDirRecursive(src, dst)
+		default:
+			err = copyFile(src, dst)
+		}
+		if err != nil {
+			steps = append(steps, initStep{"copy " + file, "fail", err.Error()})
 		} else {
-			data, err := os.ReadFile(src)
-			if err != nil {
-				steps = append(steps, initStep{"copy " + file, "fail", err.Error()})
-			} else if err := os.WriteFile(dst, data, 0644); err != nil {
-				steps = append(steps, initStep{"copy " + file, "fail", err.Error()})
-			} else {
-				steps = append(steps, initStep{"copy " + file, "ok", ""})
-			}
+			steps = append(steps, initStep{"copy " + file, "ok", ""})
 		}
 	}
 
@@ -215,6 +213,9 @@ func runInitIn(dir string, ctx *cmdContext) error {
 	}
 	printToolHint(dir)
 
+	if hasFailures {
+		return errSilent // exit 1, so `wt new -i --run` never starts in a half-built worktree
+	}
 	return nil
 }
 
@@ -250,7 +251,7 @@ func detectInit(mainWorktree string) (copyFiles []string, commands []string) {
 	// Detect Prisma schema anywhere in the repo (requires a JS package manager)
 	if execRunner != "" {
 		if schemaPath := findPrismaSchema(mainWorktree); schemaPath != "" {
-			commands = append(commands, execRunner+" prisma generate --schema "+shellQuoteInit(schemaPath))
+			commands = append(commands, execRunner+" prisma generate --schema "+ui.ShellQuote(schemaPath))
 		}
 	}
 
@@ -259,12 +260,22 @@ func detectInit(mainWorktree string) (copyFiles []string, commands []string) {
 
 // runShellString runs command with sh -c in dir, adding env to wt's own environment.
 func runShellString(dir, command string, env ...string) error {
-	cmd := exec.Command("sh", "-c", command)
-	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), env...)
+	cmd := shellCommand(dir, command, env)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
+}
+
+// runShellQuiet is runShellString with the command's output dropped.
+func runShellQuiet(dir, command string, env ...string) error {
+	return shellCommand(dir, command, env).Run()
+}
+
+func shellCommand(dir, command string, env []string) *exec.Cmd {
+	cmd := exec.Command("sh", "-c", command)
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(), env...)
+	return cmd
 }
 
 // upsertEnv sets each key in the env file at path: it replaces the key's line
@@ -334,14 +345,6 @@ func copyDirRecursive(src, dst string) error {
 		}
 		return os.WriteFile(target, data, info.Mode())
 	})
-}
-
-// shellQuoteInit wraps a string in single quotes for safe shell interpolation.
-func shellQuoteInit(s string) string {
-	if !strings.ContainsAny(s, " \t\n'\"\\$`|&;<>(){}[]!*?~") {
-		return s
-	}
-	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
 // findPrismaSchema walks the tree looking for a .prisma file, skipping

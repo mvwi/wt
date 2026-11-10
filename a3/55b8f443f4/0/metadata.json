@@ -1,0 +1,105 @@
+{
+  "cli_version": "0.11.4",
+  "checkpoint_id": "a355b8f443f4",
+  "session_id": "dd652935-4506-4e75-b235-b87ca73bbbda",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-10T01:11:16.444102Z",
+  "branch": "main",
+  "checkpoints_count": 4,
+  "save_step_count": 1,
+  "files_touched": [
+    "internal/git/status.go",
+    "internal/git/status_test.go"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-fable-5-1",
+  "turn_id": "64680770b4cc",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 84,
+    "cache_creation_tokens": 337698,
+    "cache_read_tokens": 11967867,
+    "output_tokens": 77602,
+    "api_call_count": 42
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "claude-skill-toolu_01J2Tq1E9y4vxpRWBExVcrbU",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "rex"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "64680770b4cc",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 476,
+        "end": 477,
+        "entry_ids": [
+          "a2495863-1d72-4d68-a7a2-1ebfd20ceb86"
+        ],
+        "tool_use_id": "toolu_01J2Tq1E9y4vxpRWBExVcrbU"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01J2Tq1E9y4vxpRWBExVcrbU"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: rex",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_012XYB19rKwTnMaSkY3ZE8JN",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "wt-release"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "64680770b4cc",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 550,
+        "end": 551,
+        "entry_ids": [
+          "a44ed4b5-9768-419b-9e2b-8bc95e251f80"
+        ],
+        "tool_use_id": "toolu_012XYB19rKwTnMaSkY3ZE8JN"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_012XYB19rKwTnMaSkY3ZE8JN"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: wt-release",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 4
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-11-10T01:11:16.377737Z",
+    "agent_lines": 63,
+    "agent_removed": 90,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 63,
+    "total_lines_changed": 153,
+    "agent_percentage": 100,
+    "metric_version": 2
+  }
+}

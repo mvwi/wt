@@ -38,3 +38,6 @@ Thumbs.db
 
 # entire CLI runtime
 .entire/
+
+# rapid writes failing cases here
+testdata/rapid/

@@ -166,7 +166,7 @@ func TestBuildChecksLineFailingFirst(t *testing.T) {
 		{Name: "e2e", State: "pending"},
 		{Name: "unit", State: "fail"},
 	}
-	got := plain(buildChecksLine(checks, 20))
+	got := plain(buildChecksLine(checks, 30))
 	if !strings.HasPrefix(got, "✗ unit · ◐ e2e") {
 		t.Errorf("buildChecksLine = %q, want failing then pending first", got)
 	}
@@ -215,5 +215,63 @@ func TestHelpOverlayToggles(t *testing.T) {
 	next, _ = dm.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
 	if next.(dashModel).showHelp {
 		t.Errorf("any key should close help")
+	}
+}
+
+// fullDash returns a dashboard with n worktrees, the first one carrying a
+// fully loaded detail panel: 5 commits, CHANGES, FILES and CI.
+func fullDash(n, width, height int) dashModel {
+	var items []DashItem
+	for i := range n {
+		items = append(items, DashItem{Path: fmt.Sprint("/r/", i), ShortName: fmt.Sprint("wt", i), Branch: fmt.Sprint("mw/wt", i), Behind: 3})
+	}
+	m := newDashModel(DashConfig{
+		Initial:           items,
+		FetchDetail:       func(DashItem) (DashDetail, error) { return DashDetail{}, nil },
+		FetchCommitDetail: func(string, string) (DashCommitDetail, error) { return DashCommitDetail{}, nil },
+	})
+	d := DashDetail{
+		Stats:  DashDiffStats{Commits: 5, Files: 1, Additions: 10},
+		Files:  []DashFileChange{{Status: "M", Path: "a.go"}},
+		Checks: []DashCheck{{Name: "test", State: "pass"}},
+	}
+	for i := range 5 {
+		d.Commits = append(d.Commits, DashCommit{Hash: fmt.Sprint("c", i), Subject: fmt.Sprint("fix: commit ", i), Age: "1d"})
+	}
+	m.details["/r/0"] = &dashDetailCache{data: d}
+	next, _ := m.Update(tea.WindowSizeMsg{Width: width, Height: height})
+	return next.(dashModel)
+}
+
+func TestDashDetailShrinksToKeepTable(t *testing.T) {
+	for _, n := range []int{3, 8, 12} {
+		t.Run(fmt.Sprint(n), func(t *testing.T) {
+			lines := viewLines(fullDash(n, 80, 24))
+			out := strings.Join(lines, "\n")
+			if len(lines) > 24 {
+				t.Fatalf("frame has %d lines, terminal has 24", len(lines))
+			}
+			for _, want := range []string{"WORKTREES", "Branch", "▸   wt0", fmt.Sprint("wt", n-1), "q quit"} {
+				if !strings.Contains(out, want) {
+					t.Errorf("missing %q:\n%s", want, out)
+				}
+			}
+		})
+	}
+}
+
+func TestDashTrimmedCommitsFollowCursor(t *testing.T) {
+	m := fullDash(10, 80, 24)
+	next, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	for range 4 {
+		next, _ = next.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})
+	}
+	m = next.(dashModel)
+	if m.commitCursor != 4 {
+		t.Fatalf("commit cursor = %d, want 4", m.commitCursor)
+	}
+	out := strings.Join(viewLines(m), "\n")
+	if !strings.Contains(out, "commit 4") || !strings.Contains(out, "▸   wt0") {
+		t.Errorf("selected commit or worktree off screen:\n%s", out)
 	}
 }

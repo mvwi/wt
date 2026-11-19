@@ -10,6 +10,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/mvwi/wt/internal/ui"
 )
 
@@ -981,7 +982,7 @@ const (
 	colAge       = 6 // fits the "Commit" header
 	colDirty     = 4
 	colSync      = 8
-	colPR        = 6
+	colPR        = 7
 	colReview    = 8
 	colCI        = 8
 	colStatus    = 16
@@ -1136,6 +1137,9 @@ func (m dashModel) View() tea.View {
 
 func (m dashModel) render() string {
 	if m.showHelp {
+		if m.width > 0 {
+			return clipWidth(renderHelp(m.focus), m.width)
+		}
 		return renderHelp(m.focus)
 	}
 
@@ -1152,7 +1156,7 @@ func (m dashModel) render() string {
 		b.WriteString("  " + dStyleDim.Render(fmt.Sprintf("need %d cols, have %d — resize and the dashboard returns",
 			minNarrowWidth(lo.nameWidth), m.width)) + "\n\n")
 		b.WriteString("  " + dStyleDim.Render("q quit") + "\n")
-		return b.String()
+		return clipWidth(b.String(), m.width)
 	}
 
 	ruleWidth := lo.ruleWidth()
@@ -1193,43 +1197,77 @@ func (m dashModel) render() string {
 		b.WriteString("\n")
 	}
 
-	// Detail panel for the focused row
+	// The table keeps every row. The panels below share what's left after the
+	// footer, so on a short terminal they shrink rather than push the table
+	// off the top of the screen.
+	rule := "  " + dStyleDim.Render(strings.Repeat("─", ruleWidth)) + "\n"
+	footer := m.renderFooter(ruleWidth)
+	left := 0 // 0 = no limit (height unknown before the first WindowSizeMsg)
+	if m.height > 0 {
+		left = m.height - strings.Count(b.String(), "\n") - strings.Count(footer, "\n")
+	}
+	showCommitPanel := m.focus == focusCommits && m.fetchCommitDetail != nil
+
+	// Detail panel for the focused row. With the commit panel open, hold back
+	// its rule and a few lines for it.
 	if m.fetchDetail != nil {
-		b.WriteString("  " + dStyleDim.Render(strings.Repeat("─", ruleWidth)) + "\n")
-		b.WriteString(m.renderDetail(lo.detailWidth(), bodyLineCap(m.height)))
+		detailMax := 0
+		if m.height > 0 {
+			detailMax = left - 1
+			if showCommitPanel {
+				detailMax -= 1 + commitPanelMin
+			}
+		}
+		if m.height <= 0 || detailMax > 0 {
+			detail := m.renderDetail(lo.detailWidth(), bodyLineCap(m.height), detailMax)
+			b.WriteString(rule + detail)
+			left -= 1 + strings.Count(detail, "\n")
+		}
 	}
 
 	// Third panel: commit detail — only when commits pane is focused.
-	if m.focus == focusCommits && m.fetchCommitDetail != nil {
-		b.WriteString("  " + dStyleDim.Render(strings.Repeat("─", ruleWidth)) + "\n")
-		// Rows left after everything above and the 2-line footer. 0 = no cap
-		// (height unknown before the first WindowSizeMsg).
-		room := 0
-		if m.height > 0 {
-			room = max(2, m.height-strings.Count(b.String(), "\n")-2)
-		}
-		b.WriteString(m.renderCommitDetail(lo.detailWidth(), room))
+	if showCommitPanel && (m.height <= 0 || left > 1) {
+		b.WriteString(rule)
+		b.WriteString(m.renderCommitDetail(lo.detailWidth(), max(left-1, 0)))
 	}
 
-	// Footer
-	b.WriteString("  " + dStyleDim.Render(strings.Repeat("─", ruleWidth)) + "\n")
-
-	if m.confirm != confirmNone {
-		b.WriteString("  " + renderConfirmPrompt(m) + "\n")
-	} else {
-		status := buildStatusLine(m)
-		if m.flash != "" {
-			status = dStyleYellow.Render(m.flash)
-		}
-		for _, line := range layoutFooter(footerKeys(m), status, ruleWidth) {
-			b.WriteString("  " + line + "\n")
-		}
-	}
-
+	b.WriteString(footer)
 	return b.String()
 }
 
-// renderConfirmPrompt renders the inline footer prompt shown while a
+// commitPanelMin is how many lines the detail panel leaves for the commit
+// panel when the screen is short.
+const commitPanelMin = 3
+
+// renderFooter renders the footer rule plus either the confirm prompt or the
+// key hints and status.
+func (m dashModel) renderFooter(ruleWidth int) string {
+	var b strings.Builder
+	b.WriteString("  " + dStyleDim.Render(strings.Repeat("─", ruleWidth)) + "\n")
+
+	if m.confirm != confirmNone {
+		// Keys share the question's line when they fit, else drop below it.
+		question := renderConfirmPrompt(m)
+		if lipgloss.Width(question)+3+lipgloss.Width(confirmKeys) <= ruleWidth {
+			b.WriteString("  " + question + "   " + confirmKeys + "\n")
+		} else {
+			b.WriteString("  " + truncate(question, ruleWidth) + "\n")
+			b.WriteString("  " + confirmKeys + "\n")
+		}
+		return b.String()
+	}
+
+	status := buildStatusLine(m)
+	if m.flash != "" {
+		status = dStyleYellow.Render(m.flash)
+	}
+	for _, line := range layoutFooter(footerKeys(m), status, ruleWidth) {
+		b.WriteString("  " + line + "\n")
+	}
+	return b.String()
+}
+
+// renderConfirmPrompt renders the question for the footer prompt shown while a
 // confirmation is active. y/enter confirms; any other key cancels.
 func renderConfirmPrompt(m dashModel) string {
 	switch m.confirm {
@@ -1246,21 +1284,17 @@ func renderConfirmPrompt(m dashModel) string {
 			}
 		}
 		n := m.countRebaseTargets()
-		return fmt.Sprintf("%s   %s",
-			dStyleBold.Render(fmt.Sprintf("Rebase %d worktree%s onto %s?", n, plural(n), base)),
-			confirmKeys,
-		)
+		return dStyleBold.Render(fmt.Sprintf("Rebase %d worktree%s onto %s?", n, plural(n), base))
 
 	case confirmClose:
 		// Risks list reads as "X, Y, and Z" — matches what the row already shows
 		// in the Dirty/Sync/PR cells, so the prompt is a confirmation of visible
 		// state, not a surprise revelation.
 		risks := strings.Join(m.confirmCloseRisks, ", ")
-		return fmt.Sprintf("%s %s %s   %s",
+		return fmt.Sprintf("%s %s %s",
 			dStyleBold.Render("Close "+m.confirmCloseName+"?"),
 			dStyleDim.Render("·"),
 			dStyleYellow.Render(risks),
-			confirmKeys,
 		)
 	}
 	return ""
@@ -1430,19 +1464,18 @@ func (m dashModel) renderRow(it DashItem, isCursor bool, lo dashLayout) string {
 		cursorGlyph = dStyleCursor.Render("▸ ")
 	}
 
-	short := truncate(it.ShortName, lo.nameWidth)
-	shortRendered := dStyleName.Render(fmt.Sprintf("%-*s", lo.nameWidth, short))
+	shortRendered := dStyleName.Render(fitCell(it.ShortName, lo.nameWidth))
 	if it.StaleDimmed {
-		shortRendered = dStyleDim.Render(fmt.Sprintf("%-*s", lo.nameWidth, short))
+		shortRendered = dStyleDim.Render(fitCell(it.ShortName, lo.nameWidth))
 	}
 
 	branch := ""
 	if it.Branch != it.ShortName {
 		branch = it.Branch
 	}
-	branchRendered := dStyleBranch.Render(fmt.Sprintf("%-*s", lo.branchWidth, truncate(branch, lo.branchWidth)))
+	branchRendered := dStyleBranch.Render(fitCell(branch, lo.branchWidth))
 
-	age := fmt.Sprintf("%-*s", lo.ageWidth, it.Age)
+	age := fitCell(it.Age, lo.ageWidth)
 	// Recent commits get a green tint so fresh worktrees pop. Stale rows always
 	// stay dim (StaleDimmed is set by the cmd layer based on the threshold).
 	ageStyle := styleForAge(it.Age)
@@ -1451,13 +1484,13 @@ func (m dashModel) renderRow(it DashItem, isCursor bool, lo dashLayout) string {
 	}
 	ageRendered := ageStyle.Render(age)
 
-	dirty := dStyleDim.Render(fmt.Sprintf("%-*s", lo.dirtyWidth, "—"))
+	dirty := dStyleDim.Render(fitCell("—", lo.dirtyWidth))
 	if it.DirtyCount > 0 {
-		dirty = dStyleYellow.Render(fmt.Sprintf("%-*d", lo.dirtyWidth, it.DirtyCount))
+		dirty = dStyleYellow.Render(fitCell(fmt.Sprint(it.DirtyCount), lo.dirtyWidth))
 	}
 
 	sync := buildSync(it)
-	syncRendered := padAnsi(sync, lo.syncWidth)
+	syncRendered := fitCell(sync, lo.syncWidth)
 
 	// Tail cluster: PR/Review/CI in full mode, single Status cell in narrow mode.
 	// Per-row overlays (close, rebase) fill the same slot width so they line up
@@ -1470,10 +1503,10 @@ func (m dashModel) renderRow(it DashItem, isCursor bool, lo dashLayout) string {
 	case m.rebases[it.Path] != nil:
 		tail = renderRebaseCell(m.rebases[it.Path], tailW)
 	case lo.mode == layoutNarrow:
-		tail = padAnsi(buildStatusCell(it), lo.statusWidth)
+		tail = fitCell(buildStatusCell(it), lo.statusWidth)
 	default:
 		pr, review, ci := buildPRCells(it)
-		tail = padAnsi(pr, lo.prWidth) + " " + padAnsi(review, lo.reviewWidth) + " " + padAnsi(ci, lo.ciWidth)
+		tail = fitCell(pr, lo.prWidth) + " " + fitCell(review, lo.reviewWidth) + " " + fitCell(ci, lo.ciWidth)
 	}
 
 	row := fmt.Sprintf("%s%s%s  %s %s %s %s %s",
@@ -1494,13 +1527,15 @@ func (m dashModel) renderRow(it DashItem, isCursor bool, lo dashLayout) string {
 // the panel width budget (typically the rule width); bodyMax is how many PR
 // body lines may be shown before truncation kicks in. Callers compute bodyMax
 // from terminal height — see View().
-func (m dashModel) renderDetail(width, bodyMax int) string {
+// renderDetail renders the bottom panel for the row under the cursor in at most
+// maxLines lines (0 = no limit). When short of room it drops the PR body, then
+// CI, FILES and CHANGES, then the gap above COMMITS, then trims commits around
+// the commit cursor.
+func (m dashModel) renderDetail(width, bodyMax, maxLines int) string {
 	if m.cursor < 0 || m.cursor >= len(m.items) {
 		return ""
 	}
 	it := m.items[m.cursor]
-
-	var b strings.Builder
 
 	cache, hasCache := m.details[it.Path]
 	hasPR := hasCache && cache.err == nil && it.PR != nil && cache.data.PRTitle != ""
@@ -1536,15 +1571,15 @@ func (m dashModel) renderDetail(width, bodyMax int) string {
 		pad := max(2, width-lipgloss.Width(titleLine)-lipgloss.Width(authorRendered)+2)
 		titleLine += strings.Repeat(" ", pad) + authorRendered
 	}
-	b.WriteString(titleLine + "\n")
+	// A long branch name (non-PR rows) or author can still overrun; the line
+	// gets width plus its two-cell indent.
+	title := truncate(titleLine, width+2)
 
 	if !hasCache {
-		fmt.Fprintf(&b, "  %s\n", dStyleDim.Render("loading detail…"))
-		return b.String()
+		return joinLines([]string{title, "  " + dStyleDim.Render("loading detail…")}, maxLines)
 	}
 	if cache.err != nil {
-		fmt.Fprintf(&b, "  %s\n", dStyleRed.Render("detail unavailable: "+truncate(cache.err.Error(), width-22)))
-		return b.String()
+		return joinLines([]string{title, "  " + dStyleRed.Render("detail unavailable: "+truncate(cache.err.Error(), width-22))}, maxLines)
 	}
 
 	d := cache.data
@@ -1554,6 +1589,7 @@ func (m dashModel) renderDetail(width, bodyMax int) string {
 	// body doesn't push CHANGES/COMMITS/FILES off-screen. Issue refs are
 	// colored blue by colorizeBody. firstParagraph (in cmd/dash.go) already
 	// stripped leading markdown headers.
+	var body []string
 	if d.PRBody != "" && bodyMax > 0 {
 		var lines []string
 		for raw := range strings.SplitSeq(d.PRBody, "\n") {
@@ -1569,12 +1605,12 @@ func (m dashModel) renderDetail(width, bodyMax int) string {
 			lines = lines[:bodyMax]
 			truncated = true
 		}
-		b.WriteString("\n")
+		body = append(body, "")
 		for i, line := range lines {
 			if truncated && i == len(lines)-1 {
 				line = strings.TrimRight(line, " ") + dStyleDim.Render(" …")
 			}
-			fmt.Fprintf(&b, "  %s\n", colorizeBody(line))
+			body = append(body, "  "+colorizeBody(line))
 		}
 	}
 
@@ -1582,42 +1618,88 @@ func (m dashModel) renderDetail(width, bodyMax int) string {
 	// extra git call needed) and renders only when nonzero so simple branches
 	// stay tidy. We also render when ahead=0 but behind>0, since "you're 2
 	// commits stale" is useful info even without a diff.
+	var changes []string
 	if d.Stats.Commits > 0 || d.Stats.Files > 0 || it.Behind > 0 {
-		fmt.Fprintf(&b, "\n  %s   %s\n",
+		changes = []string{"", fmt.Sprintf("  %s   %s",
 			dStyleSection.Render("CHANGES"),
 			buildStatsLine(d.Stats, it.Behind),
-		)
+		)}
 	}
 
-	// COMMITS section (with focus-aware cursor)
-	// No focus hint here: the footer already swaps to the commits-pane keys.
-	if len(d.Commits) > 0 {
-		fmt.Fprintf(&b, "\n  %s\n", dStyleSection.Render("COMMITS"))
-		typeWidth := commitTypeWidth(d.Commits)
-		ageWidth := commitAgeWidth(d.Commits)
-		subjectWidth := max(20, width-4-2-typeWidth-1-1-ageWidth)
-		for i, c := range d.Commits {
-			b.WriteString(m.renderCommitRow(c, i, typeWidth, subjectWidth, ageWidth))
-			b.WriteString("\n")
+	// COMMITS rows (with focus-aware cursor). No focus hint here: the footer
+	// already swaps to the commits-pane keys.
+	var commitRows []string
+	typeWidth := commitTypeWidth(d.Commits)
+	ageWidth := commitAgeWidth(d.Commits)
+	subjectWidth := max(20, width-4-2-typeWidth-1-1-ageWidth)
+	for i, c := range d.Commits {
+		commitRows = append(commitRows, m.renderCommitRow(c, i, typeWidth, subjectWidth, ageWidth))
+	}
+
+	var files, ci []string
+	if len(d.Files) > 0 {
+		files = []string{"", fmt.Sprintf("  %s     %s",
+			dStyleSection.Render("FILES"),
+			buildFilesLine(d.Files, width-12),
+		)}
+	}
+	if len(d.Checks) > 0 {
+		ci = []string{fmt.Sprintf("  %s        %s",
+			dStyleSection.Render("CI"),
+			buildChecksLine(d.Checks, width-12),
+		)}
+	}
+
+	commitsGap := true // blank line above COMMITS; the first thing given up for commit rows
+	commits := func() []string {
+		if len(commitRows) == 0 {
+			return nil
+		}
+		head := []string{"  " + dStyleSection.Render("COMMITS")}
+		if commitsGap {
+			head = append([]string{""}, head...)
+		}
+		return append(head, commitRows...)
+	}
+	total := func() int { return 1 + len(body) + len(changes) + len(commits()) + len(files) + len(ci) }
+	if maxLines > 0 {
+		for _, section := range []*[]string{&body, &ci, &files, &changes} {
+			if total() <= maxLines {
+				break
+			}
+			*section = nil
+		}
+		if total() > maxLines {
+			commitsGap = false
+		}
+		if over := total() - maxLines; over > 0 && len(commitRows) > 1 {
+			keep := max(1, len(commitRows)-over)
+			first := 0
+			if m.focus == focusCommits {
+				first = clampInt(m.commitCursor-keep+1, 0, len(commitRows)-keep)
+			}
+			commitRows = commitRows[first : first+keep]
 		}
 	}
 
-	// FILES line
-	if len(d.Files) > 0 {
-		fmt.Fprintf(&b, "\n  %s     %s\n",
-			dStyleSection.Render("FILES"),
-			buildFilesLine(d.Files, width-12),
-		)
-	}
+	lines := append([]string{title}, body...)
+	lines = append(lines, changes...)
+	lines = append(lines, commits()...)
+	lines = append(lines, files...)
+	lines = append(lines, ci...)
+	return joinLines(lines, maxLines)
+}
 
-	// CI line
-	if len(d.Checks) > 0 {
-		fmt.Fprintf(&b, "  %s        %s\n",
-			dStyleSection.Render("CI"),
-			buildChecksLine(d.Checks, width-12),
-		)
+// joinLines ends each line with a newline, keeping at most maxLines of them
+// (0 = all).
+func joinLines(lines []string, maxLines int) string {
+	if maxLines > 0 && len(lines) > maxLines {
+		lines = lines[:maxLines]
 	}
-
+	var b strings.Builder
+	for _, l := range lines {
+		b.WriteString(l + "\n")
+	}
 	return b.String()
 }
 
@@ -1969,8 +2051,7 @@ func buildStatsLine(s DashDiffStats, behind int) string {
 }
 
 func buildFilesLine(files []DashFileChange, maxWidth int) string {
-	var parts []string
-	used := 0
+	pieces := make([]string, len(files))
 	for i, f := range files {
 		var glyph string
 		switch f.Status {
@@ -1983,17 +2064,9 @@ func buildFilesLine(files []DashFileChange, maxWidth int) string {
 		default:
 			glyph = dStyleYellow.Render(f.Status)
 		}
-		piece := glyph + " " + f.Path
-		// approx visible width = len(status) + 1 + len(path)
-		w := 1 + 1 + len(f.Path) + 2 // +2 for the separator
-		if used+w > maxWidth && i > 0 {
-			parts = append(parts, dStyleDim.Render(fmt.Sprintf("+%d more", len(files)-i)))
-			break
-		}
-		parts = append(parts, piece)
-		used += w
+		pieces[i] = glyph + " " + f.Path
 	}
-	return strings.Join(parts, "  ")
+	return packParts(pieces, "  ", maxWidth)
 }
 
 // checkRank orders checks so failures show first, then pending, then
@@ -2013,8 +2086,7 @@ func buildChecksLine(checks []DashCheck, maxWidth int) string {
 	slices.SortStableFunc(checks, func(a, b DashCheck) int {
 		return cmp.Compare(checkRank(a.State), checkRank(b.State))
 	})
-	var parts []string
-	used := 0
+	pieces := make([]string, len(checks))
 	for i, c := range checks {
 		var glyph string
 		switch c.State {
@@ -2025,16 +2097,34 @@ func buildChecksLine(checks []DashCheck, maxWidth int) string {
 		default:
 			glyph = dStyleYellow.Render("◐")
 		}
-		piece := glyph + " " + c.Name
-		w := 1 + 1 + len(c.Name) + 3
-		if used+w > maxWidth && i > 0 {
-			parts = append(parts, dStyleDim.Render(fmt.Sprintf("+%d more", len(checks)-i)))
-			break
-		}
-		parts = append(parts, piece)
-		used += w
+		pieces[i] = glyph + " " + c.Name
 	}
-	return strings.Join(parts, " · ")
+	return packParts(pieces, " · ", maxWidth)
+}
+
+// packParts joins as many pieces as fit in maxWidth cells, then "+N more" for
+// the rest. When not even the first piece fits beside that note, it shows the
+// first piece cut short rather than nothing.
+func packParts(pieces []string, sep string, maxWidth int) string {
+	withMore := func(shown []string, hidden int) string {
+		if hidden == 0 {
+			return strings.Join(shown, sep)
+		}
+		return strings.Join(append(slices.Clone(shown), dStyleDim.Render(fmt.Sprintf("+%d more", hidden))), sep)
+	}
+	for n := len(pieces); n > 0; n-- {
+		if line := withMore(pieces[:n], len(pieces)-n); lipgloss.Width(line) <= maxWidth {
+			return line
+		}
+	}
+	if len(pieces) == 0 {
+		return ""
+	}
+	tail := withMore(nil, len(pieces)-1)
+	if tail != "" {
+		tail = sep + tail
+	}
+	return truncate(pieces[0], maxWidth-lipgloss.Width(tail)) + tail
 }
 
 // renderRebaseCell renders the ephemeral rebase state that replaces the
@@ -2096,12 +2186,21 @@ func buildSync(it DashItem) string {
 	}
 	var parts []string
 	if it.Behind > 0 {
-		parts = append(parts, dStyleYellow.Render(fmt.Sprintf("⇣%d", it.Behind)))
+		parts = append(parts, dStyleYellow.Render("⇣"+compactCount(it.Behind)))
 	}
 	if it.Ahead > 0 {
-		parts = append(parts, dStyleGreen.Render(fmt.Sprintf("⇡%d", it.Ahead)))
+		parts = append(parts, dStyleGreen.Render("⇡"+compactCount(it.Ahead)))
 	}
 	return strings.Join(parts, "")
+}
+
+// compactCount prints n in at most three cells up to 999k, so "⇣999⇡999"
+// still fits the Sync column.
+func compactCount(n int) string {
+	if n < 1000 {
+		return fmt.Sprint(n)
+	}
+	return fmt.Sprintf("%dk", n/1000)
 }
 
 // buildStatusCell collapses PR + review + CI into one short cell for the
@@ -2195,6 +2294,20 @@ func buildCIGlyphs(c DashCI, unpushed int) string {
 	return s
 }
 
+// clipWidth cuts each line of s to width cells, keeping ANSI styles intact.
+// A line wider than the terminal wraps, and the wrap breaks the renderer's
+// line count.
+func clipWidth(s string, width int) string {
+	lines := strings.Split(s, "\n")
+	for i, l := range lines {
+		lines[i] = ansi.Truncate(l, width, "…")
+	}
+	return strings.Join(lines, "\n")
+}
+
+// fitCell truncates s to width cells, then pads it to exactly width.
+func fitCell(s string, width int) string { return padAnsi(truncate(s, width), width) }
+
 // padAnsi pads an ANSI-containing string to a visible width.
 func padAnsi(s string, width int) string {
 	w := lipgloss.Width(s)
@@ -2204,16 +2317,11 @@ func padAnsi(s string, width int) string {
 	return s + strings.Repeat(" ", width-w)
 }
 
+// truncate cuts s to at most max terminal cells, ending in "…" when cut.
+// It counts cells, not runes: CJK and emoji take two cells each.
 func truncate(s string, max int) string {
 	if max <= 0 {
 		return ""
 	}
-	runes := []rune(s)
-	if len(runes) <= max {
-		return s
-	}
-	if max == 1 {
-		return "…"
-	}
-	return string(runes[:max-1]) + "…"
+	return ansi.Truncate(s, max, "…")
 }

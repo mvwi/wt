@@ -127,7 +127,7 @@ func (m pruneModel) render() string {
 	}
 
 	var b strings.Builder
-	rule := strings.Repeat("─", min(m.width-4, 60))
+	rule := strings.Repeat("─", max(0, min(m.width-4, 60)))
 
 	b.WriteString("\n")
 	b.WriteString("  " + styleDim.Render("Stale worktrees") + "\n")
@@ -166,5 +166,5 @@ func (m pruneModel) render() string {
 	fmt.Fprintf(&b, "  %s\n",
 		styleDim.Render(fmt.Sprintf("%d/%d selected   ↑↓ move · space toggle · a all · enter apply · q cancel",
 			selectedCount, len(m.items))))
-	return b.String()
+	return clipWidth(b.String(), m.width)
 }

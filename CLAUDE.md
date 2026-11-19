@@ -134,6 +134,9 @@ go vet ./...      # Static analysis
 - State shared by all worktrees (the `wt switch -` target) goes in the common git dir; `git.SaveStateFile` writes to the current worktree's own git dir, which suits per-worktree state like the rebase stash marker
 - Spinners draw nothing when stdout isn't a TTY; never print progress text that would leak into pipes
 - TUI tests drive the model directly: `newDashModel(cfg)`, then `Update` with `tea.WindowSizeMsg` / `tea.KeyPressMsg`, and assert on `View().Content` (see `internal/tui/dash_test.go`)
+- `internal/tui/property_test.go` fuzzes both TUI models with `rapid`: random keys, resizes and async replies, checking that no line outgrows the window and the selected row stays on screen. Run a longer hunt with `-rapid.checks=5000`
+- TUI text is measured in terminal cells, not runes or bytes: cut with `truncate`, pad columns with `fitCell`, measure with `lipgloss.Width`. CJK and emoji take two cells
+- The dash worktree table keeps every row; the detail panels below get the height left after the footer and shrink to fit (`renderDetail`'s `maxLines`)
 - Auto-install uses `detectInstallCommand()` from `install.go` — update `knownLockfiles` there when adding new package managers
 
 ## Maintaining Documentation

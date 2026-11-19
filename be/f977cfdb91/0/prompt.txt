@@ -1,0 +1,17 @@
+can we use bombadil to do UI/UX fuzzing on this TUI?
+
+---
+
+or is that a tool/need mismatch
+
+---
+
+what doe sthe rapid property test do?
+
+---
+
+okay lets give it a shot. better to do on a worktree or does it matter?
+
+---
+
+Shrink the detail panel

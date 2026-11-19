@@ -1,0 +1,33 @@
+{
+  "cli_version": "0.11.4",
+  "checkpoint_id": "bef977cfdb91",
+  "strategy": "manual-commit",
+  "branch": "test/tui-property-fuzz",
+  "checkpoints_count": 4,
+  "files_touched": [
+    ".gitignore",
+    "CLAUDE.md",
+    "go.mod",
+    "go.sum",
+    "internal/tui/dash.go",
+    "internal/tui/dash_test.go",
+    "internal/tui/property_test.go",
+    "internal/tui/prune.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/be/f977cfdb91/0/metadata.json",
+      "transcript": "/be/f977cfdb91/0/full.jsonl",
+      "compact_transcript": "/be/f977cfdb91/0/transcript.jsonl",
+      "content_hash": "/be/f977cfdb91/0/content_hash.txt",
+      "prompt": "/be/f977cfdb91/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 110,
+    "cache_creation_tokens": 171906,
+    "cache_read_tokens": 10162102,
+    "output_tokens": 53205,
+    "api_call_count": 55
+  }
+}

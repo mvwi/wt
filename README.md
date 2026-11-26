@@ -245,6 +245,11 @@ stale_threshold = 14
 # Default: true
 auto_install = false
 
+# Treat the local base branch as the trunk, for landing branches on local
+# main and pushing main later in batches. See "Local trunk" below.
+# Default: false
+local_base = true
+
 [init]
 # Files to copy from the main worktree (if missing in the new worktree).
 # Without [init], auto-detected: .env, .env.local, .env.development, .env.test
@@ -280,6 +285,16 @@ pre_close  = ["docker compose down"]                                 # cwd: work
 ```
 
 **Running worktrees side by side.** Each worktree gets a stable `WT_INDEX` (main is 0, others take the lowest free number; it survives renames and frees up on close). `WT_PORT` is `port_base + WT_INDEX`. Init commands and hooks get `WT_NAME`, `WT_PATH`, `WT_BRANCH`, `WT_MAIN`, `WT_REPO`, `WT_INDEX` and `WT_PORT`, so two dev servers or two docker stacks don't collide.
+
+**Local trunk.** With `local_base = true`, wt treats local `main` (your `base_branch`) as the trunk instead of `origin/main`. Use it when you land branches on local main by fast-forward and push main yourself later, for example to save CI minutes.
+
+- `wt new` and `wt move` branch from local main. `wt rebase` and `wt rebase --all` rebase onto it without fetching.
+- `wt list`, `wt dash`, `wt switch`, `wt prompt` and bare `wt` count behind/ahead against local main.
+- `wt list` shows how many commits local main is ahead of its remote (`main: 7 unpushed`, and `base.unpushed` in `--output json`). `wt prompt` adds `main⬆7`. The count uses the remote ref from your last fetch.
+- `wt close`, `wt prune` and the dashboard treat commits on neither local main nor the branch's upstream as unlanded, and only `--force` discards them. A branch landed on local main closes without a prompt, and `wt prune` counts it as stale.
+- `wt rebase` on main itself fetches and fast-forwards from the remote only when main is strictly behind. It never rebases or merges main. If main has diverged from its remote, it stops and tells you.
+- `wt submit` refuses while local main has unpushed commits, since the PR would include them. Push main first.
+- `wt pr`, `wt pull`, `wt watch`, `wt open` and `wt rename` work as usual; they deal with remote branches and PRs.
 
 If a worktree has `.envrc`, `mise.toml`, `.mise.toml` or `.tool-versions`, wt reminds you to run `direnv allow` / `mise trust`. It never runs them for you.
 

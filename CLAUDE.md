@@ -91,6 +91,12 @@ We call the `git` CLI via `exec.Command`. go-git has poor worktree support and d
 ### Machine-readable output
 Commands that agents call take `--output json` via `addOutputFlag`/`startOutput`/`printJSON` (output.go). In JSON mode `ui.JSON` is set: stdout gets only the JSON object, `IsTTY()` reports false so there are no prompts or spinners, and a needed confirmation becomes an error. `fetchPRData` (list.go) and `watch` write the PR cache that `wt prompt` reads.
 
+### local_base: the local base branch as trunk
+With `local_base = true`, `ctx.baseRef()` returns the local base branch (`main`) instead of `origin/main`, and `ctx.fetchBase()` fetches nothing. Never call `git.Fetch(Remote, BaseBranch)` or build `Remote + "/" + BaseBranch` for the trunk directly; use those two. `ctx.baseUnpushed()` counts commits on local main not on its remote (list, prompt, submit). A base-branch worktree still fast-forwards from its own remote branch, ff-only.
+
+### The discard guard counts commits that exist only on the branch
+`close`, `prune` and the dashboard ask before losing commits counted by `git.UnsavedCountIn(path, ctx.baseRef())`: commits on neither the trunk nor the upstream. Don't use `UnpushedCountIn` for this: it is 0 for a branch with no upstream. Label the count with `ctx.unsavedLabel()` ("unlanded" with local_base, else "unpushed").
+
 ### Configuration: zero-config with full override
 `.wt.toml` is optional. Defaults: `base_branch = "main"`, `remote = "origin"`, `branch_prefix` = git username. Config is loaded from the main worktree root (not cwd). See `config.go` for all fields.
 

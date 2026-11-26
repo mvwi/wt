@@ -49,13 +49,18 @@ Run ` + "`wt <command> --help`" + ` for flags and examples.
   piped output ends with a ` + "`cta: cmd1 | cmd2`" + ` line instead.
 - Your shell does not follow ` + "`wt switch`" + `. Take ` + "`path`" + ` from the JSON and run
   commands there, or pass ` + "`-C <path>`" + ` to wt.
+- With ` + "`local_base = true`" + ` in config, the trunk is local main, not the remote:
+  ` + "`wt list --output json`" + ` gives ` + "`base.unpushed`" + `, the commits landed on local
+  main but not pushed. ` + "`wt submit`" + ` refuses while that is above 0.
 - ` + "`wt new <name> --init --run \"<cmd>\"`" + ` creates a worktree, sets it up, and runs
   the command inside it.
 
 ## Safety
 
 - ` + "`-y`/`--yes`" + ` answers yes to prompts that lose no work.
-- Only ` + "`--force`" + ` discards uncommitted changes or unpushed commits (close, move).
+- Only ` + "`--force`" + ` discards uncommitted changes or commits that exist only on the
+  branch (close, move). With ` + "`local_base`" + ` on, those are commits not yet landed on
+  local main.
   Never pass it unless the user asked to throw that work away.
 - A prompt that would discard work fails when no one can answer it. Report the
   error to the user; don't retry with --force.

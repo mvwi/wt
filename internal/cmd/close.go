@@ -117,7 +117,7 @@ func runClose(cmd *cobra.Command, args []string) error {
 	}
 
 	// Safety: unpushed commits
-	if unpushed := git.UnpushedCountIn(targetPath); unpushed > 0 {
+	if unpushed := git.UnsavedCountIn(targetPath, ctx.baseRef()); unpushed > 0 {
 		ui.Warn("Branch has %d unpushed commit(s)", unpushed)
 		if ok, err := ui.ConfirmDiscard("Discard commits and close?", closeForceFlag); !ok {
 			return cancelled(err)

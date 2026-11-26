@@ -87,3 +87,51 @@ func TestParsePorcelainOutput(t *testing.T) {
 		})
 	}
 }
+
+// A branch with no upstream used to count 0 unpushed commits, so close -y
+// deleted it without asking. The count must cover every commit that exists
+// only on the branch.
+func TestUnsavedCountIn(t *testing.T) {
+	dir := t.TempDir()
+	run := func(args ...string) {
+		t.Helper()
+		if _, err := RunIn(dir, append([]string{"-c", "user.name=t", "-c", "user.email=t@t"}, args...)...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	run("init", "-q", "-b", "main")
+	run("commit", "-q", "--allow-empty", "-m", "init")
+	run("checkout", "-q", "-b", "feat")
+
+	if n := UnsavedCountIn(dir, "main"); n != 0 {
+		t.Errorf("fresh branch: got %d, want 0", n)
+	}
+
+	run("commit", "-q", "--allow-empty", "-m", "a")
+	run("commit", "-q", "--allow-empty", "-m", "b")
+	if n := UnsavedCountIn(dir, "main"); n != 2 {
+		t.Errorf("no upstream, 2 commits off main: got %d, want 2", n)
+	}
+	if n := UnpushedCountIn(dir); n != 0 {
+		t.Errorf("UnpushedCountIn with no upstream: got %d, want 0 (the old blind spot)", n)
+	}
+
+	// Commits saved on the upstream don't count.
+	run("branch", "saved", "HEAD~1")
+	run("branch", "--set-upstream-to=saved")
+	if n := UnsavedCountIn(dir, "main"); n != 1 {
+		t.Errorf("1 commit past the upstream: got %d, want 1", n)
+	}
+
+	// Commits landed on the base don't count.
+	run("branch", "-f", "main", "HEAD")
+	if n := UnsavedCountIn(dir, "main"); n != 0 {
+		t.Errorf("landed on main: got %d, want 0", n)
+	}
+
+	// A base that doesn't resolve can't hide commits.
+	run("branch", "--unset-upstream")
+	if n := UnsavedCountIn(dir, "origin/main"); n != 3 {
+		t.Errorf("missing base, no upstream: got %d, want 3", n)
+	}
+}

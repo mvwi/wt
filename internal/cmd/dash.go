@@ -310,11 +310,9 @@ func gatherDashItems(ctx *cmdContext, cwd string) ([]tui.DashItem, error) {
 			daysAgo := git.WorktreeAgeDays(info.Path)
 			item.StaleDimmed = daysAgo >= staleThreshold && openPR == nil
 
-			// Unpushed commits are the canonical data-loss signal for close —
-			// fetch for every non-base worktree, not just ones with an open PR.
-			// Cheap call (single rev-list --count); returns 0 if there's no
-			// upstream so no need to special-case.
-			item.Unpushed = git.UnpushedCountIn(info.Path)
+			// Commits on neither the base nor the upstream are the data-loss
+			// signal for close, so count them for every non-base worktree.
+			item.Unpushed = git.UnsavedCountIn(info.Path, ctx.baseRef())
 
 			switch {
 			case openPR != nil:

@@ -105,7 +105,7 @@ func runPrune(cmd *cobra.Command, args []string) error {
 			skippedDirty = append(skippedDirty, staleWorktree{wt.Path, wt.Branch, reason, "has uncommitted changes"})
 			continue
 		}
-		if n := git.UnpushedCountIn(wt.Path); n > 0 {
+		if n := git.UnsavedCountIn(wt.Path, ctx.baseRef()); n > 0 {
 			skippedDirty = append(skippedDirty, staleWorktree{wt.Path, wt.Branch, reason, fmt.Sprintf("has %d unpushed commit(s)", n)})
 			continue
 		}

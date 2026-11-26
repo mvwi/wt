@@ -95,3 +95,22 @@ func UnpushedCountIn(dir string) int {
 	n, _ := strconv.Atoi(strings.TrimSpace(out))
 	return n
 }
+
+// UnsavedCountIn returns the number of commits on HEAD that are on neither
+// base nor the upstream: the commits that deleting the branch would lose.
+// A ref that doesn't resolve is left out, so a missing upstream or base
+// makes the count larger, never smaller.
+func UnsavedCountIn(dir, base string) int {
+	args := []string{"rev-list", "--count", "HEAD", "--not"}
+	for _, ref := range []string{base, "@{upstream}"} {
+		if RunSilentIn(dir, "rev-parse", "--verify", "--quiet", ref+"^{commit}") == nil {
+			args = append(args, ref)
+		}
+	}
+	out, err := RunIn(dir, args...)
+	if err != nil {
+		return 0
+	}
+	n, _ := strconv.Atoi(strings.TrimSpace(out))
+	return n
+}

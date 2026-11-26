@@ -37,6 +37,11 @@ type Config struct {
 	// Pointer to distinguish "not set" (nil → true) from "explicitly false".
 	AutoInstall *bool `toml:"auto_install"`
 
+	// LocalBase makes the local base branch the trunk instead of
+	// <remote>/<base_branch>: branches land on local main and get pushed
+	// later in batches. Default: false.
+	LocalBase *bool `toml:"local_base"`
+
 	// PortBase is added to a worktree's index to give WT_PORT. Default: 3000.
 	PortBase int `toml:"port_base"`
 
@@ -164,6 +169,9 @@ func mergeConfig(dst, src *Config) {
 	if src.AutoInstall != nil {
 		dst.AutoInstall = src.AutoInstall
 	}
+	if src.LocalBase != nil {
+		dst.LocalBase = src.LocalBase
+	}
 	if len(src.Init.CopyFiles) > 0 {
 		dst.Init.CopyFiles = src.Init.CopyFiles
 	}
@@ -200,6 +208,11 @@ func globalConfigPath() (string, error) {
 		return "", err
 	}
 	return filepath.Join(home, ".config", "wt", "config.toml"), nil
+}
+
+// IsLocalBase reports whether the local base branch is the trunk.
+func (c *Config) IsLocalBase() bool {
+	return c.LocalBase != nil && *c.LocalBase
 }
 
 // EffectiveBranchName builds the full branch name for a new worktree.

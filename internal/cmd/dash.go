@@ -176,7 +176,7 @@ func dashRebase(ctx *cmdContext, path, branch string) (int, error) {
 
 	// Fetch the base ref so the rebase target is current. Failure here is
 	// non-fatal — fall through to rebase against whatever's local.
-	_ = git.Fetch(ctx.Config.Remote, ctx.Config.BaseBranch)
+	_ = ctx.fetchBase(false)
 
 	ab, err := git.GetAheadBehindIn(path, ctx.baseRef())
 	if err != nil {

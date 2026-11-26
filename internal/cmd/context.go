@@ -76,9 +76,44 @@ func (c *cmdContext) worktreePath(name string) string {
 	return c.ParentDir + "/" + c.worktreeDir(name)
 }
 
-// baseRef returns the full remote ref for the base branch (e.g., "origin/staging").
+// baseRef returns the trunk: the remote ref for the base branch (e.g.
+// "origin/staging"), or the local branch itself with local_base on.
 func (c *cmdContext) baseRef() string {
+	if c.Config.IsLocalBase() {
+		return c.Config.BaseBranch
+	}
 	return c.Config.Remote + "/" + c.Config.BaseBranch
+}
+
+// fetchBase brings baseRef up to date. With local_base on the trunk is a
+// local branch, so there is nothing to fetch.
+func (c *cmdContext) fetchBase(spinner bool) error {
+	if c.Config.IsLocalBase() {
+		return nil
+	}
+	if spinner {
+		defer ui.NewSpinner("Fetching " + c.baseRef()).Stop()
+	}
+	return git.Fetch(c.Config.Remote, c.Config.BaseBranch)
+}
+
+// baseUnpushed returns how many commits the local base branch is ahead of
+// its remote branch, from refs on disk. ok is false outside local_base mode
+// or when either ref is missing.
+func (c *cmdContext) baseUnpushed() (n int, ok bool) {
+	if !c.Config.IsLocalBase() {
+		return 0, false
+	}
+	n, err := git.RevCount(c.Config.Remote + "/" + c.Config.BaseBranch + ".." + c.Config.BaseBranch)
+	return n, err == nil
+}
+
+// unsavedLabel names the commits the discard guard counts.
+func (c *cmdContext) unsavedLabel() string {
+	if c.Config.IsLocalBase() {
+		return "unlanded"
+	}
+	return "unpushed"
 }
 
 // shortName returns a worktree's path relative to the worktrees dir, so a

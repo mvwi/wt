@@ -353,12 +353,8 @@ func newFromBase(ctx *cmdContext, name string) error {
 	fmt.Println()
 
 	// Fetch latest base branch
-	spin := ui.NewSpinner(fmt.Sprintf("Fetching %s", ctx.Config.BaseBranch))
-	if err := git.Fetch(ctx.Config.Remote, ctx.Config.BaseBranch); err != nil {
-		spin.Stop()
+	if err := ctx.fetchBase(true); err != nil {
 		ui.Warn("Fetch failed: %v", err)
-	} else {
-		spin.Stop()
 	}
 
 	if err := git.AddWorktree(wtPath, branch, ctx.baseRef()); err != nil {

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/mvwi/wt/internal/config"
@@ -120,5 +121,59 @@ func TestCloseRefusesUnsavedCommits(t *testing.T) {
 	}
 	if isDir(path) || git.BranchExists("me/a") {
 		t.Error("merged worktree or branch is still there")
+	}
+}
+
+// With local_base on, the trunk is local main: close keeps unlanded work,
+// lets landed work go though it was never pushed, prune counts a landed
+// branch as stale, and submit won't push while main holds unpushed commits.
+func TestLocalBase(t *testing.T) {
+	main, run := guardRepo(t)
+	if err := os.WriteFile(filepath.Join(main, ".wt.toml"), []byte("local_base = true\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	run(main, "commit", "-q", "--allow-empty", "-m", "landed, not pushed")
+	oldYes := ui.YesFlag
+	ui.YesFlag = true
+	t.Cleanup(func() { ui.YesFlag = oldYes })
+
+	ctx, err := newContext()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := ctx.baseRef(); got != "main" {
+		t.Errorf("baseRef = %q, want main", got)
+	}
+	if n, ok := ctx.baseUnpushed(); !ok || n != 1 {
+		t.Errorf("baseUnpushed = %d, %v; want 1, true", n, ok)
+	}
+
+	path := filepath.Join(filepath.Dir(main), "wt-repo-a")
+	run(main, "worktree", "add", "-q", "-b", "me/a", path, ctx.baseRef())
+	run(path, "commit", "-q", "--allow-empty", "-m", "work")
+
+	t.Chdir(path)
+	if err := runSubmit(submitCmd, nil); err == nil || !strings.Contains(err.Error(), "1 unpushed commit") {
+		t.Errorf("submit with unpushed main = %v, want a refusal", err)
+	}
+	t.Chdir(main)
+
+	if err := runClose(closeCmd, []string{"a"}); !errors.Is(err, ui.ErrNeedsForce) {
+		t.Fatalf("close -y with an unlanded commit = %v, want ErrNeedsForce", err)
+	}
+	if !git.BranchExists("me/a") {
+		t.Fatal("close deleted an unlanded branch")
+	}
+
+	run(main, "merge", "-q", "--ff-only", "me/a")
+	reasons, err := mergedReasons(ctx, []string{"me/a"})
+	if err != nil || reasons["me/a"] != "merged into main" {
+		t.Errorf("mergedReasons = %v, %v; want me/a merged into main", reasons, err)
+	}
+	if err := runClose(closeCmd, []string{"a"}); err != nil {
+		t.Fatalf("close -y of a landed branch = %v, want nil", err)
+	}
+	if git.BranchExists("me/a") {
+		t.Error("landed branch is still there")
 	}
 }

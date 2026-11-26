@@ -274,3 +274,40 @@ func TestEffectiveBranchName(t *testing.T) {
 		})
 	}
 }
+
+// local_base is off by default, can be turned on globally, and a repo's
+// .wt.toml can turn it back off.
+func TestLoadLocalBase(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	repo := t.TempDir()
+	write := func(path, s string) {
+		t.Helper()
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(s), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	load := func() bool {
+		t.Helper()
+		cfg, err := Load(repo, "acq")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return cfg.IsLocalBase()
+	}
+
+	if load() {
+		t.Error("local_base on by default")
+	}
+	write(filepath.Join(home, ".config", "wt", "config.toml"), "[repos.acq]\nlocal_base = true\n")
+	if !load() {
+		t.Error("global [repos.acq] local_base = true did not turn it on")
+	}
+	write(filepath.Join(repo, ".wt.toml"), "local_base = false\n")
+	if load() {
+		t.Error(".wt.toml local_base = false did not turn it off")
+	}
+}

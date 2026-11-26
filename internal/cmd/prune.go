@@ -82,11 +82,21 @@ func runPrune(cmd *cobra.Command, args []string) error {
 
 	reasons, partial, ghErr := prReasons(branches)
 	local := !github.IsAvailable() || ghErr != nil
-	if local {
-		reasons, err = mergedReasons(ctx, branches)
+	if local || ctx.Config.IsLocalBase() {
+		merged, err := mergedReasons(ctx, branches)
 		if err != nil {
 			spin.Stop()
 			return err
+		}
+		if local {
+			reasons = merged
+		}
+		// With local_base on, a branch landed on the local base is stale
+		// whatever GitHub says. A PR reason, when there is one, wins.
+		for b, r := range merged {
+			if reasons[b] == "" {
+				reasons[b] = r
+			}
 		}
 	}
 
@@ -106,7 +116,7 @@ func runPrune(cmd *cobra.Command, args []string) error {
 			continue
 		}
 		if n := git.UnsavedCountIn(wt.Path, ctx.baseRef()); n > 0 {
-			skippedDirty = append(skippedDirty, staleWorktree{wt.Path, wt.Branch, reason, fmt.Sprintf("has %d unpushed commit(s)", n)})
+			skippedDirty = append(skippedDirty, staleWorktree{wt.Path, wt.Branch, reason, fmt.Sprintf("has %d %s commit(s)", n, ctx.unsavedLabel())})
 			continue
 		}
 
@@ -117,7 +127,7 @@ func runPrune(cmd *cobra.Command, args []string) error {
 
 	spin.Stop()
 
-	if local {
+	if local && !ctx.Config.IsLocalBase() {
 		why := "gh is not installed"
 		switch {
 		case ghErr != nil && isNotGitHubRemote(ghErr):
@@ -235,7 +245,7 @@ func prReasons(branches []string) (reasons map[string]string, partial bool, err 
 // branch already contains it. Branches with no commits since creation are
 // skipped, since git also counts them as merged.
 func mergedReasons(ctx *cmdContext, branches []string) (map[string]string, error) {
-	_ = git.Fetch(ctx.Config.Remote, ctx.Config.BaseBranch) // best effort; a stale base only misses branches
+	_ = ctx.fetchBase(false) // best effort; a stale base only misses branches
 	merged, err := git.MergedBranches(ctx.baseRef())
 	if err != nil {
 		return nil, err

@@ -77,7 +77,11 @@ func promptSegment() string {
 	ctx := &cmdContext{Config: cfg, RepoName: repo, MainWorktree: main, ParentDir: filepath.Dir(main)}
 
 	ab, _ := git.GetAheadBehind(ctx.baseRef())
-	return formatPrompt(ctx.shortName(top), ab.Ahead, ab.Behind, readPRCache()[main][branch])
+	seg := formatPrompt(ctx.shortName(top), ab.Ahead, ab.Behind, readPRCache()[main][branch])
+	if n, ok := ctx.baseUnpushed(); ok && n > 0 {
+		seg += fmt.Sprintf(" %s%s%d", cfg.BaseBranch, ui.PushUp, n)
+	}
+	return seg
 }
 
 func formatPrompt(name string, ahead, behind int, pr cachedPR) string {

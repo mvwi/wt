@@ -117,6 +117,15 @@ func GetAheadBehindIn(dir, remoteRef string) (AheadBehind, error) {
 	return ab, nil
 }
 
+// RevCount returns the number of commits in a revision range like "a..b".
+func RevCount(rng string) (int, error) {
+	out, err := Run("rev-list", "--count", rng)
+	if err != nil {
+		return 0, err
+	}
+	return strconv.Atoi(strings.TrimSpace(out))
+}
+
 // Upstream returns the upstream tracking branch, or "" if none.
 func Upstream() string {
 	out, err := Run("rev-parse", "--abbrev-ref", "@{upstream}")

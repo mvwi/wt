@@ -230,7 +230,7 @@ func resolveOrCreateTarget(ctx *cmdContext, name string) (string, bool, error) {
 		return "", false, fmt.Errorf("branch already exists: %s\n   Use 'wt new --from %s' first, then 'wt move' to it", branch, branch)
 	}
 
-	if err := git.Fetch(ctx.Config.Remote, ctx.Config.BaseBranch); err != nil {
+	if err := ctx.fetchBase(false); err != nil {
 		ui.Warn("Fetch failed: %v", err)
 	}
 

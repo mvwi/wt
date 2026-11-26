@@ -313,8 +313,11 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 	// Unpushed commits
 	unpushed := git.UnpushedCountIn(cwd)
+	if ctx.Config.IsLocalBase() {
+		unpushed = git.UnsavedCountIn(cwd, ctx.baseRef())
+	}
 	if unpushed > 0 {
-		fmt.Printf("  %s\n", ui.Cyan(fmt.Sprintf("%s%d unpushed commit(s)", ui.PushUp, unpushed)))
+		fmt.Printf("  %s\n", ui.Cyan(fmt.Sprintf("%s%d %s commit(s)", ui.PushUp, unpushed, ctx.unsavedLabel())))
 	}
 
 	// PR status

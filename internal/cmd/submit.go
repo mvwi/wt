@@ -61,6 +61,12 @@ func runSubmit(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("cannot submit the base branch (%s)\n   Switch to a feature worktree, or use git push directly", branch)
 	}
 
+	// With local_base on, the branch sits on local commits the remote lacks,
+	// so its PR would carry them all.
+	if n, ok := ctx.baseUnpushed(); ok && n > 0 && !submitAbortFlag {
+		return fmt.Errorf("%s has %d unpushed commit(s), and this branch's PR would include them\n   Push %s first: git push %s %s", ctx.Config.BaseBranch, n, ctx.Config.BaseBranch, ctx.Config.Remote, ctx.Config.BaseBranch)
+	}
+
 	// Delegate to rebase first
 	if err := runRebaseWith(rebaseOpts{
 		continueRebase: submitContinueFlag,

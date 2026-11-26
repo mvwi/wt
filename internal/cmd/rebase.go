@@ -118,15 +118,11 @@ func rebaseFeatureBranch(ctx *cmdContext, branch string) error {
 	_ = git.SaveStateFile(stateFileName, stashState+":"+preRef)
 
 	// Fetch base branch
-	spin := ui.NewSpinner(fmt.Sprintf("Fetching %s", ctx.baseRef()))
-	if err := git.Fetch(ctx.Config.Remote, ctx.Config.BaseBranch); err != nil {
-		spin.Stop()
+	if err := ctx.fetchBase(true); err != nil {
 		restoreStash(didStash)
 		git.RemoveStateFile(stateFileName)
 		return fmt.Errorf("failed to fetch from remote: %w", err)
 	}
-
-	spin.Stop()
 
 	// Check if up to date
 	ab, err := git.GetAheadBehind(ctx.baseRef())
@@ -223,6 +219,10 @@ func rebaseBaseBranch(ctx *cmdContext, branch string) error {
 	ab, _ := git.GetAheadBehind(remoteRef)
 	if ab.Behind == 0 {
 		restoreStash(didStash)
+		if ctx.Config.IsLocalBase() && ab.Ahead > 0 {
+			ui.Success("Nothing to pull; %s has %d unpushed commit(s)", branch, ab.Ahead)
+			return nil
+		}
 		ui.Success("Already up to date")
 		return nil
 	}
@@ -310,12 +310,8 @@ func rebaseAll(ctx *cmdContext) error {
 	fmt.Println("Rebasing all worktrees onto", ctx.Config.BaseBranch+"…")
 	fmt.Println()
 
-	spin := ui.NewSpinner(fmt.Sprintf("Fetching %s", ctx.baseRef()))
-	if err := git.Fetch(ctx.Config.Remote, ctx.Config.BaseBranch); err != nil {
-		spin.Stop()
+	if err := ctx.fetchBase(true); err != nil {
 		ui.Warn("Fetch failed: %v", err)
-	} else {
-		spin.Stop()
 	}
 	fmt.Println()
 

@@ -52,8 +52,16 @@ type worktreeInfo struct {
 // JSON output structs
 
 type listJSONOutput struct {
+	Base      *listJSONBase   `json:"base,omitempty"`
 	Worktrees []listJSONEntry `json:"worktrees"`
 	CTA       []string        `json:"cta,omitempty"`
+}
+
+// listJSONBase is the local base branch with local_base on: the batch of
+// landed commits waiting to be pushed.
+type listJSONBase struct {
+	Branch   string `json:"branch"`
+	Unpushed int    `json:"unpushed"`
 }
 
 type listJSONReview struct {
@@ -228,7 +236,11 @@ func runListJSON(ctx *cmdContext, cwd string, worktrees []git.Worktree) error {
 		entries = append(entries, entry)
 	}
 
-	data, err := json.MarshalIndent(listJSONOutput{Worktrees: entries, CTA: deriveListCTA(hasStale, hasBehind)}, "", "  ")
+	out := listJSONOutput{Worktrees: entries, CTA: deriveListCTA(hasStale, hasBehind)}
+	if n, ok := ctx.baseUnpushed(); ok {
+		out.Base = &listJSONBase{Branch: ctx.Config.BaseBranch, Unpushed: n}
+	}
+	data, err := json.MarshalIndent(out, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -247,6 +259,11 @@ func runListTOON(ctx *cmdContext, cwd string, worktrees []git.Worktree) error {
 	hasBehind := false
 	hasStale := false
 
+	if n, ok := ctx.baseUnpushed(); ok {
+		fmt.Println("base:")
+		fmt.Printf("  branch: %s\n", ctx.Config.BaseBranch)
+		fmt.Printf("  unpushed: %d\n", n)
+	}
 	fmt.Println("worktrees:")
 	for _, info := range infos {
 		isBase := ctx.isBaseBranch(info.Branch)
@@ -333,6 +350,15 @@ func runListTerminal(ctx *cmdContext, cwd string, worktrees []git.Worktree) erro
 
 	// Phase 1: Show worktree names immediately
 	ui.Header("WORKTREES")
+	if n, ok := ctx.baseUnpushed(); ok {
+		line := fmt.Sprintf("%s: %d unpushed", ctx.Config.BaseBranch, n)
+		if n > 0 {
+			line = ui.Magenta(line)
+		} else {
+			line = ui.Dim(line)
+		}
+		fmt.Printf("  %s\n", line)
+	}
 
 	nameWidth := 8
 	for _, info := range infos {

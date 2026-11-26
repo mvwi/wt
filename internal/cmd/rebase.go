@@ -313,7 +313,9 @@ func rebaseAll(ctx *cmdContext) error {
 	if err := ctx.fetchBase(true); err != nil {
 		ui.Warn("Fetch failed: %v", err)
 	}
-	fmt.Println()
+	if !ctx.Config.IsLocalBase() {
+		fmt.Println() // after the fetch spinner
+	}
 
 	var rebased, skipped, uptodate, failed int
 	var conflicted []string
